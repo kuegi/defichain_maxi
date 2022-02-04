@@ -2,6 +2,10 @@
 This script is made to optimize your defichain vault rewards by maximizing the amount of loans put into the liquidity mining of dTokens.
 You can define the thresholds for your collateralization ratio. if the collateral rises, the script increases LM-exposure, if it falls it automatically decreases it.
 
+If the `reinvest` is set in the settings, it will automatically reinvest DFI rewards from the address as soon as they go over that threshold. 
+
+The first version needs a full node with activated rpc to run. I might do a version using the Ocean API later on.
+
 # Disclaimer / WARNING
 This is no beginners tool. I only recommend it for ppl who know what they are doing and have experience in running a 24/7 server.
 If you don't understand what the code does and what the risks are, you will probably loose money.
