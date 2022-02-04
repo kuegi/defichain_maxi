@@ -1,0 +1,17 @@
+{
+  "NODE_USER":   "RPC_USER",
+  "NODE_PASSWORD": "RPC_Password",
+
+  "vaultId":"yourVaultId",
+  "address":"yourAddress",
+  "telegram": {
+    "token": "telegramBot:Token",
+    "channel": "channelToSendMessagesTo"
+  },
+  "minCollateralRatio": 180,
+  "maxCollateralRatio": 185,
+  "lmPair": "SPY-DUSD",
+  "minReinvest" : 50,
+  "logToConsole": true,
+  "logToFile": true
+}
