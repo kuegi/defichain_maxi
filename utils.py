@@ -171,6 +171,9 @@ def updateData(data):
 # ===================================== RPC Stuff ===================================
 
 
+def blockcount():
+    return rpc("getblockcount")
+
 def get_tx_input(address, minamount=0.001, count= 1):
     # get a random utxo (helps preventing problems when multiple scripts use the same address)
     unspent = rpc("listunspent", [1, 9999999, [address], False, {"minimumAmount": round(minamount, 8)}])
