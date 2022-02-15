@@ -15,7 +15,7 @@ maxPrice = 1.016
 
 logToConsole = True
 logToFile = False
-# TODO: read from settings
+logId= ""
 
 '''
 sample settings:
@@ -26,7 +26,7 @@ sample settings:
   "address":"yourAddress",
   "sourceToken": "USDC",
   "targetToken": "DUSD",
-  "totalAmount: 10,
+  "totalAmount": 10,
   "batchSize": 1,
   "maxPrice": 1.02,
   
@@ -70,7 +70,7 @@ logger = utils.setup_logger("tradebot_" + logId, logging.INFO, logToConsole=logT
 utils.LOGGER = logger
 
 logger.info(
-    f"starting to trade. trying to swap {totalAmount} {sourceToken} into {targetToken} with maxPrice {maxPrice}")
+    f"starting to trade. trying to swap {totalAmount} {sourceToken} into {targetToken} with maxPrice {maxPrice}. {batchSize} at a time")
 
 openAmount = totalAmount
 try:
@@ -88,15 +88,15 @@ try:
             "tokenTo": targetToken,
             "maxPrice": maxPrice
         }
-        test_result = utils.rpc("testpoolswap", [data, "auto"])
+        test_result = utils.rpc("testpoolswap", [data, "auto"],silentErrors=True)
         if test_result is not None:
             logger.info(f"{utils.blockcount()} trying swap on testresult {test_result}")
             tx = utils.rpc("compositeswap", [data])
             success = utils.waitForTx(tx)
             if success:
-                logger.info(f"{utils.blockcount()} successfully swapped batch")
+                openAmount -= batchSize
+                logger.info(f"{utils.blockcount()} successfully swapped batch, got {openAmount} to do")
                 utils.send_telegram("tradebot successfully swapped a batch")
-                openAmount = openAmount - batchSize
             else:
                 utils.rpc("removeprunedfunds", [tx])
                 logger.info(f"{utils.blockcount()} failed to swap batch")
