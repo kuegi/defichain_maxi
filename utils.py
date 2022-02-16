@@ -62,7 +62,7 @@ def setup_logger(name="kuegi_defi", log_level=logging.INFO,
 def send_telegram(message):
     if TELEGRAM_TOKEN is not None and TELEGRAM_CHANNEL is not None:
         if logId is not None:
-            message = logId + ": " + message
+            message = str(logId) + ": " + message
         url = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN + '/sendMessage?chat_id=' + TELEGRAM_CHANNEL + '&text=' + message
 
         result = requests.get(url).json()
