@@ -15,7 +15,7 @@ maxPrice = 1.016
 
 logToConsole = True
 logToFile = False
-logId= ""
+logId = ""
 
 '''
 sample settings:
@@ -75,31 +75,36 @@ logger.info(
 openAmount = totalAmount
 try:
     while openAmount > 0:
+        amount = min(batchSize, openAmount)
         balance = utils.get_balance(address, sourceToken)
-        if balance < batchSize:
-            logger.error(f"not enough balance in adress! {balance} < {batchSize}! quitting")
+        if logToConsole:
+            print(f"\r{utils.blockcount()} still {openAmount} {sourceToken} to go", end="")
+        if balance < amount:
+            logger.error(f"not enough tokens in adress! {balance} < {amount}! quitting")
             break
-
         data = {
             "from": address,
             "tokenFrom": sourceToken,
-            "amountFrom": batchSize,
+            "amountFrom": amount,
             "to": address,
             "tokenTo": targetToken,
             "maxPrice": maxPrice
         }
-        test_result = utils.rpc("testpoolswap", [data, "auto"],silentErrors=True)
+        test_result = utils.rpc("testpoolswap", [data, "auto"], silentErrors=True)
         if test_result is not None:
             logger.info(f"{utils.blockcount()} trying swap on testresult {test_result}")
-            tx = utils.rpc("compositeswap", [data])
-            success = utils.waitForTx(tx)
-            if success:
-                openAmount -= batchSize
-                logger.info(f"{utils.blockcount()} successfully swapped batch, got {openAmount} to do")
-                utils.send_telegram("tradebot successfully swapped a batch")
+            tx = utils.rpc("compositeswap", [data], silentErrors=True)
+            if tx is not None:
+                success = utils.waitForTx(tx)
+                if success:
+                    openAmount -= amount
+                    logger.info(f"{utils.blockcount()} successfully swapped batch, got {openAmount} to do")
+                    utils.send_telegram("tradebot successfully swapped a batch")
+                else:
+                    utils.rpc("removeprunedfunds", [tx])
+                    logger.info(f"{utils.blockcount()} failed to swap batch")
             else:
-                utils.rpc("removeprunedfunds", [tx])
-                logger.info(f"{utils.blockcount()} failed to swap batch")
+                utils.waitBlocks(1)  # probably slipage: wait for next block
 
         sleep(10)
 
