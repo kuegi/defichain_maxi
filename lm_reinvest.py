@@ -61,7 +61,7 @@ try:
     while asset_a == "DUSD":
         balance_DFI = utils.get_balance(address, "DFI")
         if balance_DFI > min_reinvest:
-            amount_to_swap = balance_DFI / 2
+            amount_to_swap = round(balance_DFI / 2, 8)
 
             data = {
                 "from": address,
