@@ -1,0 +1,13 @@
+{
+    "private": true,
+    "scripts": {
+        "build": "node build.js"
+    },
+    "dependencies": {
+        "@defichain/whale-api-client": "latest",
+        "typescript": "^4.5.5"
+    },
+    "devDependencies": {
+        "@vercel/ncc": "latest"
+    }
+}
