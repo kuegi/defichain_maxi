@@ -14,4 +14,7 @@ Use Test functionality to send whatever event - empty or not.
 
 # Build & preparing for upload
 npm i
-npm run build
+npm run build --file={name_of_your_file}
+
+# following files can be built
+- stats

@@ -8,7 +8,7 @@ const client = new WhaleApiClient({
     version: 'v0'
 })
 
-async function main (): Promise<Object> {
+export async function main (): Promise<Object> {
     var stats = await client.stats.get()
 
     var result = {
@@ -21,8 +21,4 @@ async function main (): Promise<Object> {
         body: result,
     };
     return response
-}
-
-export async function handler(): Promise<Object> {
-    return await main()
 }
