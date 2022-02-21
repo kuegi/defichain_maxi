@@ -18,3 +18,4 @@ npm run build --file={name_of_your_file}
 
 # following files can be built
 - stats
+- telegram-send

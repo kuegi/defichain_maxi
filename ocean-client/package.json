@@ -5,6 +5,7 @@
     },
     "dependencies": {
         "@defichain/whale-api-client": "latest",
+        "node-fetch": "^3.2.0",
         "typescript": "^4.5.5"
     },
     "devDependencies": {

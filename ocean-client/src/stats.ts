@@ -12,13 +12,13 @@ export async function main (): Promise<Object> {
     var stats = await client.stats.get()
 
     var result = {
-        "blocks": stats.count.blocks,
-        "tokens": stats.count.tokens
+        blocks: stats.count.blocks,
+        tokens: stats.count.tokens
     }
 
     const response = {
         statusCode: 200,
         body: result,
-    };
+    }
     return response
 }
