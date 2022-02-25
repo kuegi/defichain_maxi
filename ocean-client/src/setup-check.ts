@@ -9,6 +9,10 @@ const client = new WhaleApiClient({
 })
 
 export async function main (): Promise<Object> {
+    // TODO: 2022-02-24 Krysh: rewrite script to check, if everything is setup correctly
+    // - parameter store is configured correctly for use
+    // - do checks if address is associated to key and vaults
+    // - telegram can be pinged
     var stats = await client.stats.get()
 
     var result = {
