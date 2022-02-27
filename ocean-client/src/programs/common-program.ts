@@ -21,6 +21,10 @@ export class CommonProgram {
         this.account = new WhaleWalletAccount(client, wallet, TestNet)
     }
 
+    async getAddress(): Promise<string> {
+        return this.account.getAddress()
+    }
+
     async getUTXOBalance(): Promise<BigNumber> {
         return new BigNumber(await this.client.address.getBalance(this.store.settings.address))
     }

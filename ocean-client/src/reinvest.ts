@@ -1,5 +1,4 @@
-import { Elliptic } from '@defichain/jellyfish-crypto'
-import { BigNumber } from '@defichain/jellyfish-api-core'
+import { WIF } from '@defichain/jellyfish-crypto'
 import { WalletClassic } from '@defichain/jellyfish-wallet-classic'
 import { WhaleApiClient } from '@defichain/whale-api-client'
 import { ReinvestProgram } from './programs/reinvest-program'
@@ -27,28 +26,38 @@ export async function main(): Promise<Object> {
     telegram.logToken = settings.logToken
 
     Logger.default.setTelegram(telegram)
-
+    
     // TODO: 2022-02-25 Krysh: fix wallet initialisation
-    const keyBuffer = Buffer.from(settings.key)
-    const wallet = new WalletClassic(Elliptic.fromPrivKey(keyBuffer))
+    const wallet = new WalletClassic(WIF.asEllipticPair(settings.key))
     const program = new ReinvestProgram(store, client, wallet)
 
-    var utxos = await program.getUTXOBalance()
-    console.log("start utxos = " + utxos)
-    var balance = await program.getTokenBalance('DFI')
-    console.log("start balance = " + balance?.amount + " " + balance?.symbol)
-
-    const success = await program.depositToVault('DFI', new BigNumber(1))
-
-    utxos = await program.getUTXOBalance()
-    console.log("end utxos = " + utxos)
-    balance = await program.getTokenBalance('DFI')
-    console.log("end balance = " + balance?.amount + " " + balance?.symbol)
+    const address = await program.getAddress()
+    const balance = await program.getUTXOBalance()
+    const balanceToken = await program.getTokenBalance('DFI')
 
     let body = {
+        address: address,
+        addressSame: settings.address === address,
         balance: balance,
-        isTransactionSuccessful: success
+        balanceToken: balanceToken
     }
+
+    // var utxos = await program.getUTXOBalance()
+    // console.log("start utxos = " + utxos)
+    // var balance = await program.getTokenBalance('DFI')
+    // console.log("start balance = " + balance?.amount + " " + balance?.symbol)
+
+    // const success = await program.depositToVault('DFI', new BigNumber(1))
+
+    // utxos = await program.getUTXOBalance()
+    // console.log("end utxos = " + utxos)
+    // balance = await program.getTokenBalance('DFI')
+    // console.log("end balance = " + balance?.amount + " " + balance?.symbol)
+
+    // let body = {
+    //     balance: balance,
+    //     isTransactionSuccessful: success
+    // }
 
     const response = {
         statusCode: 200,
