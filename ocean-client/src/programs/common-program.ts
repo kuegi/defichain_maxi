@@ -1,36 +1,35 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { TestNet } from "@defichain/jellyfish-network";
 import { CTransactionSegWit, TransactionSegWit } from "@defichain/jellyfish-transaction";
-import { WalletClassic } from "@defichain/jellyfish-wallet-classic";
+import { JellyfishWallet, WalletEllipticPair, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
-import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
+import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
 import { Store } from "../utils/store";
 
 export class CommonProgram {
     private readonly store: Store
     private readonly client: WhaleApiClient
-    private readonly wallet: WalletClassic
-    private readonly account: WhaleWalletAccount
+    private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
 
-    constructor(store: Store, client: WhaleApiClient, wallet: WalletClassic) {
+    constructor(store: Store, client: WhaleApiClient, nodeProvider: WalletHdNodeProvider<WalletHdNode>, accountProvider: WhaleWalletAccountProvider) {
         this.store = store
         this.client = client
-        this.wallet = wallet
-        this.account = new WhaleWalletAccount(client, wallet, TestNet)
+        this.wallet = new JellyfishWallet(nodeProvider, accountProvider)
+        this.wallet.discover()
     }
 
     async getAddress(): Promise<string> {
-        return this.account.getAddress()
+        return this.wallet.get(0).getAddress()
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
-        return new BigNumber(await this.client.address.getBalance(this.store.settings.address))
+        return new BigNumber(await this.client.address.getBalance(await this.getAddress()))
     }
 
     async getTokenBalance(symbol: String): Promise<AddressToken | undefined> {
-        const tokens = await this.client.address.listToken(this.store.settings.address, 100)
+        const tokens = await this.client.address.listToken(await this.getAddress(), 100)
 
         return tokens.find(token => {
             return token.isDAT && token.symbol === symbol
@@ -38,7 +37,7 @@ export class CommonProgram {
     }
 
     async getVault(): Promise<LoanVaultActive | LoanVaultLiquidated | undefined> {
-        const vaults = await this.client.address.listVault(this.store.settings.address)
+        const vaults = await this.client.address.listVault(await this.getAddress())
         
         return vaults.find(vault => {
             return vault.vaultId === this.store.settings.vault
@@ -50,10 +49,11 @@ export class CommonProgram {
         if (!token) {
             return false
         }
-        const address = await this.account.getAddress()
+        const account = await this.wallet.get(0)
+        const address = await account.getAddress()
         console.log("depositToVault vaultId=" + this.store.settings.vault + " from=" + address + " token=" + amount + " " + token.symbol)
-        const script = await this.account.getScript()
-        const txn = await this.account.withTransactionBuilder().loans.depositToVault({
+        const script = await account.getScript()
+        const txn = await account.withTransactionBuilder().loans.depositToVault({
             vaultId: this.store.settings.vault,
             from: script,
             tokenAmount: {
