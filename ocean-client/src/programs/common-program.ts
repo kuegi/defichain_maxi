@@ -1,22 +1,22 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { TestNet } from "@defichain/jellyfish-network";
 import { CTransactionSegWit, TransactionSegWit } from "@defichain/jellyfish-transaction";
-import { JellyfishWallet, WalletEllipticPair, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
+import { JellyfishWallet, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
 import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
 import { Store } from "../utils/store";
+import { WalletSetup } from "../utils/wallet-setup";
 
 export class CommonProgram {
     private readonly store: Store
     private readonly client: WhaleApiClient
     private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
 
-    constructor(store: Store, client: WhaleApiClient, nodeProvider: WalletHdNodeProvider<WalletHdNode>, accountProvider: WhaleWalletAccountProvider) {
+    constructor(store: Store, walletSetup: WalletSetup) {
         this.store = store
-        this.client = client
-        this.wallet = new JellyfishWallet(nodeProvider, accountProvider)
+        this.client = walletSetup.client
+        this.wallet = new JellyfishWallet(walletSetup.nodeProvider, walletSetup.accountProvider)
         this.wallet.discover()
     }
 
