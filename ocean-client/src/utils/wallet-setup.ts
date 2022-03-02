@@ -9,6 +9,7 @@ export class WalletSetup {
     readonly client: WhaleApiClient
     readonly accountProvider: WalletAccountProvider<WhaleWalletAccount>
     readonly nodeProvider: WalletHdNodeProvider<WalletHdNode>
+    private static NEEDED_SEED_LENGTH = 24
 
     constructor(network: Network, settings: StoredSettings) {
         this.client = new WhaleApiClient({
@@ -28,6 +29,10 @@ export class WalletSetup {
             },
             wif: network.wifPrefix
         }
+    }
+
+    static canInitializeFrom(settings: StoredSettings): boolean {
+        return settings.seed !== undefined && settings.seed.length === WalletSetup.NEEDED_SEED_LENGTH
     }
 
     // 2022-02-28 Krysh: just here to not lose this information

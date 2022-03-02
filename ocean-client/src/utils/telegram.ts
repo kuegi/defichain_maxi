@@ -1,4 +1,5 @@
 import fetch from "node-fetch"
+import { isNullOrEmpty } from "./helpers"
 
 export class Telegram {
     chatId: string = ""
@@ -8,14 +9,14 @@ export class Telegram {
     endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
 
     async send(message: string): Promise<unknown> {
-        if (this.chatId.length === 0 || this.token.length === 0) {
+        if (isNullOrEmpty(this.chatId) || isNullOrEmpty(this.token)) {
             return new Promise(resolve => null)
         }
         return this.internalSend(message, this.chatId, this.token)
     }
 
     async log(message: string): Promise<unknown> {
-        if (this.logChatId.length === 0 || this.logToken.length === 0) {
+        if (isNullOrEmpty(this.logChatId) || isNullOrEmpty(this.logToken)) {
             return new Promise(resolve => null)
         }
         return this.internalSend(message, this.logChatId, this.logToken)

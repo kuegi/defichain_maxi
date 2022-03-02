@@ -1,5 +1,5 @@
 import { MainNet } from "@defichain/jellyfish-network"
-import { CheckProgram } from "./programs/check-program"
+import { CheckedValues, CheckProgram } from "./programs/check-program"
 import { Logger } from "./utils/logger"
 import { Store } from "./utils/store"
 import { Telegram } from "./utils/telegram"
@@ -17,9 +17,12 @@ export async function main (): Promise<Object> {
 
     Logger.default.setTelegram(telegram)
 
-    const walletSetup = new WalletSetup(MainNet, settings)
-    const program = new CheckProgram(store, walletSetup)
-    const checkedValues = await program.basicCheck(settings)
+    var checkedValues = new CheckedValues()
+    if (WalletSetup.canInitializeFrom(settings)) {
+        const walletSetup = new WalletSetup(MainNet, settings)
+        const program = new CheckProgram(store, walletSetup)
+        checkedValues = await program.basicCheck(settings)
+    }
 
     // 2022-03-02 Krysh: Name and everything needs to be defined somewhere else
     // Just putting in here ideas, how it could look like
@@ -33,7 +36,7 @@ export async function main (): Promise<Object> {
     + "Configured vault is same to wallet address' vault? " + getYesOrNo(checkedValues.hasSameVault)
 
     await telegram.send(message)
-
+    
     const response = {
         statusCode: 200,
         body: checkedValues,

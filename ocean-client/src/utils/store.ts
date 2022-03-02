@@ -53,11 +53,11 @@ export class StoredSettings {
 }
 
 enum StoreKey {
-    TelegramNotificationChatId = '/ocean-client/telegram/notifications/chat-id',
-    TelegramNotificationToken = '/ocean-client/telegram/notifications/token',
-    TelegramLogsChatId = '/ocean-client/telegram/logs/chat-id',
-    TelegramLogsToken = '/ocean-client/telegram/logs/token',
-    DeFiAddress = '/ocean-client/wallet/light/address',
-    DeFiVault = '/ocean-client/wallet/light/vault',
-    DeFiWalletSeed = '/ocean-client/wallet/light/seed',
+    TelegramNotificationChatId = '/defichain-maxi/telegram/notifications/chat-id',
+    TelegramNotificationToken = '/defichain-maxi/telegram/notifications/token',
+    TelegramLogsChatId = '/defichain-maxi/telegram/logs/chat-id',
+    TelegramLogsToken = '/defichain-maxi/telegram/logs/token',
+    DeFiAddress = '/defichain-maxi/wallet/address',
+    DeFiVault = '/defichain-maxi/wallet/vault',
+    DeFiWalletSeed = '/defichain-maxi/wallet/seed',
 }
