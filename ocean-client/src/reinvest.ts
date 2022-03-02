@@ -1,4 +1,4 @@
-import { TestNet } from '@defichain/jellyfish-network'
+import { MainNet } from '@defichain/jellyfish-network'
 import { ReinvestProgram } from './programs/reinvest-program'
 import { Logger } from './utils/logger'
 import { Store } from './utils/store'
@@ -15,7 +15,7 @@ export async function main(): Promise<Object> {
 
     Logger.default.setTelegram(telegram)
 
-    const walletSetup = new WalletSetup(TestNet, settings)
+    const walletSetup = new WalletSetup(MainNet, settings)
     const program = new ReinvestProgram(store, walletSetup)
 
     const address = await program.getAddress()
@@ -24,7 +24,7 @@ export async function main(): Promise<Object> {
 
     let body = {
         address: address,
-        addressSame: settings.lw_address === address,
+        addressSame: settings.address === address,
         balance: balance,
         balanceToken: balanceToken
     }

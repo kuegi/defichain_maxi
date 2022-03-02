@@ -1,13 +1,13 @@
 import { Network } from "@defichain/jellyfish-network";
-import { WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
+import { WalletAccountProvider, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
 import { Bip32Options, MnemonicHdNodeProvider } from "@defichain/jellyfish-wallet-mnemonic";
 import { WhaleApiClient } from "@defichain/whale-api-client";
-import { WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
+import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
 import { StoredSettings } from "./store";
 
 export class WalletSetup {
     readonly client: WhaleApiClient
-    readonly accountProvider: WhaleWalletAccountProvider
+    readonly accountProvider: WalletAccountProvider<WhaleWalletAccount>
     readonly nodeProvider: WalletHdNodeProvider<WalletHdNode>
 
     constructor(network: Network, settings: StoredSettings) {
@@ -17,7 +17,7 @@ export class WalletSetup {
             network: network.name
         })
         this.accountProvider = new WhaleWalletAccountProvider(this.client, network)
-        this.nodeProvider = MnemonicHdNodeProvider.fromWords(settings.lw_seed, this.bip32Options(network))
+        this.nodeProvider = MnemonicHdNodeProvider.fromWords(settings.seed, this.bip32Options(network))
     }
 
     private bip32Options(network: Network): Bip32Options {
