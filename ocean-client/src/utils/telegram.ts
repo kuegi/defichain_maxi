@@ -25,8 +25,8 @@ export class Telegram {
         let endpointUrl = this.endpoint
             .replace('%token', token)
             .replace('%chatId', chatId)
-            .replace('%message', message)
-
+            .replace('%message', encodeURI(message))
+        
         const response = await fetch(endpointUrl)
         return await response.json()
     }

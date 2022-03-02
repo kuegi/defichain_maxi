@@ -1,28 +1,46 @@
-import { WhaleApiClient } from '@defichain/whale-api-client'
-
-/**
- * Initialize WhaleApiClient connected to ocean.defichain.com/v0
- */
-const client = new WhaleApiClient({
-    url: 'https://ocean.defichain.com',
-    version: 'v0'
-})
+import { MainNet } from "@defichain/jellyfish-network"
+import { CheckProgram } from "./programs/check-program"
+import { Logger } from "./utils/logger"
+import { Store } from "./utils/store"
+import { Telegram } from "./utils/telegram"
+import { WalletSetup } from "./utils/wallet-setup"
 
 export async function main (): Promise<Object> {
-    // TODO: 2022-02-24 Krysh: rewrite script to check, if everything is setup correctly
-    // - parameter store is configured correctly for use
-    // - do checks if address is associated to key and vaults
-    // - telegram can be pinged
-    var stats = await client.stats.get()
+    const store = new Store()
+    let settings = await store.fetchSettings()
 
-    var result = {
-        blocks: stats.count.blocks,
-        tokens: stats.count.tokens
-    }
+    const telegram = new Telegram()
+    telegram.chatId = settings.chatId
+    telegram.token = settings.token
+    telegram.logChatId = settings.logChatId
+    telegram.logToken = settings.logToken
+
+    Logger.default.setTelegram(telegram)
+
+    const walletSetup = new WalletSetup(MainNet, settings)
+    const program = new CheckProgram(store, walletSetup)
+    const checkedValues = await program.basicCheck(settings)
+
+    // 2022-03-02 Krysh: Name and everything needs to be defined somewhere else
+    // Just putting in here ideas, how it could look like
+    Logger.default.log("[OceanClient][Log] This channel will be used for verbose logging")
+
+    const message = ""
+    + "[OceanClient] Setup-Check result\n"
+    + "Could initialize wallet? " + getYesOrNo(checkedValues.couldInitializeWallet)
+    + "Configured address is same to wallet address? " + getYesOrNo(checkedValues.hasSameAddress)
+    + "A vault is configured? " + getYesOrNo(checkedValues.hasVaultSpecified)
+    + "Configured vault is same to wallet address' vault? " + getYesOrNo(checkedValues.hasSameVault)
+
+    await telegram.send(message)
 
     const response = {
         statusCode: 200,
-        body: result,
+        body: checkedValues,
     }
     return response
+}
+
+function getYesOrNo(bool: boolean): string {
+    return bool ? "Yes\n" : "No\n"
 }
