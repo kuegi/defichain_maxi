@@ -73,14 +73,15 @@ export async function main(): Promise<Object> {
             }
         }
         const tokens= await program.getTokenBalances()
-        console.log(" removed liq. got tokens: "+tokens+" ")
+        console.log(" removed liq. got tokens: "+Array.from(tokens.values()).map(value => ""+value.symbol+"@"+value.amount))
         let paybackTokens: TokenBalance[] = []
         let token= tokens.get("DUSD")
         if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,neededrepay))})
         token= tokens.get(settings.LMToken)
         if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,neededStock))})
         
-        console.log(" paying back tokens "+paybackTokens+"")
+        
+        console.log(" paying back tokens "+paybackTokens.map(token => ""+token.token+"@"+token.amount))
         if(paybackTokens.length > 0) {
             const paybackTx= await program.paybackLoans(paybackTokens)
             if(! await program.waitForTx(paybackTx)) {
