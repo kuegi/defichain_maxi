@@ -23,7 +23,6 @@ export async function main(): Promise<Object> {
     const program = new VaultMaxiProgram(settings, walletSetup)
     await program.init()
 
-    let debug: string= ""
     const targetCollateral = (settings.minCollateralRatio + settings.maxCollateralRatio) / 200
     const lmPair= settings.LMToken + "-DUSD"
 
@@ -37,7 +36,7 @@ export async function main(): Promise<Object> {
     const collateralRatio = Number(vault.collateralRatio)
     const oracle:ActivePrice = await program.getFixedIntervalPrice(settings.LMToken)
     let pool:PoolPairData = (await program.getPool(lmPair)) !!
-    debug += "starting with "+collateralRatio+" in vault, target "+settings.minCollateralRatio+" - "+settings.maxCollateralRatio+"\n"
+    console.log("starting with "+collateralRatio+" in vault, target "+settings.minCollateralRatio+" - "+settings.maxCollateralRatio+"")
 
     if(0 < collateralRatio  && collateralRatio < settings.minCollateralRatio) {
         // reduce exposure
@@ -54,7 +53,7 @@ export async function main(): Promise<Object> {
                 dusdLoan = +loanamount.amount
             }
         })
-        debug += "reducing exposure "+neededrepay+" dusd "+neededStock+" dToken from "+lptokens+" existing LPTokens \n"
+        console.log("reducing exposure "+neededrepay+" dusd "+neededStock+" dToken from "+lptokens+" existing LPTokens")
         if(lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
             telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             return {
@@ -64,7 +63,7 @@ export async function main(): Promise<Object> {
         }
         const stock_per_token = +pool!.tokenA.reserve / +pool!.totalLiquidity.token
         const removeTokens = Math.min(neededStock / stock_per_token, lptokens)
-        debug += " would need "+(neededStock/stock_per_token)+" doing "+removeTokens+" \n"
+        console.log(" would need "+(neededStock/stock_per_token)+" doing "+removeTokens+" ")
         const removeTx= await program.removeLiquidity(+pool!.id,new BigNumber(removeTokens))
         if(! await program.waitForTx(removeTx)) {
             telegram.send("ERROR: when removing liquidity")
@@ -74,14 +73,14 @@ export async function main(): Promise<Object> {
             }
         }
         const tokens= await program.getTokenBalances()
-        debug += " removed liq. got tokens: "+tokens+" \n"
+        console.log(" removed liq. got tokens: "+tokens+" ")
         let paybackTokens: TokenBalance[] = []
         let token= tokens.get("DUSD")
         if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,neededrepay))})
         token= tokens.get(settings.LMToken)
         if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,neededStock))})
         
-        debug += " paying back tokens "+paybackTokens+"\n"
+        console.log(" paying back tokens "+paybackTokens+"")
         if(paybackTokens.length > 0) {
             const paybackTx= await program.paybackLoans(paybackTokens)
             if(! await program.waitForTx(paybackTx)) {
@@ -96,9 +95,12 @@ export async function main(): Promise<Object> {
 
         // increase exposure
 
+        console.log(" increasing exposure ")
         const additionalLoan = (+vault.collateralValue / targetCollateral) - +vault.loanValue
         let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
         let neededDUSD = +pool.priceRatio.ba * neededStock
+        
+        console.log(" taking loan "+neededStock+" dToken "+neededDUSD+" DUSD ")
         const takeloanTx= await program.takeLoans([
                             { token: +pool.tokenA.id, amount: new BigNumber(neededStock)},
                             { token:+pool.tokenB.id, amount: new BigNumber(neededDUSD)}
@@ -120,6 +122,8 @@ export async function main(): Promise<Object> {
             neededStock = +tokenBalance!.amount
             neededDUSD = +pool.priceRatio.ba * neededStock
         }
+        
+        console.log(" adding liquidity "+neededStock+" dToken "+neededDUSD+" DUSD ")
         const addTx= await program.addLiquidity([
             {token:+pool.tokenA.id, amount:new BigNumber(neededStock)},
             {token:+pool.tokenB.id, amount:new BigNumber(neededDUSD)},
@@ -132,8 +136,7 @@ export async function main(): Promise<Object> {
     }
 
     const response = {
-        statusCode: 200,
-        message: body
+        statusCode: 200
     }
     return response
 }

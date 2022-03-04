@@ -6,8 +6,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 
 export async function main(): Promise<Object> {
-    const store = new Store()
-    let settings = await store.fetchSettings()
+    let settings = await new Store().fetchSettings()
 
     const telegram = new Telegram()
     telegram.logChatId = settings.logChatId
@@ -16,7 +15,7 @@ export async function main(): Promise<Object> {
     Logger.default.setTelegram(telegram)
 
     const walletSetup = new WalletSetup(MainNet, settings)
-    const program = new ReinvestProgram(store, walletSetup)
+    const program = new ReinvestProgram(settings, walletSetup)
 
     const address = await program.getAddress()
     const balance = await program.getUTXOBalance()

@@ -43,7 +43,7 @@ export class CommonProgram {
         let result= new Map<string,AddressToken>()
         const tokens = await this.client.address.listToken(await this.getAddress(), 100)
 
-        return new Map(tokens.map(token =>[token.symbol,token])
+        return new Map(tokens.map(token =>[token.symbol,token]))
     }
 
     async getTokenBalance(symbol: String): Promise<AddressToken | undefined> {
@@ -152,6 +152,7 @@ export class CommonProgram {
     }
 
     async waitForTx(txId:string): Promise<boolean> {
+        await delay(1000) //to give ocean a change to update
         let tx= await this.client.transactions.get(txId)
         while(tx && isNullOrEmpty(tx.block.hash)) {
             await delay(1000)
