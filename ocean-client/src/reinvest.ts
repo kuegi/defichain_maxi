@@ -8,9 +8,7 @@ import { WalletSetup } from './utils/wallet-setup'
 export async function main(): Promise<Object> {
     let settings = await new Store().fetchSettings()
 
-    const telegram = new Telegram()
-    telegram.logChatId = settings.logChatId
-    telegram.logToken = settings.logToken
+    const telegram = new Telegram(settings)
 
     Logger.default.setTelegram(telegram)
 

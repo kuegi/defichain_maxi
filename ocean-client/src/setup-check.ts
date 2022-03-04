@@ -9,11 +9,7 @@ export async function main (): Promise<Object> {
     const store = new Store()
     let settings = await store.fetchSettings()
 
-    const telegram = new Telegram()
-    telegram.chatId = settings.chatId
-    telegram.token = settings.token
-    telegram.logChatId = settings.logChatId
-    telegram.logToken = settings.logToken
+    const telegram = new Telegram(settings)
 
     Logger.default.setTelegram(telegram)
 
