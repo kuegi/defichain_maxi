@@ -20,13 +20,12 @@ export async function main (): Promise<Object> {
     var checkedValues = new CheckedValues()
     if (WalletSetup.canInitializeFrom(settings)) {
         const walletSetup = new WalletSetup(MainNet, settings)
-        const program = new CheckProgram(store, walletSetup)
+        const program = new CheckProgram(settings, walletSetup)
         checkedValues = await program.basicCheck(settings)
     }
 
     // 2022-03-02 Krysh: Name and everything needs to be defined somewhere else
     // Just putting in here ideas, how it could look like
-    Logger.default.log("[OceanClient][Log] This channel will be used for verbose logging")
 
     const message = ""
     + "[OceanClient] Setup-Check result\n"
@@ -35,7 +34,6 @@ export async function main (): Promise<Object> {
     + "A vault is configured? " + getYesOrNo(checkedValues.hasVaultSpecified)
     + "Configured vault is same to wallet address' vault? " + getYesOrNo(checkedValues.hasSameVault)
 
-    await telegram.send(message)
     
     const response = {
         statusCode: 200,

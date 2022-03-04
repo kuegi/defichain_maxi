@@ -33,7 +33,11 @@ export class Store {
         this.settings.logToken = this.getValue(StoreKey.TelegramLogsToken, parameters)
         this.settings.address = this.getValue(StoreKey.DeFiAddress, parameters)
         this.settings.vault = this.getValue(StoreKey.DeFiVault, parameters)
-        this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
+        if((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
+            this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
+        } else {
+            this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
+        }
         return this.settings
     }
 
@@ -50,6 +54,9 @@ export class StoredSettings {
     address: string = ""
     vault: string = ""
     seed: string[] = []
+    minCollateralRatio: number= 200
+    maxCollateralRatio: number = 250
+    LMToken: string = "GLD"
 }
 
 enum StoreKey {

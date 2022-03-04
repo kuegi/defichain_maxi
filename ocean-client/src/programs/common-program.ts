@@ -1,31 +1,49 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, TransactionSegWit } from "@defichain/jellyfish-transaction";
-import { JellyfishWallet, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
+import { CTransactionSegWit, TokenBalance, TransactionSegWit } from "@defichain/jellyfish-transaction";
+import { JellyfishWallet, WalletAccount, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
+import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
+import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
+import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
 import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
-import { Store } from "../utils/store";
+import { isThisTypeNode } from "typescript";
+import { delay, isNullOrEmpty } from "../utils/helpers";
+import { Store, StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
 export class CommonProgram {
-    private readonly store: Store
+    private readonly settings: StoredSettings
     private readonly client: WhaleApiClient
     private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
+    private account: WhaleWalletAccount | undefined
 
-    constructor(store: Store, walletSetup: WalletSetup) {
-        this.store = store
+    constructor(settings: StoredSettings, walletSetup: WalletSetup) {
+        this.settings = settings
         this.client = walletSetup.client
         this.wallet = new JellyfishWallet(walletSetup.nodeProvider, walletSetup.accountProvider)
         this.wallet.discover()
     }
 
+    async init():Promise<boolean> {
+        this.account= await this.wallet.get(0)
+        return true
+    }
+
     async getAddress(): Promise<string> {
-        return this.wallet.get(0).getAddress()
+        return this.account?.getAddress() ?? ""
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
         return new BigNumber(await this.client.address.getBalance(await this.getAddress()))
+    }
+
+    async getTokenBalances(): Promise<Map<string,AddressToken>> {
+        let result= new Map<string,AddressToken>()
+        const tokens = await this.client.address.listToken(await this.getAddress(), 100)
+
+        return new Map(tokens.map(token =>[token.symbol,token])
     }
 
     async getTokenBalance(symbol: String): Promise<AddressToken | undefined> {
@@ -36,12 +54,73 @@ export class CommonProgram {
         })
     }
 
-    async getVault(): Promise<LoanVaultActive | LoanVaultLiquidated | undefined> {
-        const vaults = await this.client.address.listVault(await this.getAddress())
+    async getVault(): Promise<LoanVaultActive | LoanVaultLiquidated> {
+        return this.client.loan.getVault(this.settings.vault)
+    }
+
+    async getPool(poolId:string):Promise<PoolPairData | undefined> {
+        const respose= await this.client.poolpairs.list()
         
-        return vaults.find(vault => {
-            return vault.vaultId === this.store.settings.vault
+        return respose.find(pool => {
+            return pool.symbol == poolId
         })
+    }
+
+    async getFixedIntervalPrice(token:string):Promise<ActivePrice> {
+        let response= await this.client.prices.getFeedActive(token,"USD",10)
+        return response[0]
+    }
+
+    async getToken(token:string):Promise<TokenData> {
+        return this.client.tokens.get(token)
+    }
+
+    async removeLiquidity(poolId: number, amount: BigNumber): Promise<string> {
+        const script= await this.account!.getScript()
+        const txn = await this.account!.withTransactionBuilder().liqPool.removeLiquidity({
+                script: script,
+                tokenId: poolId,
+                amount: amount
+            }
+            ,script)
+            
+        return this.send(txn)
+    }
+
+    async addLiquidity(amounts: TokenBalance[]): Promise<string> {
+        const script= await this.account!.getScript()
+        const txn = await this.account!.withTransactionBuilder().liqPool.addLiquidity({
+            from: [{ 
+                script:script, 
+                balances:amounts }],
+            shareAddress: script
+            }
+            ,script)
+            
+        return this.send(txn)
+    }
+
+    async paybackLoans(amounts: TokenBalance[]): Promise<string> {
+        const script= await this.account!.getScript()
+        const txn= await this.account!.withTransactionBuilder().loans.paybackLoan({
+                vaultId: this.settings.vault,
+                from: script,
+                tokenAmounts: amounts
+            },
+             script)
+        return this.send(txn)
+    }
+
+    async takeLoans(amounts: TokenBalance[]): Promise<string> {
+        const script= await this.account!.getScript()
+        const txn= await this.account!.withTransactionBuilder().loans.takeLoan({
+                vaultId: this.settings.vault,
+                to: script,
+                tokenAmounts: amounts
+            },
+             script)
+        return this.send(txn)
+
     }
 
     async depositToVault(symbol: string, amount: BigNumber): Promise<boolean> {
@@ -49,12 +128,11 @@ export class CommonProgram {
         if (!token) {
             return false
         }
-        const account = await this.wallet.get(0)
-        const address = await account.getAddress()
-        console.log("depositToVault vaultId=" + this.store.settings.vault + " from=" + address + " token=" + amount + " " + token.symbol)
-        const script = await account.getScript()
-        const txn = await account.withTransactionBuilder().loans.depositToVault({
-            vaultId: this.store.settings.vault,
+        const address = await this.account!.getAddress()
+        console.log("depositToVault vaultId=" + this.settings.vault + " from=" + address + " token=" + amount + " " + token.symbol)
+        const script = await this.account!.getScript()
+        const txn = await this.account!.withTransactionBuilder().loans.depositToVault({
+            vaultId: this.settings.vault,
             from: script,
             tokenAmount: {
                 token: parseInt(token?.id),
@@ -71,5 +149,14 @@ export class CommonProgram {
         const txId: string = await this.client.rawtx.send({ hex: hex })
         console.log("Send txId: " + txId)
         return txId
+    }
+
+    async waitForTx(txId:string): Promise<boolean> {
+        let tx= await this.client.transactions.get(txId)
+        while(tx && isNullOrEmpty(tx.block.hash)) {
+            await delay(1000)
+            tx= await this.client.transactions.get(txId)
+        }
+        return tx && !isNullOrEmpty(tx.block.hash)
     }
 }
