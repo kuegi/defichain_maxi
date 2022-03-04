@@ -24,11 +24,11 @@ export class CommonProgram {
         this.settings = settings
         this.client = walletSetup.client
         this.wallet = new JellyfishWallet(walletSetup.nodeProvider, walletSetup.accountProvider)
-        this.wallet.discover()
     }
 
-    async init():Promise<boolean> {
-        this.account= await this.wallet.get(0)
+    async init(): Promise<boolean> {
+        await this.wallet.discover()
+        this.account = this.wallet.get(0)
         return true
     }
 

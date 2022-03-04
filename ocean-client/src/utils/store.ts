@@ -16,6 +16,9 @@ export class Store {
             StoreKey.TelegramLogsToken,
             StoreKey.DeFiAddress,
             StoreKey.DeFiVault,
+            StoreKey.MinCollateralRatio,
+            StoreKey.MaxCollateralRatio,
+            StoreKey.LMToken,
         ]
         const result = await this.ssm.getParameters({
             Names: keys
@@ -38,11 +41,31 @@ export class Store {
         } else {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
         }
+        this.settings.LMToken = this.getValue(StoreKey.LMToken, parameters)
+        var minCollateralRatio = this.getNumberValue(StoreKey.MinCollateralRatio, parameters)
+        if (minCollateralRatio) {
+            this.settings.minCollateralRatio = minCollateralRatio
+        }
+        var maxCollateralRatio = this.getNumberValue(StoreKey.MaxCollateralRatio, parameters)
+        if (maxCollateralRatio) {
+            this.settings.maxCollateralRatio = maxCollateralRatio
+        }
+        // 2022-03-04 Krysh: TODO add clean up variable
         return this.settings
     }
 
     private getValue(key: StoreKey, parameters: SSM.ParameterList): string {
         return parameters?.find(element => element.Name === key)?.Value as string
+    }
+
+    private getNumberValue(key: StoreKey, parameters: SSM.ParameterList): number | undefined {
+        let value = parameters?.find(element => element.Name === key)?.Value
+        return value ? parseInt(value) : undefined
+    }
+
+    private getBooleanValue(key: StoreKey, parameters: SSM.ParameterList): boolean | undefined {
+        let value = parameters?.find(element => element.Name === key)?.Value
+        return value ? JSON.parse(value) : undefined
     }
 }
 
@@ -54,9 +77,10 @@ export class StoredSettings {
     address: string = ""
     vault: string = ""
     seed: string[] = []
-    minCollateralRatio: number= 200
+    minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
+    shouldCleanUp: boolean = false
 }
 
 enum StoreKey {
@@ -67,4 +91,8 @@ enum StoreKey {
     DeFiAddress = '/defichain-maxi/wallet/address',
     DeFiVault = '/defichain-maxi/wallet/vault',
     DeFiWalletSeed = '/defichain-maxi/wallet/seed',
+    MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
+    MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
+    LMToken = '/defichain-maxi/settings/lm-token',
+    CleanUp = '/defichain-maxi/settings/clean-up'
 }

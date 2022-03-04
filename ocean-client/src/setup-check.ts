@@ -21,6 +21,7 @@ export async function main (): Promise<Object> {
     if (WalletSetup.canInitializeFrom(settings)) {
         const walletSetup = new WalletSetup(MainNet, settings)
         const program = new CheckProgram(settings, walletSetup)
+        await program.init()
         checkedValues = await program.basicCheck(settings)
     }
 
@@ -33,7 +34,10 @@ export async function main (): Promise<Object> {
     + "Configured address is same to wallet address? " + getYesOrNo(checkedValues.hasSameAddress)
     + "A vault is configured? " + getYesOrNo(checkedValues.hasVaultSpecified)
     + "Configured vault is same to wallet address' vault? " + getYesOrNo(checkedValues.hasSameVault)
+    + "Set collateral ratio range " + settings.minCollateralRatio + "-" + settings.maxCollateralRatio + "\n"
+    + "Set dToken " + settings.LMToken
 
+    await telegram.send(message)
     
     const response = {
         statusCode: 200,
