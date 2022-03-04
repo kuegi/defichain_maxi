@@ -8,6 +8,7 @@ import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
 import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
+import { resolve } from "path/posix";
 import { isThisTypeNode } from "typescript";
 import { delay, isNullOrEmpty } from "../utils/helpers";
 import { Store, StoredSettings } from "../utils/store";
@@ -151,13 +152,35 @@ export class CommonProgram {
         return txId
     }
 
-    async waitForTx(txId:string): Promise<boolean> {
-        await delay(1000) //to give ocean a change to update
-        let tx= await this.client.transactions.get(txId)
-        while(tx && isNullOrEmpty(tx.block.hash)) {
-            await delay(1000)
-            tx= await this.client.transactions.get(txId)
-        }
-        return tx && !isNullOrEmpty(tx.block.hash)
+    async waitForTx(txId: string): Promise<boolean> {
+        const initialTime = 5000
+        let start = initialTime
+        return await new Promise((resolve) => {
+            let intervalID: NodeJS.Timeout
+            const callTransaction = (): void => {
+                this.client.transactions.get(txId).then((tx) => {
+                    if (intervalID !== undefined) {
+                        clearInterval(intervalID)
+                    }
+                    resolve(true)
+                }).catch((e) => {
+                    if (start >= 300000) {
+                        console.error(e)
+                        if (intervalID !== undefined) {
+                            clearInterval(intervalID)
+                        }
+                        resolve(false)
+                    }
+                })
+            }
+            setTimeout(() => {
+                callTransaction()
+                intervalID = setInterval(() => {
+                    start += 5000
+                    callTransaction()
+                }, 5000)
+            }, initialTime)
+        })
+
     }
 }

@@ -16,8 +16,8 @@ export async function main(): Promise<Object> {
     const telegram = new Telegram()
     telegram.logChatId = settings.logChatId
     telegram.logToken = settings.logToken
-
-    Logger.default.setTelegram(telegram)
+    telegram.token = settings.token
+    telegram.chatId = settings.chatId
 
     const walletSetup = new WalletSetup(MainNet, settings)
     const program = new VaultMaxiProgram(settings, walletSetup)
@@ -53,7 +53,7 @@ export async function main(): Promise<Object> {
                 dusdLoan = +loanamount.amount
             }
         })
-        console.log("reducing exposure "+neededrepay+" dusd "+neededStock+" dToken from "+lptokens+" existing LPTokens")
+        console.log("reducing exposure "+neededrepay+"@DUSD "+neededStock+"@"+settings.LMToken+" from "+lptokens+" existing LPTokens")
         if(lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
             telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             return {
@@ -85,11 +85,22 @@ export async function main(): Promise<Object> {
             const paybackTx= await program.paybackLoans(paybackTokens)
             if(! await program.waitForTx(paybackTx)) {
                 telegram.send("ERROR: paying back tokens")
+                console.error("ERROR: paying back tokens")
+                return {
+                    statusCode: 500,
+                    message: "ERROR: paying back tokens"
+                }
             } else {
                 telegram.send("done reducing exposure")
+                console.log("done")
             }
         } else {
             telegram.send("ERROR: no tokens to pay back")
+            console.error("ERROR: no tokens to pay back")
+            return {
+                statusCode: 500,
+                message: "ERROR: no tokens to pay back"
+            }
         }
     } else if(collateralRatio < 0 || collateralRatio > settings.maxCollateralRatio) {
 
@@ -100,7 +111,7 @@ export async function main(): Promise<Object> {
         let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
         let neededDUSD = +pool.priceRatio.ba * neededStock
         
-        console.log(" taking loan "+neededStock+" dToken "+neededDUSD+" DUSD ")
+        console.log(" taking loan "+neededStock+"@"+settings.LMToken+" "+neededDUSD+"@DUSD ")
         const takeloanTx= await program.takeLoans([
                             { token: +pool.tokenA.id, amount: new BigNumber(neededStock)},
                             { token:+pool.tokenB.id, amount: new BigNumber(neededDUSD)}
@@ -108,6 +119,7 @@ export async function main(): Promise<Object> {
         
         if(! await program.waitForTx(takeloanTx)) {
             telegram.send("ERROR: taking loans")
+            console.error("ERROR: taking loans")
             return {
                 statusCode: 500,
                 message: "ERROR: taking loans"
@@ -123,15 +135,21 @@ export async function main(): Promise<Object> {
             neededDUSD = +pool.priceRatio.ba * neededStock
         }
         
-        console.log(" adding liquidity "+neededStock+" dToken "+neededDUSD+" DUSD ")
+        console.log(" adding liquidity "+neededStock+"@"+settings.LMToken+" "+neededDUSD+"@DUSD ")
         const addTx= await program.addLiquidity([
             {token:+pool.tokenA.id, amount:new BigNumber(neededStock)},
             {token:+pool.tokenB.id, amount:new BigNumber(neededDUSD)},
         ])
         if(! await program.waitForTx(addTx)) {
-            telegram.send("ERROR: padding liquidity")
+            telegram.send("ERROR: adding liquidity")
+            console.error("ERROR: adding liquidity")
+            return {
+                statusCode: 500,
+                message: "ERROR: adding liquidity"
+            }
         } else {
             telegram.send("done increasing exposure")
+            console.log("done ")
         }
     }
 
