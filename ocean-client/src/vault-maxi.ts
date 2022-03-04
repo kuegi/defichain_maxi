@@ -21,7 +21,7 @@ class maxiEvent {
     overrideSettings:SettingsOverride | undefined
 }
 
-export async function main(event:maxiEvent | undefined): Promise<Object> {
+export async function main(event:maxiEvent): Promise<Object> {
     let settings = await new Store().fetchSettings()
 
     if(event) {
@@ -37,6 +37,7 @@ export async function main(event:maxiEvent | undefined): Promise<Object> {
     }
 
     const telegram = new Telegram()
+    telegram.prefix= "[Maxi "+settings.vault.substring(0,6)+"]"
     telegram.logChatId = settings.logChatId
     telegram.logToken = settings.logToken
     telegram.token = settings.token

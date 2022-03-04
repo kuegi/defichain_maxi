@@ -2,6 +2,7 @@ import fetch from "node-fetch"
 import { isNullOrEmpty } from "./helpers"
 
 export class Telegram {
+    prefix:string= "[VaultMaxi]"
     chatId: string = ""
     token: string = ""
     logChatId: string = ""
@@ -26,7 +27,7 @@ export class Telegram {
         let endpointUrl = this.endpoint
             .replace('%token', token)
             .replace('%chatId', chatId)
-            .replace('%message', encodeURI(message))
+            .replace('%message', encodeURI(this.prefix+" "+message))
         
         const response = await fetch(endpointUrl)
         return await response.json()
