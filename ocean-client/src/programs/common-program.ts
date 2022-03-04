@@ -15,7 +15,7 @@ import { Store, StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
 export class CommonProgram {
-    private readonly settings: StoredSettings
+    protected readonly settings: StoredSettings
     private readonly client: WhaleApiClient
     private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
     private account: WhaleWalletAccount | undefined

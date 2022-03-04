@@ -1,5 +1,6 @@
 import fetch from "node-fetch"
 import { isNullOrEmpty } from "./helpers"
+import { StoredSettings } from "./store"
 
 export class Telegram {
     prefix:string= "[VaultMaxi]"
@@ -8,6 +9,13 @@ export class Telegram {
     logChatId: string = ""
     logToken: string = ""
     endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
+
+    constructor(settings:StoredSettings) {  
+        this.logChatId = settings.logChatId
+        this.logToken = settings.logToken
+        this.token = settings.token
+        this.chatId = settings.chatId
+    }
 
     async send(message: string): Promise<unknown> {
         if (isNullOrEmpty(this.chatId) || isNullOrEmpty(this.token)) {
