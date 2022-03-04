@@ -4,14 +4,37 @@ import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
 import { VaultMaxiProgram } from './programs/vault-maxi-program'
 import { Logger } from './utils/logger'
-import { Store } from './utils/store'
+import { Store, StoredSettings } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { TokenBalance } from '@defichain/jellyfish-transaction/dist'
 
-export async function main(): Promise<Object> {
+
+class SettingsOverride {
+    minCollateralRatio: number | undefined
+    maxCollateralRatio: number | undefined
+    LMToken: string | undefined
+}
+
+class maxiEvent {
+    overrideSettings:SettingsOverride | undefined
+}
+
+export async function main(event:maxiEvent | undefined): Promise<Object> {
     let settings = await new Store().fetchSettings()
+
+    if(event) {
+        console.log("received event "+JSON.stringify(event))
+        if (event.overrideSettings) {
+            if(event.overrideSettings.maxCollateralRatio)
+                settings.maxCollateralRatio= event.overrideSettings.maxCollateralRatio
+            if(event.overrideSettings.minCollateralRatio)
+                settings.minCollateralRatio= event.overrideSettings.minCollateralRatio
+            if(event.overrideSettings.LMToken)
+                settings.LMToken= event.overrideSettings.LMToken
+        }
+    }
 
     const telegram = new Telegram()
     telegram.logChatId = settings.logChatId
@@ -36,12 +59,13 @@ export async function main(): Promise<Object> {
     const collateralRatio = Number(vault.collateralRatio)
     const oracle:ActivePrice = await program.getFixedIntervalPrice(settings.LMToken)
     let pool:PoolPairData = (await program.getPool(lmPair)) !!
-    console.log("starting with "+collateralRatio+" in vault, target "+settings.minCollateralRatio+" - "+settings.maxCollateralRatio+"")
+    console.log("starting with "+collateralRatio+" in vault, target "+settings.minCollateralRatio+" - "+settings.maxCollateralRatio+" token "+settings.LMToken)
 
     if(0 < collateralRatio  && collateralRatio < settings.minCollateralRatio) {
         // reduce exposure
         const neededrepay = Number(vault.loanValue) - (Number(vault.collateralValue) / targetCollateral)
         const neededStock = neededrepay / (+oracle.active!.amount +(+pool!.priceRatio.ba))
+        const wantedusd = neededStock * +pool!.priceRatio.ba
         const lptokens:number = +((await program.getTokenBalance(lmPair))?.amount ?? "0")
         let dusdLoan : number = 0
         let tokenLoan : number = 0
@@ -53,7 +77,7 @@ export async function main(): Promise<Object> {
                 dusdLoan = +loanamount.amount
             }
         })
-        console.log("reducing exposure "+neededrepay+"@DUSD "+neededStock+"@"+settings.LMToken+" from "+lptokens+" existing LPTokens")
+        console.log("reducing exposure "+wantedusd+"@DUSD "+neededStock+"@"+settings.LMToken+" from "+lptokens+" existing LPTokens")
         if(lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
             await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             return {
@@ -73,18 +97,19 @@ export async function main(): Promise<Object> {
             }
         }
         const tokens= await program.getTokenBalances()
-        console.log(" removed liq. got tokens: "+Array.from(tokens.values()).map(value => ""+value.symbol+"@"+value.amount))
+        console.log(" removed liq. got tokens: "+Array.from(tokens.values()).map(value => " "+value.amount+"@"+value.symbol))
         let paybackTokens: TokenBalance[] = []
         let token= tokens.get("DUSD")
-        if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,neededrepay))})
+        if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,wantedusd))})
         token= tokens.get(settings.LMToken)
         if(token) paybackTokens.push({ token: +token.id, amount:new BigNumber(Math.min(+token.amount,neededStock))})
         
         
-        console.log(" paying back tokens "+paybackTokens.map(token => ""+token.token+"@"+token.amount))
+        console.log(" paying back tokens "+paybackTokens.map(token => " "+token.amount+"@"+token.token))
         if(paybackTokens.length > 0) {
             const paybackTx= await program.paybackLoans(paybackTokens)
-            if(! await program.waitForTx(paybackTx)) {
+            const sucess=  await program.waitForTx(paybackTx)
+            if(!sucess) {
                 await telegram.send("ERROR: paying back tokens")
                 console.error("ERROR: paying back tokens")
                 return {
