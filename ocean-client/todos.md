@@ -4,3 +4,4 @@
 * [X] change telegram notification to prefix with `[VaultMaxi]`
 * [ ] reinvest functionality
 * [ ] status message every day at 9 am
+* [ ] check for address in the wallet (not only first address) so that new address in wallet works
