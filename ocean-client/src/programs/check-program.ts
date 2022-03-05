@@ -1,34 +1,46 @@
-import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
-import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
-import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { StoredSettings } from "../utils/store";
+import { Telegram } from "../utils/telegram";
+import { WalletSetup } from "../utils/wallet-setup";
 import { CommonProgram } from "./common-program";
 
 export class CheckProgram extends CommonProgram {
-    async basicCheck(settings: StoredSettings): Promise<CheckedValues> {
+    static canDoCheck(settings: StoredSettings): boolean {
+        return WalletSetup.canInitializeFrom(settings)
+    }
+
+    async reportCheck(telegram: Telegram): Promise<CheckedValues> {
         var values = new CheckedValues()
 
         let walletAddress = await this.getAddress()
         let vault = await this.getVault()
 
         values.couldInitializeWallet = true
-        values.hasSameAddress = walletAddress === settings.address
-        values.hasVaultSpecified = settings.vault !== undefined
+        values.hasSameAddress = walletAddress === this.settings.address
+        values.hasVaultSpecified = this.settings.vault !== undefined
         if (values.hasVaultSpecified) {
-            values.hasSameVault = vault?.vaultId === settings.vault
+            values.hasSameVault = vault?.vaultId === this.settings.vault
         }
-        //values.vault= vault
-        let dfi = await this.getTokenBalance("DFI")
-        values.balances.set("DFI", dfi?.amount ?? "-" )
-        let dusd = await this.getTokenBalance("DUSD")
-        values.balances.set("DUSD", dusd?.amount ?? "-")
-        let qqq = await this.getTokenBalance("QQQ")
-        values.balances.set("QQQ", qqq?.amount ?? "-")
-    
-        values.pool= await this.getPool(settings.LMToken+"-DUSD")
-        values.price= await this.getFixedIntervalPrice(settings.LMToken)
+
+        const message = this.constructMessage(this.settings, values)
+        console.log(message)
+        await telegram.send(message)
 
         return values
+    }
+
+    constructMessage(settings: StoredSettings, checkedValues: CheckedValues): string {
+        return ""
+        + "Setup-Check result\n"
+        + "Could initialize wallet? " + this.getYesOrNo(checkedValues.couldInitializeWallet)
+        + "Configured address is same to wallet address? " + this.getYesOrNo(checkedValues.hasSameAddress)
+        + "A vault is configured? " + this.getYesOrNo(checkedValues.hasVaultSpecified)
+        + "Configured vault is same to wallet address' vault? " + this.getYesOrNo(checkedValues.hasSameVault)
+        + "Set collateral ratio range " + settings.minCollateralRatio + "-" + settings.maxCollateralRatio + "\n"
+        + "Set dToken " + settings.LMToken
+    }
+
+    getYesOrNo(bool: boolean): string {
+        return bool ? "Yes\n" : "No\n"
     }
 }
 
@@ -41,11 +53,4 @@ export class CheckedValues {
     hasVaultSpecified: boolean = false
     // Indicates if ParameterStore vault is equal to wallet address' vault
     hasSameVault: boolean = false
-
-    vault : LoanVaultActive | LoanVaultLiquidated | undefined = undefined
-
-    balances : Map<string, string> = new Map<string,string>()
-    pool: PoolPairData | undefined;
-    price: ActivePrice | undefined;
-
 }

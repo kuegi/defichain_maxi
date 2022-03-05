@@ -9,6 +9,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { TokenBalance } from '@defichain/jellyfish-transaction/dist'
+import { CheckProgram } from './programs/check-program'
 
 
 class SettingsOverride {
@@ -19,6 +20,7 @@ class SettingsOverride {
 
 class maxiEvent {
     overrideSettings:SettingsOverride | undefined
+    checkSetup: boolean | undefined
 }
 
 export async function main(event:maxiEvent): Promise<Object> {
@@ -34,6 +36,23 @@ export async function main(event:maxiEvent): Promise<Object> {
             if(event.overrideSettings.LMToken)
                 settings.LMToken= event.overrideSettings.LMToken
         }
+
+        if (event.checkSetup) {
+            const telegram = new Telegram(settings)
+            if (CheckProgram.canDoCheck(settings)) {
+                const program = new CheckProgram(settings, new WalletSetup(MainNet, settings))
+                await program.init()
+                await program.reportCheck(telegram)
+                return { statusCode: 200 }
+            } else {
+                const message = "Please check your ParameterStore settings, something is not successfully configured"
+                await telegram.send(message)
+                return {
+                    statusCode: 500,
+                    message: message
+                }
+            }
+        }
     }
 
     const telegram = new Telegram(settings)
@@ -41,7 +60,6 @@ export async function main(event:maxiEvent): Promise<Object> {
 
     const program = new VaultMaxiProgram(settings, new WalletSetup(MainNet, settings))
     await program.init()
-
 
     const vaultcheck= await program.getVault()
     if(vaultcheck?.state != LoanVaultState.ACTIVE) {
