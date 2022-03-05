@@ -21,5 +21,5 @@ If you wanna check it out, feel free to use the [reflink](https://m.do.co/c/1767
 # donations
 If this script or parts of it help you make more rewards, feel free to give something back:
 
-DFI address: dLBqjysPVXYQX4dFSp5hMWdVfbdeY4aHVS
+DFI address: df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07
 BTC: bc1qfdm2z0xpe7lg70try8x3n3qytrjqzq5y2v6d5n
