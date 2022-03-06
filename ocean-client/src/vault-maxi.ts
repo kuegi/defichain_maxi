@@ -26,7 +26,7 @@ class maxiEvent {
 export async function main(event:maxiEvent): Promise<Object> {
     let settings = await new Store().fetchSettings()
 
-    const telegram = new Telegram(settings, "[Maxi " + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
     if (event) {
         console.log("received event " + JSON.stringify(event))
         if (event.overrideSettings) {

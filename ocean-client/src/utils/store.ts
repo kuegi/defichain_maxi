@@ -13,6 +13,7 @@ export class Store {
         
         let storePostfix= process.env.VAULTMAXI_STORE_POSTIX ?? ""
 
+        this.settings.paramPostFix= storePostfix
         let seedkey= process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
 
         let DeFiAddressKey= StoreKey.DeFiAddress.replace("-maxi","-maxi"+storePostfix)
@@ -77,6 +78,7 @@ export class Store {
 }
 
 export class StoredSettings {
+    paramPostFix: string = ""
     chatId: string = ""
     token: string = ""
     logChatId: string = ""
