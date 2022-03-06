@@ -27,8 +27,27 @@ export class CommonProgram {
     }
 
     async init(): Promise<boolean> {
-        await this.wallet.discover()
-        this.account = this.wallet.get(0)
+        let accounts= await this.wallet.discover()
+        for(let i = 0; i < accounts.length;i++) {
+            const account = accounts[i]
+            let address= await account.getAddress()
+            if (address == this.settings.address) {
+                this.account = account
+                break
+            }
+        }
+        return true
+    }
+
+    async isValid() : Promise<boolean> {
+        if(!this.account) return false
+        const vault= await this.getVault()
+        if(!vault || +vault.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
+            return false
+        }
+        if(this.settings.minCollateralRatio >= this.settings.maxCollateralRatio) {
+            return false
+        }
         return true
     }
 

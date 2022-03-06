@@ -3,18 +3,19 @@ import { isNullOrEmpty } from "./helpers"
 import { StoredSettings } from "./store"
 
 export class Telegram {
-    prefix:string= "[VaultMaxi]"
-    chatId: string = ""
-    token: string = ""
-    logChatId: string = ""
-    logToken: string = ""
-    endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
+    private readonly prefix:string= "[VaultMaxi]"
+    private readonly chatId: string = ""
+    private readonly token: string = ""
+    private readonly logChatId: string = ""
+    private readonly logToken: string = ""
+    private readonly endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
 
-    constructor(settings:StoredSettings) {  
+    constructor(settings:StoredSettings, prefix : string = "") {  
         this.logChatId = settings.logChatId
         this.logToken = settings.logToken
         this.token = settings.token
         this.chatId = settings.chatId
+        this.prefix= prefix
     }
 
     async send(message: string): Promise<unknown> {

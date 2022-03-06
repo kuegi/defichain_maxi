@@ -26,10 +26,11 @@ class maxiEvent {
 export async function main(event:maxiEvent): Promise<Object> {
     let settings = await new Store().fetchSettings()
 
-    if(event) {
-        console.log("received event "+JSON.stringify(event))
+    const telegram = new Telegram(settings, "[Maxi " + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
+    if (event) {
+        console.log("received event " + JSON.stringify(event))
         if (event.overrideSettings) {
-            if(event.overrideSettings.maxCollateralRatio)
+            if (event.overrideSettings.maxCollateralRatio)
                 settings.maxCollateralRatio= event.overrideSettings.maxCollateralRatio
             if(event.overrideSettings.minCollateralRatio)
                 settings.minCollateralRatio= event.overrideSettings.minCollateralRatio
@@ -38,14 +39,15 @@ export async function main(event:maxiEvent): Promise<Object> {
         }
 
         if (event.checkSetup) {
-            const telegram = new Telegram(settings)
             if (CheckProgram.canDoCheck(settings)) {
                 const program = new CheckProgram(settings, new WalletSetup(MainNet, settings))
                 await program.init()
                 await program.reportCheck(telegram)
                 return { statusCode: 200 }
             } else {
-                const message = "Please check your ParameterStore settings, something is not successfully configured"
+                const message = CheckProgram.buildCurrentSettingsIntoMessage(settings)
+                console.log(message)
+                await telegram.log(message)
                 await telegram.send(message)
                 return {
                     statusCode: 500,
@@ -55,11 +57,15 @@ export async function main(event:maxiEvent): Promise<Object> {
         }
     }
 
-    const telegram = new Telegram(settings)
-    telegram.prefix= "[Maxi "+settings.vault.substring(0,6)+"]"
 
     const program = new VaultMaxiProgram(settings, new WalletSetup(MainNet, settings))
     await program.init()
+    if(! await program.isValid()) {
+        await telegram.send("Configuration error. please check your values")
+        return {
+            statusCode: 500
+        }
+    }
 
     const vaultcheck= await program.getVault()
     if(vaultcheck?.state != LoanVaultState.ACTIVE) {
@@ -69,7 +75,7 @@ export async function main(event:maxiEvent): Promise<Object> {
         }
     }
     
-    const vault : LoanVaultActive = vaultcheck
+    let vault : LoanVaultActive = vaultcheck
     const collateralRatio = Number(vault.collateralRatio)
     console.log("starting with "+collateralRatio+" in vault, target "+settings.minCollateralRatio+" - "+settings.maxCollateralRatio+" token "+settings.LMToken)
     
@@ -79,6 +85,8 @@ export async function main(event:maxiEvent): Promise<Object> {
     } else if(collateralRatio < 0 || collateralRatio > settings.maxCollateralRatio) {
         result= await program.increaseExposure(vault,telegram)
     }
+    vault = await program.getVault() as LoanVaultActive
+    await telegram.log("executed script "+(result?"successfull":"with problems")+". vault ratio "+vaultcheck.collateralRatio)
 
     return {
         statusCode: result ? 200 : 500
