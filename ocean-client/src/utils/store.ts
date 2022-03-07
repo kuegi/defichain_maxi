@@ -9,23 +9,36 @@ export class Store {
     }
 
     async fetchSettings(): Promise<StoredSettings> {
+        // first check environment
+
+        let storePostfix = process.env.VAULTMAXI_STORE_POSTIX ?? ""
+
+        this.settings.paramPostFix = storePostfix
+        let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
+
+        let DeFiAddressKey = StoreKey.DeFiAddress.replace("-maxi", "-maxi" + storePostfix)
+        let DeFiVaultKey = StoreKey.DeFiVault.replace("-maxi", "-maxi" + storePostfix)
+        let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
+        let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
+        let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
+
         let keys = [
             StoreKey.TelegramNotificationChatId,
             StoreKey.TelegramNotificationToken,
             StoreKey.TelegramLogsChatId,
             StoreKey.TelegramLogsToken,
-            StoreKey.DeFiAddress,
-            StoreKey.DeFiVault,
-            StoreKey.MinCollateralRatio,
-            StoreKey.MaxCollateralRatio,
-            StoreKey.LMToken,
+            DeFiAddressKey,
+            DeFiVaultKey,
+            MinCollateralRatioKey,
+            MaxCollateralRatioKey,
+            LMTokenKey,
         ]
         const result = await this.ssm.getParameters({
             Names: keys
         }).promise()
 
         const decryptedSeed = await this.ssm.getParameter({
-            Name: StoreKey.DeFiWalletSeed,
+            Name: seedkey,
             WithDecryption: true
         }).promise()
 
@@ -34,42 +47,38 @@ export class Store {
         this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
         this.settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
         this.settings.logToken = this.getValue(StoreKey.TelegramLogsToken, parameters)
-        this.settings.address = this.getValue(StoreKey.DeFiAddress, parameters)
-        this.settings.vault = this.getValue(StoreKey.DeFiVault, parameters)
-        if((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
+        this.settings.address = this.getValue(DeFiAddressKey, parameters)
+        this.settings.vault = this.getValue(DeFiVaultKey, parameters)
+        this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
+        this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
+        this.settings.LMToken = this.getValue(LMTokenKey, parameters)
+
+        if ((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
         } else {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
-        }
-        this.settings.LMToken = this.getValue(StoreKey.LMToken, parameters)
-        var minCollateralRatio = this.getNumberValue(StoreKey.MinCollateralRatio, parameters)
-        if (minCollateralRatio) {
-            this.settings.minCollateralRatio = minCollateralRatio
-        }
-        var maxCollateralRatio = this.getNumberValue(StoreKey.MaxCollateralRatio, parameters)
-        if (maxCollateralRatio) {
-            this.settings.maxCollateralRatio = maxCollateralRatio
         }
         // 2022-03-04 Krysh: TODO add clean up variable
         return this.settings
     }
 
-    private getValue(key: StoreKey, parameters: SSM.ParameterList): string {
+    private getValue(key: string, parameters: SSM.ParameterList): string {
         return parameters?.find(element => element.Name === key)?.Value as string
     }
 
-    private getNumberValue(key: StoreKey, parameters: SSM.ParameterList): number | undefined {
+    private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {
         let value = parameters?.find(element => element.Name === key)?.Value
         return value ? parseInt(value) : undefined
     }
 
-    private getBooleanValue(key: StoreKey, parameters: SSM.ParameterList): boolean | undefined {
+    private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
         let value = parameters?.find(element => element.Name === key)?.Value
         return value ? JSON.parse(value) : undefined
     }
 }
 
 export class StoredSettings {
+    paramPostFix: string = ""
     chatId: string = ""
     token: string = ""
     logChatId: string = ""

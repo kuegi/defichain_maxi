@@ -8,35 +8,40 @@ export class CheckProgram extends CommonProgram {
         return WalletSetup.canInitializeFrom(settings)
     }
 
+    static buildCurrentSettingsIntoMessage(settings: StoredSettings): string {
+        return "Please check your ParameterStore settings, something is not successfully configured."
+            + settings.seed.length + " words in seedphrase,"
+            + "trying vault " + settings.vault + " in " + settings.address + ". "
+            + "thresholds " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " in " + settings.LMToken
+    }
+
     async reportCheck(telegram: Telegram): Promise<CheckedValues> {
         var values = new CheckedValues()
 
         let walletAddress = await this.getAddress()
         let vault = await this.getVault()
 
-        values.couldInitializeWallet = true
-        values.hasSameAddress = walletAddress === this.settings.address
-        values.hasVaultSpecified = this.settings.vault !== undefined
-        if (values.hasVaultSpecified) {
-            values.hasSameVault = vault?.vaultId === this.settings.vault
-        }
+        values.address= walletAddress === this.settings.address ? walletAddress : undefined
+        values.vault = vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
+        values.minCollateralRatio = this.settings.minCollateralRatio
+        values.maxCollateralRatio = this.settings.maxCollateralRatio
+        values.LMToken = this.settings.LMToken
 
-        const message = this.constructMessage(this.settings, values)
+        const message = this.constructMessage( values)
         console.log(message)
         await telegram.send(message)
+        await telegram.log("log channel active")
 
         return values
     }
 
-    constructMessage(settings: StoredSettings, checkedValues: CheckedValues): string {
+    constructMessage(checkedValues: CheckedValues): string {
         return ""
         + "Setup-Check result\n"
-        + "Could initialize wallet? " + this.getYesOrNo(checkedValues.couldInitializeWallet)
-        + "Configured address is same to wallet address? " + this.getYesOrNo(checkedValues.hasSameAddress)
-        + "A vault is configured? " + this.getYesOrNo(checkedValues.hasVaultSpecified)
-        + "Configured vault is same to wallet address' vault? " + this.getYesOrNo(checkedValues.hasSameVault)
-        + "Set collateral ratio range " + settings.minCollateralRatio + "-" + settings.maxCollateralRatio + "\n"
-        + "Set dToken " + settings.LMToken
+        + (checkedValues.vault?("monitoring vault "+checkedValues.vault):"no vault found") +"\n"
+        + (checkedValues.address?("from address " + checkedValues.address):"no valid address")+"\n"
+        + "Set collateral ratio range " + checkedValues.minCollateralRatio + "-" + checkedValues.maxCollateralRatio + "\n"
+        + "Set dToken " + checkedValues.LMToken
     }
 
     getYesOrNo(bool: boolean): string {
@@ -45,12 +50,12 @@ export class CheckProgram extends CommonProgram {
 }
 
 export class CheckedValues {
-    // Indicates if JellyfishWallet could be initialized
-    couldInitializeWallet: boolean = false
-    // Indicates if ParameterStore address is equal to wallet address 
-    hasSameAddress: boolean = false
-    // Indicates if a vault exists in ParameterStore
-    hasVaultSpecified: boolean = false
-    // Indicates if ParameterStore vault is equal to wallet address' vault
-    hasSameVault: boolean = false
+    //used addres. only set if wallet initialized and address found
+    address: string | undefined
+    // monitored vault. only set if vault found
+    vault: string | undefined
+    
+    minCollateralRatio: number = 0
+    maxCollateralRatio: number = -1
+    LMToken: string | undefined
 }

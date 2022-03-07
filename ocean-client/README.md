@@ -13,7 +13,7 @@ Of course, this is not financial advice! We do not take any responsibility for l
 ## Donations
 We are developing this thing in our free time. Noone is paying us for it. If you benefit from our work, it would be a nice gesture to give something back. Here are our DFI donation addresses:
 
-kügi: dLBqjysPVXYQX4dFSp5hMWdVfbdeY4aHVS
+kügi: df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07
 
 krysh: dZ69fTXJ15YyDKCjAxTKqJ9qx2iV5Yq7cS
 
