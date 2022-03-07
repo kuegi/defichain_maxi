@@ -10,17 +10,17 @@ export class Store {
 
     async fetchSettings(): Promise<StoredSettings> {
         // first check environment
-        
-        let storePostfix= process.env.VAULTMAXI_STORE_POSTIX ?? ""
 
-        this.settings.paramPostFix= storePostfix
-        let seedkey= process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
+        let storePostfix = process.env.VAULTMAXI_STORE_POSTIX ?? ""
 
-        let DeFiAddressKey= StoreKey.DeFiAddress.replace("-maxi","-maxi"+storePostfix)
-        let DeFiVaultKey= StoreKey.DeFiVault.replace("-maxi","-maxi"+storePostfix)
-        let MinCollateralRatioKey= StoreKey.MinCollateralRatio.replace("-maxi","-maxi"+storePostfix)
-        let MaxCollateralRatioKey= StoreKey.MaxCollateralRatio.replace("-maxi","-maxi"+storePostfix)
-        let LMTokenKey= StoreKey.LMToken.replace("-maxi","-maxi"+storePostfix)
+        this.settings.paramPostFix = storePostfix
+        let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
+
+        let DeFiAddressKey = StoreKey.DeFiAddress.replace("-maxi", "-maxi" + storePostfix)
+        let DeFiVaultKey = StoreKey.DeFiVault.replace("-maxi", "-maxi" + storePostfix)
+        let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
+        let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
+        let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
             StoreKey.TelegramNotificationChatId,
@@ -53,7 +53,7 @@ export class Store {
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
 
-        if((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
+        if ((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
         } else {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
@@ -62,7 +62,7 @@ export class Store {
         return this.settings
     }
 
-    private getValue(key:  string, parameters: SSM.ParameterList): string {
+    private getValue(key: string, parameters: SSM.ParameterList): string {
         return parameters?.find(element => element.Name === key)?.Value as string
     }
 
