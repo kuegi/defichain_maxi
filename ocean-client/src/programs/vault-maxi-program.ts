@@ -23,7 +23,11 @@ export class VaultMaxiProgram extends CommonProgram {
     nextCollateralValue(vault: LoanVaultActive) : number {
         let nextCollateral= 0
         vault.collateralAmounts.forEach(collateral => {
-            nextCollateral += +(collateral.activePrice?.next?.amount ?? "0") * +collateral.amount
+            if( collateral.symbol == "DUSD") {
+                nextCollateral += Number(collateral.amount) * 0.99 //no oracle price for DUSD, fixed 0.99
+            } else {
+                nextCollateral += Number(collateral.activePrice?.next?.amount ?? 0) * Number(collateral.amount)
+            }
         })
         return nextCollateral
     }
@@ -32,14 +36,18 @@ export class VaultMaxiProgram extends CommonProgram {
     nextLoanValue(vault: LoanVaultActive) : number {
         let nextLoan = 0
         vault.loanAmounts.forEach(loan => {
-            nextLoan += +(loan.activePrice?.next?.amount ?? "0") * +loan.amount
+            if( loan.symbol == "DUSD") {
+                nextLoan += Number(loan.amount) // no oracle for DUSD
+            } else {
+                nextLoan += Number(loan.activePrice?.next?.amount ?? 1) * Number(loan.amount)
+            }
         })
         return nextLoan
     }
 
     nextCollateralRatio(vault: LoanVaultActive) : number {
        const nextLoan= this.nextLoanValue(vault)
-        return nextLoan <= 0 ? -1 : 100 * this.nextCollateralValue(vault) / nextLoan
+        return nextLoan <= 0 ? -1 : Math.floor(100 * this.nextCollateralValue(vault) / nextLoan)
     }
 
     async decreaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {

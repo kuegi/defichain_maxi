@@ -54,7 +54,7 @@ export class Store {
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
 
         let seedList= decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g," ")
-        this.settings.seed = seedList?.split(' ') ?? []
+        this.settings.seed = seedList?.trim().split(' ') ?? []
         
         // 2022-03-04 Krysh: TODO add clean up variable
         return this.settings
