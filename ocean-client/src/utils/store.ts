@@ -53,11 +53,9 @@ export class Store {
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
 
-        if ((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
-            this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
-        } else {
-            this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
-        }
+        let seedList= decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g," ")
+        this.settings.seed = seedList?.split(' ') ?? []
+        
         // 2022-03-04 Krysh: TODO add clean up variable
         return this.settings
     }

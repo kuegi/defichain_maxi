@@ -84,6 +84,11 @@ export async function main(event: maxiEvent): Promise<Object> {
     }
 
     let vault: LoanVaultActive = vaultcheck
+    if(+vault.collateralValue < 10) {
+        await telegram.send("less than 10 dollar in the vault, can't work with that")
+        console.error("less than 10 dollar in the vault. can't work like that")
+        return {statusCode:500}
+    }
     const nextCollateralRatio = program.nextCollateralRatio(vault)
     const usedCollateralRatio= Math.min(+vault.collateralRatio, nextCollateralRatio)
     console.log("starting with " + vault.collateralRatio + " (next: "+nextCollateralRatio+") in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)

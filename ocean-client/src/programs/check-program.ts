@@ -20,13 +20,14 @@ export class CheckProgram extends CommonProgram {
 
         let walletAddress = await this.getAddress()
         let vault = await this.getVault()
-        let pool = await this.getPool(this.settings.LMToken+"-DUSD")
+        const lmPair= this.settings.LMToken+"-DUSD"
+        let pool = await this.getPool(lmPair)
 
         values.address= walletAddress === this.settings.address ? walletAddress : undefined
         values.vault = vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
         values.minCollateralRatio = this.settings.minCollateralRatio
         values.maxCollateralRatio = this.settings.maxCollateralRatio
-        values.LMToken = pool && pool.symbol == this.settings.LMToken ? this.settings.LMToken : undefined
+        values.LMToken = (pool && pool.symbol == lmPair) ? this.settings.LMToken : undefined
 
         const message = this.constructMessage( values)
         console.log(message)
@@ -42,7 +43,7 @@ export class CheckProgram extends CommonProgram {
         + (checkedValues.vault?("monitoring vault "+checkedValues.vault):"no vault found") +"\n"
         + (checkedValues.address?("from address " + checkedValues.address):"no valid address")+"\n"
         + "Set collateral ratio range " + checkedValues.minCollateralRatio + "-" + checkedValues.maxCollateralRatio + "\n"
-        +  checkedValues.LMToken ? ("Set dToken "+ checkedValues.LMToken ) : "no pool found for token "
+        +  (checkedValues.LMToken ? ("Set dToken "+ checkedValues.LMToken ) : "no pool found for token ")
     }
 
     getYesOrNo(bool: boolean): string {
