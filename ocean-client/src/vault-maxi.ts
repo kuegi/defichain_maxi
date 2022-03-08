@@ -2,7 +2,7 @@ import { MainNet } from '@defichain/jellyfish-network'
 import { LoanVaultActive, LoanVaultState, LoanVaultTokenAmount } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
-import { VaultMaxiProgram } from './programs/vault-maxi-program'
+import { VaultMaxiProgram, VaultMaxiState } from './programs/vault-maxi-program'
 import { Logger } from './utils/logger'
 import { Store, StoredSettings } from './utils/store'
 import { Telegram } from './utils/telegram'
@@ -24,7 +24,8 @@ class maxiEvent {
 }
 
 export async function main(event: maxiEvent): Promise<Object> {
-    let settings = await new Store().fetchSettings()
+    let store = new Store()
+    let settings = await store.fetchSettings()
 
     const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
     if (event) {
@@ -57,7 +58,6 @@ export async function main(event: maxiEvent): Promise<Object> {
         }
     }
 
-
     const program = new VaultMaxiProgram(settings, new WalletSetup(MainNet, settings))
     await program.init()
     if (! await program.isValid()) {
@@ -76,17 +76,34 @@ export async function main(event: maxiEvent): Promise<Object> {
     }
 
     let vault: LoanVaultActive = vaultcheck
+
+    // 2022-03-08 Krysh: Something went wrong on last execution, we need to clean up, whatever was done
+    if (settings.state !== VaultMaxiState.Start && settings.state !== VaultMaxiState.Finish) {
+        console.log("something went wrong on last execution, we clean up whatever was done")
+        let result = await program.cleanUp(vault, telegram)
+        await store.updateToState(VaultMaxiState.Start)
+        const cleanUpVaultCheck = await program.getVault() as LoanVaultActive
+        await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + cleanUpVaultCheck.collateralRatio)
+        return {
+            statusCode: result ? 200 : 500
+        }
+    }
+
+    await store.updateToState(VaultMaxiState.Start)
     const collateralRatio = Number(vault.collateralRatio)
     console.log("starting with " + collateralRatio + " in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
 
     let result = true
     if (0 < collateralRatio && collateralRatio < settings.minCollateralRatio) {
+        await store.updateToState(VaultMaxiState.DecreaseExposure)
         result = await program.decreaseExposure(vault, telegram)
     } else if (collateralRatio < 0 || collateralRatio > settings.maxCollateralRatio) {
+        await store.updateToState(VaultMaxiState.IncreaseExposure)
         result = await program.increaseExposure(vault, telegram)
     }
     vault = await program.getVault() as LoanVaultActive
     await telegram.log("executed script " + (result ? "successfull" : "with problems") + ". vault ratio " + vaultcheck.collateralRatio)
+    await store.updateToState(VaultMaxiState.Finish)
 
     return {
         statusCode: result ? 200 : 500

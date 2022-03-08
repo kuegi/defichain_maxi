@@ -7,6 +7,14 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { TokenBalance } from "@defichain/jellyfish-transaction/dist";
 import { StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
+import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
+
+export enum VaultMaxiState {
+    Start = "start",
+    DecreaseExposure = "decrease-exposure",
+    IncreaseExposure = "increase-exposure",
+    Finish = "finish"
+}
 
 export class VaultMaxiProgram extends CommonProgram {
     private readonly targetCollateral: number
@@ -52,17 +60,27 @@ export class VaultMaxiProgram extends CommonProgram {
         const tokens = await this.getTokenBalances()
         console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
         let paybackTokens: TokenBalance[] = []
+        let tokenIdToSymbol = new Map<Number, string>()
         let token = tokens.get("DUSD")
-        if (token) paybackTokens.push({ token: +token.id, amount: new BigNumber(Math.min(+token.amount, wantedusd)) })
+        if (token) {
+            tokenIdToSymbol.set(+token.id, token.symbol)
+            paybackTokens.push({ token: +token.id, amount: new BigNumber(Math.min(+token.amount, wantedusd)) })
+        }
         token = tokens.get(this.settings.LMToken)
-        if (token) paybackTokens.push({ token: +token.id, amount: new BigNumber(Math.min(+token.amount, neededStock)) })
+        if (token) {   
+            tokenIdToSymbol.set(+token.id, token.symbol)
+            paybackTokens.push({ token: +token.id, amount: new BigNumber(Math.min(+token.amount, neededStock)) })
+        }
 
+        return await this.paybackTokenBalances(paybackTokens, tokenIdToSymbol, telegram)
+    }
 
-        console.log(" paying back tokens " + paybackTokens.map(token => " " + token.amount + "@" + token.token))
+    private async paybackTokenBalances(paybackTokens: TokenBalance[], tokenIdToSymbol: Map<Number, string>, telegram: Telegram): Promise<boolean> {
+        console.log(" paying back tokens " + paybackTokens.map(token => " " + token.amount + "@" + tokenIdToSymbol.get(token.token)))
         if (paybackTokens.length > 0) {
             const paybackTx = await this.paybackLoans(paybackTokens)
-            const sucess = await this.waitForTx(paybackTx)
-            if (!sucess) {
+            const success = await this.waitForTx(paybackTx)
+            if (!success) {
                 await telegram.send("ERROR: paying back tokens")
                 console.error("ERROR: paying back tokens")
                 return false
@@ -123,4 +141,19 @@ export class VaultMaxiProgram extends CommonProgram {
         return true
     }
 
+    async cleanUp(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
+        const tokens = await this.getTokenBalances()
+        let paybackTokens: TokenBalance[] = []
+        let tokenIdToSymbol = new Map<Number, string>()
+
+        vault.loanAmounts.forEach(loan => {
+            let token = tokens.get(loan.symbol)
+            if (token) {
+                tokenIdToSymbol.set(+token.id, token.symbol)
+                paybackTokens.push({ token: +token.id, amount: new BigNumber(+token.amount) })
+            }
+        })
+        
+        return await this.paybackTokenBalances(paybackTokens, tokenIdToSymbol, telegram)
+    }
 }

@@ -8,6 +8,16 @@ export class Store {
         this.settings = new StoredSettings()
     }
 
+    async updateToState(value: string): Promise<void> {
+        const state = {
+            Name: StoreKey.State,
+            Value: value,
+            Overwrite: true,
+            Type: 'String'
+        }
+        await this.ssm.putParameter(state).promise()
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
         // first check environment
 
@@ -21,6 +31,7 @@ export class Store {
         let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
+        let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
             StoreKey.TelegramNotificationChatId,
@@ -32,6 +43,7 @@ export class Store {
             MinCollateralRatioKey,
             MaxCollateralRatioKey,
             LMTokenKey,
+            StateKey,
         ]
         const result = await this.ssm.getParameters({
             Names: keys
@@ -52,13 +64,14 @@ export class Store {
         this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
+        this.settings.state = this.getValue(StateKey, parameters)
 
         if ((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
         } else {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
         }
-        // 2022-03-04 Krysh: TODO add clean up variable
+
         return this.settings
     }
 
@@ -89,7 +102,7 @@ export class StoredSettings {
     minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
-    shouldCleanUp: boolean = false
+    state: string = ""
 }
 
 enum StoreKey {
@@ -103,5 +116,5 @@ enum StoreKey {
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
-    CleanUp = '/defichain-maxi/settings/clean-up'
+    State = '/defichain-maxi/state',
 }
