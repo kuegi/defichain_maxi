@@ -1,7 +1,7 @@
 # List of todos
 * [ ] send multiple tx in one block to reduce timeout-risk
 * [ ] clean up functionality
-* [ ] reinvest functionality
+* [X] reinvest functionality
 * [X] use min(currentRatio,nextRatio) to anticipate next update
 * [ ] refactor to jellyfish
 * [X] change telegram notification to prefix with `[VaultMaxi]`

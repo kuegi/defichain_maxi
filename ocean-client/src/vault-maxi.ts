@@ -101,6 +101,9 @@ export async function main(event: maxiEvent): Promise<Object> {
     } else if (usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio) {
         result = await program.increaseExposure(vault, telegram)
         exposureChanged= true
+    } else {
+        result = true
+        exposureChanged= await program.checkAndDoReinvest(vault, telegram)
     }
     
     if (exposureChanged) {

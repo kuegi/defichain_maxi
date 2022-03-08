@@ -20,6 +20,7 @@ export class Store {
         let DeFiVaultKey = StoreKey.DeFiVault.replace("-maxi", "-maxi" + storePostfix)
         let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
+        let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
@@ -32,6 +33,7 @@ export class Store {
             MinCollateralRatioKey,
             MaxCollateralRatioKey,
             LMTokenKey,
+            ReinvestThreshold,
         ]
         const result = await this.ssm.getParameters({
             Names: keys
@@ -52,6 +54,7 @@ export class Store {
         this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
+        this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
 
         let seedList= decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g," ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
@@ -87,6 +90,7 @@ export class StoredSettings {
     minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
+    reinvestThreshold: number | undefined 
     shouldCleanUp: boolean = false
 }
 
@@ -101,5 +105,6 @@ enum StoreKey {
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
-    CleanUp = '/defichain-maxi/settings/clean-up'
+    CleanUp = '/defichain-maxi/settings/clean-up',
+    ReinvestThreshold = '/defichain-maxi/settings/reinvest'
 }
