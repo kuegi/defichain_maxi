@@ -20,23 +20,34 @@ export class VaultMaxiProgram extends CommonProgram {
         this.targetCollateral = (settings.minCollateralRatio + settings.maxCollateralRatio) / 200
     }
 
-    nextCollateralRatio(vault: LoanVaultActive) : number {
+    nextCollateralValue(vault: LoanVaultActive) : number {
         let nextCollateral= 0
         vault.collateralAmounts.forEach(collateral => {
             nextCollateral += +(collateral.activePrice?.next?.amount ?? "0") * +collateral.amount
         })
+        return nextCollateral
+    }
+
+    
+    nextLoanValue(vault: LoanVaultActive) : number {
         let nextLoan = 0
         vault.loanAmounts.forEach(loan => {
-            nextCollateral += +(loan.activePrice?.next?.amount ?? "0") * +loan.amount
+            nextLoan += +(loan.activePrice?.next?.amount ?? "0") * +loan.amount
         })
-        return nextLoan <= 0 ? -1 : 100*nextCollateral / nextLoan
+        return nextLoan
+    }
+
+    nextCollateralRatio(vault: LoanVaultActive) : number {
+       const nextLoan= this.nextLoanValue(vault)
+        return nextLoan <= 0 ? -1 : 100 * this.nextCollateralValue(vault) / nextLoan
     }
 
     async decreaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
-        const neededrepay = Number(vault.loanValue) - (Number(vault.collateralValue) / this.targetCollateral)
-        const neededStock = neededrepay / (+oracle.active!.amount + (+pool!.priceRatio.ba))
+        const neededrepay = Math.max(+vault.loanValue - (+vault.collateralValue / this.targetCollateral),
+                                this.nextLoanValue(vault) - (this.nextCollateralValue(vault) / this.targetCollateral))
+       const neededStock = neededrepay / (+oracle.active!.amount + (+pool!.priceRatio.ba))
         const wantedusd = neededStock * +pool!.priceRatio.ba
         const lptokens: number = +((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
         let dusdLoan: number = 0
@@ -49,7 +60,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 dusdLoan = +loanamount.amount
             }
         })
-        console.log("reducing exposure " + wantedusd + "@DUSD " + neededStock + "@" + this.settings.LMToken + " from " + lptokens + " existing LPTokens")
+        console.log("reducing exposure by "+neededrepay+" USD: " + wantedusd + "@DUSD " + neededStock + "@" + this.settings.LMToken + " from " + lptokens + " existing LPTokens")
         if (lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
             await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             return false
@@ -95,11 +106,12 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log(" increasing exposure ")
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
-        const additionalLoan = (+vault.collateralValue / this.targetCollateral) - +vault.loanValue
+        const additionalLoan = Math.min((+vault.collateralValue / this.targetCollateral) - +vault.loanValue,
+                                (this.nextCollateralValue(vault) / this.targetCollateral) - this.nextLoanValue(vault))
         let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
         let neededDUSD = +pool.priceRatio.ba * neededStock
 
-        console.log(" taking loan " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
+        console.log("increasing by "+additionalLoan+" USD, taking loan " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
         const takeloanTx = await this.takeLoans([
             { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
             { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) }
