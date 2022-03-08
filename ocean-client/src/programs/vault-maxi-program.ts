@@ -9,6 +9,7 @@ import { StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
 export class VaultMaxiProgram extends CommonProgram {
+    
     private readonly targetCollateral: number
     private readonly lmPair: string
 
@@ -17,6 +18,18 @@ export class VaultMaxiProgram extends CommonProgram {
 
         this.lmPair = this.settings.LMToken + "-DUSD"
         this.targetCollateral = (settings.minCollateralRatio + settings.maxCollateralRatio) / 200
+    }
+
+    nextCollateralRatio(vault: LoanVaultActive) : number {
+        let nextCollateral= 0
+        vault.collateralAmounts.forEach(collateral => {
+            nextCollateral += +(collateral.activePrice?.next?.amount ?? "0") * +collateral.amount
+        })
+        let nextLoan = 0
+        vault.loanAmounts.forEach(loan => {
+            nextCollateral += +(loan.activePrice?.next?.amount ?? "0") * +loan.amount
+        })
+        return nextLoan <= 0 ? -1 : 100*nextCollateral / nextLoan
     }
 
     async decreaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {

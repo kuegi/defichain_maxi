@@ -1,9 +1,12 @@
 # List of todos
+* [ ] send multiple tx in one block to reduce timeout-risk
 * [ ] clean up functionality
+* [ ] reinvest functionality
+* [X] use min(currentRatio,nextRatio) to anticipate next update
 * [ ] refactor to jellyfish
 * [X] change telegram notification to prefix with `[VaultMaxi]`
-* [ ] reinvest functionality
 * [ ] status message every day at 9 am
 * [X] check for address in the wallet (not only first address) so that new address in wallet works
-* [ ] use min(currentRatio,nextRatio) to anticipate next update
 * [ ] rules in CloudFormationTemplate to not allow empty address / vault
+* [ ] use additional LMToken/loans in case that wanted dtoken is used up, but collateral still low and more LPTokens available
+* [ ] allow multiple dToken (split liquidity evenly across them)
