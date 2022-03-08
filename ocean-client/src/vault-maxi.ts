@@ -94,14 +94,26 @@ export async function main(event: maxiEvent): Promise<Object> {
     console.log("starting with " + vault.collateralRatio + " (next: "+nextCollateralRatio+") in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
 
     let result = true
+    let exposureChanged= false
     if (0 < usedCollateralRatio && usedCollateralRatio < settings.minCollateralRatio) {
         result = await program.decreaseExposure(vault, telegram)
+        exposureChanged= true
     } else if (usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio) {
         result = await program.increaseExposure(vault, telegram)
+        exposureChanged= true
     }
-    vault = await program.getVault() as LoanVaultActive
-    await telegram.log("executed script " + (result ? "successfull" : "with problems") + ". vault ratio " + vault.collateralRatio + " next "+program.nextCollateralRatio(vault))
-
+    
+    if (exposureChanged) {
+        const oldRatio = +vault.collateralRatio
+        const oldNext = nextCollateralRatio
+        vault = await program.getVault() as LoanVaultActive
+        await telegram.log("executed script " + (result ? "successfully" : "with problems") 
+                + ". vault ratio changed from " + oldRatio + " (next " + oldNext + ") to " 
+                + vault.collateralRatio + " (next " + program.nextCollateralRatio(vault) + ")")
+    } else {
+        await telegram.log("executed script without changes. vault ratio " 
+                + vault.collateralRatio + " next " + program.nextCollateralRatio(vault))
+    }
     return {
         statusCode: result ? 200 : 500
     }
