@@ -183,7 +183,7 @@ export class CommonProgram {
                     }
                     resolve(true)
                 }).catch((e) => {
-                    if (start >= 300000) {
+                    if (start >= 600000) { // 10 min timeout
                         console.error(e)
                         if (intervalID !== undefined) {
                             clearInterval(intervalID)
