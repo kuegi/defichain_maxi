@@ -1,4 +1,5 @@
 import SSM from 'aws-sdk/clients/ssm'
+import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 
 export class Store {
     private ssm = new SSM()
@@ -8,10 +9,11 @@ export class Store {
         this.settings = new StoredSettings()
     }
 
-    async updateToState(value: string): Promise<void> {
+    async updateToState(information: ProgramStateInformation): Promise<void> {
+        const key = StoreKey.State.replace("-maxi", "-maxi" + this.settings.paramPostFix)
         const state = {
-            Name: StoreKey.State,
-            Value: value,
+            Name: key,
+            Value: ProgramStateConverter.toValue(information),
             Overwrite: true,
             Type: 'String'
         }
@@ -64,7 +66,7 @@ export class Store {
         this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
-        this.settings.state = this.getValue(StateKey, parameters)
+        this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
 
         if ((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
             this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
@@ -102,7 +104,7 @@ export class StoredSettings {
     minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
-    state: string = ""
+    stateInformation: ProgramStateInformation|undefined
 }
 
 enum StoreKey {

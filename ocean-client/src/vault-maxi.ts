@@ -1,15 +1,12 @@
 import { MainNet } from '@defichain/jellyfish-network'
-import { LoanVaultActive, LoanVaultState, LoanVaultTokenAmount } from '@defichain/whale-api-client/dist/api/loan'
-import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
-import { VaultMaxiProgram, VaultMaxiState } from './programs/vault-maxi-program'
-import { Logger } from './utils/logger'
-import { Store, StoredSettings } from './utils/store'
+import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
+import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
+import { Store } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
-import { BigNumber } from "@defichain/jellyfish-api-core";
-import { TokenBalance } from '@defichain/jellyfish-transaction/dist'
 import { CheckProgram } from './programs/check-program'
+import { ProgramState } from './programs/common-program'
+import { NONAME } from 'dns'
 
 
 class SettingsOverride {
@@ -41,7 +38,7 @@ export async function main(event: maxiEvent): Promise<Object> {
 
         if (event.checkSetup) {
             if (CheckProgram.canDoCheck(settings)) {
-                const program = new CheckProgram(settings, new WalletSetup(MainNet, settings))
+                const program = new CheckProgram(store, new WalletSetup(MainNet, settings))
                 await program.init()
                 await program.reportCheck(telegram)
                 return { statusCode: 200 }
@@ -58,7 +55,7 @@ export async function main(event: maxiEvent): Promise<Object> {
         }
     }
 
-    const program = new VaultMaxiProgram(settings, new WalletSetup(MainNet, settings))
+    const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
     await program.init()
     if (! await program.isValid()) {
         await telegram.send("Configuration error. please check your values")
@@ -76,34 +73,50 @@ export async function main(event: maxiEvent): Promise<Object> {
     }
 
     let vault: LoanVaultActive = vaultcheck
+    let result = true
 
     // 2022-03-08 Krysh: Something went wrong on last execution, we need to clean up, whatever was done
-    if (settings.state !== VaultMaxiState.Start && settings.state !== VaultMaxiState.Finish) {
-        console.log("something went wrong on last execution, we clean up whatever was done")
-        let result = await program.cleanUp(vault, telegram)
-        await store.updateToState(VaultMaxiState.Start)
-        const cleanUpVaultCheck = await program.getVault() as LoanVaultActive
-        await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + cleanUpVaultCheck.collateralRatio)
-        return {
-            statusCode: result ? 200 : 500
+    if (settings.stateInformation && settings.stateInformation.state !== ProgramState.Waiting) {
+        const information = settings.stateInformation
+        console.log("last execution stopped state " + information.state)
+        console.log(" for tx " + information.tx)
+        console.log(" on block height " + information.blockHeight)
+
+        let shouldCleanUp = false
+
+        // 2022-03-09 Krysh: input of kuegi
+        // if we are on state waiting for last transaction and we are still on same block height since last execution
+        // then we should wait for next block
+        const currentBlockHeight = await program.getBlockHeight()
+        if (information.state === ProgramState.WaitingForLastTransaction && information.blockHeight === currentBlockHeight) {
+            console.log("waiting for next block")
+            await program.waitForBlockAfter(currentBlockHeight)
+        }
+        // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
+        if (VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
+            console.log("need to clean up")
+            result = await program.cleanUp(vault, telegram)
+            const cleanUpVaultCheck = await program.getVault() as LoanVaultActive
+            await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + cleanUpVaultCheck.collateralRatio)
+
+            await program.updateToState(result ? ProgramState.Waiting : ProgramState.Error, VaultMaxiProgramTransaction.None)
+            return {
+                statusCode: result ? 200 : 500
+            }
         }
     }
 
-    await store.updateToState(VaultMaxiState.Start)
     const collateralRatio = Number(vault.collateralRatio)
     console.log("starting with " + collateralRatio + " in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
 
-    let result = true
     if (0 < collateralRatio && collateralRatio < settings.minCollateralRatio) {
-        await store.updateToState(VaultMaxiState.DecreaseExposure)
         result = await program.decreaseExposure(vault, telegram)
     } else if (collateralRatio < 0 || collateralRatio > settings.maxCollateralRatio) {
-        await store.updateToState(VaultMaxiState.IncreaseExposure)
         result = await program.increaseExposure(vault, telegram)
     }
     vault = await program.getVault() as LoanVaultActive
     await telegram.log("executed script " + (result ? "successfull" : "with problems") + ". vault ratio " + vaultcheck.collateralRatio)
-    await store.updateToState(VaultMaxiState.Finish)
+    await program.updateToState(result ? ProgramState.Waiting : ProgramState.Error, VaultMaxiProgramTransaction.None)
 
     return {
         statusCode: result ? 200 : 500

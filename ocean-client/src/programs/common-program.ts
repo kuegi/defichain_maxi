@@ -1,27 +1,34 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { CTransactionSegWit, TokenBalance, TransactionSegWit } from "@defichain/jellyfish-transaction";
-import { JellyfishWallet, WalletAccount, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
+import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
-import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
-import { resolve } from "path/posix";
-import { isThisTypeNode } from "typescript";
-import { delay, isNullOrEmpty } from "../utils/helpers";
+import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
+import { throws } from "assert";
 import { Store, StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
+export enum ProgramState {
+    Waiting = "waiting",
+    DoingTransaction = "doing-transaction",
+    WaitingForLastTransaction = "waiting-for-last-transaction",
+    Error = "error-occured",
+}
+
 export class CommonProgram {
     protected readonly settings: StoredSettings
+    protected readonly store: Store
     private readonly client: WhaleApiClient
     private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
     private account: WhaleWalletAccount | undefined
 
-    constructor(settings: StoredSettings, walletSetup: WalletSetup) {
-        this.settings = settings
+    constructor(store: Store, walletSetup: WalletSetup) {
+        this.settings = store.settings
+        this.store = store
         this.client = walletSetup.client
         this.wallet = new JellyfishWallet(walletSetup.nodeProvider, walletSetup.accountProvider)
     }
@@ -93,6 +100,10 @@ export class CommonProgram {
 
     async getToken(token:string):Promise<TokenData> {
         return this.client.tokens.get(token)
+    }
+
+    async getBlockHeight(): Promise<number> {
+        return (await this.client.stats.get()).count.blocks
     }
 
     async removeLiquidity(poolId: number, amount: BigNumber): Promise<string> {
@@ -200,6 +211,36 @@ export class CommonProgram {
                 }, 5000)
             }, initialTime)
         })
+    }
 
+    async waitForBlockAfter(blockHeight: number): Promise<boolean> {
+        const initialTime = 5000
+        let start = initialTime
+        return await new Promise((resolve) => {
+            let intervalID: NodeJS.Timeout
+            const callTransaction = (): void => {
+                this.client.blocks.get("" + (blockHeight + 1)).then((tx) => {
+                    if (intervalID !== undefined) {
+                        clearInterval(intervalID)
+                    }
+                    resolve(true)
+                }).catch((e) => {
+                    if (start >= 300000) {
+                        console.error(e)
+                        if (intervalID !== undefined) {
+                            clearInterval(intervalID)
+                        }
+                        resolve(false)
+                    }
+                })
+            }
+            setTimeout(() => {
+                callTransaction()
+                intervalID = setInterval(() => {
+                    start += 5000
+                    callTransaction()
+                }, 5000)
+            }, initialTime)
+        })
     }
 }
