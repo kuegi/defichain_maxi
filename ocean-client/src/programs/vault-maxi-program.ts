@@ -165,10 +165,16 @@ export class VaultMaxiProgram extends CommonProgram {
         const tokenBalance = await this.getTokenBalance("DFI")
         if( tokenBalance && +tokenBalance.amount > this.settings.reinvestThreshold) {
             console.log(" depositing " + tokenBalance.amount + " DFI to vault ")
-            await this.depositToVault(parseInt(tokenBalance.id),new BigNumber(tokenBalance.amount))
-            console.log("done ")
-            await telegram.send("reinvested "+tokenBalance.amount+" DFI")
-            return true
+            const tx= await this.depositToVault(parseInt(tokenBalance.id),new BigNumber(tokenBalance.amount))
+            if (! await this.waitForTx(tx)) {
+                await telegram.send("ERROR: depositing")
+                console.error("ERROR: depositing")
+                return false
+            } else {
+                await telegram.send("reinvested "+tokenBalance.amount+" DFI")
+                console.log("done ")
+                return true
+            }
         }
 
         return false

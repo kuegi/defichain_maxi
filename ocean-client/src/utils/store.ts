@@ -69,7 +69,7 @@ export class Store {
 
     private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {
         let value = parameters?.find(element => element.Name === key)?.Value
-        return value ? parseInt(value) : undefined
+        return value ? +value : undefined
     }
 
     private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
