@@ -143,25 +143,18 @@ export class CommonProgram {
 
     }
 
-    async depositToVault(symbol: string, amount: BigNumber): Promise<boolean> {
-        const token = await this.getTokenBalance(symbol)
-        if (!token) {
-            return false
-        }
-        const address = await this.account!.getAddress()
-        console.log("depositToVault vaultId=" + this.settings.vault + " from=" + address + " token=" + amount + " " + token.symbol)
+    async depositToVault(token: number, amount: BigNumber): Promise<string> {
         const script = await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().loans.depositToVault({
             vaultId: this.settings.vault,
             from: script,
             tokenAmount: {
-                token: parseInt(token?.id),
+                token: token,
                 amount: amount
             }
         }, script)
 
-        await this.send(txn)
-        return true
+        return this.send(txn)
     }
 
     async send(txn: TransactionSegWit): Promise<string> {
@@ -183,7 +176,7 @@ export class CommonProgram {
                     }
                     resolve(true)
                 }).catch((e) => {
-                    if (start >= 300000) {
+                    if (start >= 600000) { // 10 min timeout
                         console.error(e)
                         if (intervalID !== undefined) {
                             clearInterval(intervalID)

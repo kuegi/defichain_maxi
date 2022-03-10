@@ -25,7 +25,7 @@ class maxiEvent {
 
 export async function main(event: maxiEvent): Promise<Object> {
     let settings = await new Store().fetchSettings()
-
+    console.log("vault maxi v1.0-beta.1")
     const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
     if (event) {
         console.log("received event " + JSON.stringify(event))
@@ -68,26 +68,55 @@ export async function main(event: maxiEvent): Promise<Object> {
     }
 
     const vaultcheck = await program.getVault()
-    if (vaultcheck?.state != LoanVaultState.ACTIVE) {
+    if(!vaultcheck) {
+        console.error("Did not find vault")
+        await telegram.send("Error: vault is gone ")
+        return {
+            statusCode: 500
+        }
+    }
+    if (vaultcheck.state == LoanVaultState.FROZEN || vaultcheck.state == LoanVaultState.IN_LIQUIDATION) {
         await telegram.send("Error: vault not active, its " + vaultcheck.state)
+        console.error("Vault not active: "+vaultcheck.state)
         return {
             statusCode: 500
         }
     }
 
     let vault: LoanVaultActive = vaultcheck
-    const collateralRatio = Number(vault.collateralRatio)
-    console.log("starting with " + collateralRatio + " in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
+    if(+vault.collateralValue < 10) {
+        await telegram.send("less than 10 dollar in the vault, can't work with that")
+        console.error("less than 10 dollar in the vault. can't work like that")
+        return {statusCode:500}
+    }
+    const nextCollateralRatio = program.nextCollateralRatio(vault)
+    const usedCollateralRatio= Math.min(+vault.collateralRatio, nextCollateralRatio)
+    console.log("starting with " + vault.collateralRatio + " (next: "+nextCollateralRatio+") in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
 
     let result = true
-    if (0 < collateralRatio && collateralRatio < settings.minCollateralRatio) {
+    let exposureChanged= false
+    if (0 < usedCollateralRatio && usedCollateralRatio < settings.minCollateralRatio) {
         result = await program.decreaseExposure(vault, telegram)
-    } else if (collateralRatio < 0 || collateralRatio > settings.maxCollateralRatio) {
+        exposureChanged= true
+    } else if (usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio) {
         result = await program.increaseExposure(vault, telegram)
+        exposureChanged= true
+    } else {
+        result = true
+        exposureChanged= await program.checkAndDoReinvest(vault, telegram)
     }
-    vault = await program.getVault() as LoanVaultActive
-    await telegram.log("executed script " + (result ? "successfull" : "with problems") + ". vault ratio " + vaultcheck.collateralRatio)
-
+    
+    if (exposureChanged) {
+        const oldRatio = +vault.collateralRatio
+        const oldNext = nextCollateralRatio
+        vault = await program.getVault() as LoanVaultActive
+        await telegram.log("executed script " + (result ? "successfully" : "with problems") 
+                + ". vault ratio changed from " + oldRatio + " (next " + oldNext + ") to " 
+                + vault.collateralRatio + " (next " + program.nextCollateralRatio(vault) + ")")
+    } else {
+        await telegram.log("executed script without changes. vault ratio " 
+                + vault.collateralRatio + " next " + program.nextCollateralRatio(vault))
+    }
     return {
         statusCode: result ? 200 : 500
     }
