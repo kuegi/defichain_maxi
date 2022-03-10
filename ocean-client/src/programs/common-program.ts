@@ -8,13 +8,11 @@ import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
 import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
-import { throws } from "assert";
 import { Store, StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
 export enum ProgramState {
     Waiting = "waiting",
-    DoingTransaction = "doing-transaction",
     WaitingForLastTransaction = "waiting-for-last-transaction",
     Error = "error-occured",
 }
@@ -189,37 +187,6 @@ export class CommonProgram {
             let intervalID: NodeJS.Timeout
             const callTransaction = (): void => {
                 this.client.transactions.get(txId).then((tx) => {
-                    if (intervalID !== undefined) {
-                        clearInterval(intervalID)
-                    }
-                    resolve(true)
-                }).catch((e) => {
-                    if (start >= 300000) {
-                        console.error(e)
-                        if (intervalID !== undefined) {
-                            clearInterval(intervalID)
-                        }
-                        resolve(false)
-                    }
-                })
-            }
-            setTimeout(() => {
-                callTransaction()
-                intervalID = setInterval(() => {
-                    start += 5000
-                    callTransaction()
-                }, 5000)
-            }, initialTime)
-        })
-    }
-
-    async waitForBlockAfter(blockHeight: number): Promise<boolean> {
-        const initialTime = 5000
-        let start = initialTime
-        return await new Promise((resolve) => {
-            let intervalID: NodeJS.Timeout
-            const callTransaction = (): void => {
-                this.client.blocks.get("" + (blockHeight + 1)).then((tx) => {
                     if (intervalID !== undefined) {
                         clearInterval(intervalID)
                     }

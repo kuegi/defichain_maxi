@@ -6,8 +6,6 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CheckProgram } from './programs/check-program'
 import { ProgramState } from './programs/common-program'
-import { NONAME } from 'dns'
-
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -80,20 +78,21 @@ export async function main(event: maxiEvent): Promise<Object> {
         const information = settings.stateInformation
         console.log("last execution stopped state " + information.state)
         console.log(" for tx " + information.tx)
+        console.log(" for txId " + information.txId)
         console.log(" on block height " + information.blockHeight)
 
         let shouldCleanUp = false
 
         // 2022-03-09 Krysh: input of kuegi
         // if we are on state waiting for last transaction and we are still on same block height since last execution
-        // then we should wait for next block
+        // then we should wait for txId
         const currentBlockHeight = await program.getBlockHeight()
         if (information.state === ProgramState.WaitingForLastTransaction && information.blockHeight === currentBlockHeight) {
-            console.log("waiting for next block")
-            await program.waitForBlockAfter(currentBlockHeight)
+            console.log("waiting for txId")
+            await program.waitForTx(information.txId)
         }
         // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
-        if (VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
+        if (information.state === ProgramState.Error || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
             console.log("need to clean up")
             result = await program.cleanUp(vault, telegram)
             const cleanUpVaultCheck = await program.getVault() as LoanVaultActive
@@ -114,9 +113,9 @@ export async function main(event: maxiEvent): Promise<Object> {
     } else if (collateralRatio < 0 || collateralRatio > settings.maxCollateralRatio) {
         result = await program.increaseExposure(vault, telegram)
     }
+    await program.updateToState(result ? ProgramState.Waiting : ProgramState.Error, VaultMaxiProgramTransaction.None)
     vault = await program.getVault() as LoanVaultActive
     await telegram.log("executed script " + (result ? "successfull" : "with problems") + ". vault ratio " + vaultcheck.collateralRatio)
-    await program.updateToState(result ? ProgramState.Waiting : ProgramState.Error, VaultMaxiProgramTransaction.None)
 
     return {
         statusCode: result ? 200 : 500

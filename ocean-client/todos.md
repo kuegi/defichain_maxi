@@ -8,3 +8,4 @@
 * [ ] use min(currentRatio,nextRatio) to anticipate next update
 * [ ] rules in CloudFormationTemplate to not allow empty address / vault
 * [ ] recover from state
+* [ ] use getRemainingTimeInMillis() to avoid hardcut timeouts

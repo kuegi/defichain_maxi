@@ -57,11 +57,10 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         const stock_per_token = +pool!.tokenA.reserve / +pool!.totalLiquidity.token
         const removeTokens = Math.min(neededStock / stock_per_token, lptokens)
-        await this.updateToState(ProgramState.DoingTransaction, VaultMaxiProgramTransaction.RemoveLiquidity)
         console.log(" would need " + (neededStock / stock_per_token) + " doing " + removeTokens + " ")
         const removeTx = await this.removeLiquidity(+pool!.id, new BigNumber(removeTokens))
 
-        await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.RemoveLiquidity)
+        await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx)
         if (! await this.waitForTx(removeTx)) {
             await telegram.send("ERROR: when removing liquidity")
             return false
@@ -91,10 +90,9 @@ export class VaultMaxiProgram extends CommonProgram {
         })
         console.log(" paying back tokens " + addressTokens.map(token => " " + token.amount + "@" + token.symbol))
         if (paybackTokens.length > 0) {
-            await this.updateToState(ProgramState.DoingTransaction, VaultMaxiProgramTransaction.PaybackLoan)
             const paybackTx = await this.paybackLoans(paybackTokens)
 
-            await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.PaybackLoan)
+            await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.PaybackLoan, paybackTx)
             const success = await this.waitForTx(paybackTx)
             if (!success) {
                 await telegram.send("ERROR: paying back tokens")
@@ -120,14 +118,13 @@ export class VaultMaxiProgram extends CommonProgram {
         let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
         let neededDUSD = +pool.priceRatio.ba * neededStock
 
-        await this.updateToState(ProgramState.DoingTransaction, VaultMaxiProgramTransaction.TakeLoan)
         console.log(" taking loan " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
         const takeloanTx = await this.takeLoans([
             { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
             { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) }
         ])
 
-        await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.TakeLoan)
+        await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.TakeLoan, takeloanTx)
         if (! await this.waitForTx(takeloanTx)) {
             await telegram.send("ERROR: taking loans")
             console.error("ERROR: taking loans")
@@ -143,14 +140,13 @@ export class VaultMaxiProgram extends CommonProgram {
             neededDUSD = +pool.priceRatio.ba * neededStock
         }
 
-        await this.updateToState(ProgramState.DoingTransaction, VaultMaxiProgramTransaction.AddLiquidity)
         console.log(" adding liquidity " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
         const addTx = await this.addLiquidity([
             { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
             { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) },
         ])
 
-        await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.AddLiquidity)
+        await this.updateToState(ProgramState.WaitingForLastTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx)
         if (! await this.waitForTx(addTx)) {
             await telegram.send("ERROR: adding liquidity")
             console.error("ERROR: adding liquidity")
@@ -175,10 +171,11 @@ export class VaultMaxiProgram extends CommonProgram {
         return await this.paybackTokenBalances(wantedTokens, telegram)
     }
 
-    async updateToState(state: ProgramState, transaction: VaultMaxiProgramTransaction): Promise<void> {
+    async updateToState(state: ProgramState, transaction: VaultMaxiProgramTransaction, txId: string = "none"): Promise<void> {
         return await this.store.updateToState({
             state: state,
             tx: transaction,
+            txId: txId,
             blockHeight: await this.getBlockHeight()
         })
     }
