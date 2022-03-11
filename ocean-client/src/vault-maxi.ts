@@ -87,7 +87,7 @@ export async function main(event: maxiEvent): Promise<Object> {
     let result = true
 
     // 2022-03-08 Krysh: Something went wrong on last execution, we need to clean up, whatever was done
-    if (settings.stateInformation && settings.stateInformation.state !== ProgramState.Waiting) {
+    if (settings.stateInformation && settings.stateInformation.state !== ProgramState.Idle) {
         const information = settings.stateInformation
         console.log("last execution stopped state " + information.state)
         console.log(" for tx " + information.tx)
@@ -100,8 +100,8 @@ export async function main(event: maxiEvent): Promise<Object> {
         // if we are on state waiting for last transaction and we are still on same block height since last execution
         // then we should wait for txId
         const currentBlockHeight = await program.getBlockHeight()
-        if (information.state === ProgramState.WaitingForLastTransaction && information.blockHeight === currentBlockHeight) {
-            console.log("waiting for txId")
+        if (information.state === ProgramState.WaitingForTransaction && information.blockHeight === currentBlockHeight) {
+            console.log("waiting for tx from previous run")
             await program.waitForTx(information.txId)
         }
         // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
@@ -110,8 +110,12 @@ export async function main(event: maxiEvent): Promise<Object> {
             result = await program.cleanUp(vault, telegram)
             const cleanUpVaultCheck = await program.getVault() as LoanVaultActive
             await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + cleanUpVaultCheck.collateralRatio)
-
-            await program.updateToState(result ? ProgramState.Waiting : ProgramState.Error, VaultMaxiProgramTransaction.None)
+            if(!result) {
+                console.error("Error in cleaning up")
+                await telegram.send("There was an error in recovering from a failed state. please checkt yourself!")
+            }
+            //Do not set state to error again, otherwise we risk an endless loop of cleanup-attempts while vault is unmanaged.
+            await program.updateToState(ProgramState.Idle, VaultMaxiProgramTransaction.None)
             return {
                 statusCode: result ? 200 : 500
             }
@@ -144,7 +148,7 @@ export async function main(event: maxiEvent): Promise<Object> {
         await telegram.log("executed script without changes. vault ratio " 
                 + vault.collateralRatio + " next " + program.nextCollateralRatio(vault))
     }
-    await program.updateToState(result ? ProgramState.Waiting : ProgramState.Error, VaultMaxiProgramTransaction.None)
+    await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
     return {
         statusCode: result ? 200 : 500
     }

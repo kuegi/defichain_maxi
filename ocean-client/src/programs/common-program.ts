@@ -12,8 +12,8 @@ import { Store, StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
 export enum ProgramState {
-    Waiting = "waiting",
-    WaitingForLastTransaction = "waiting-for-last-transaction",
+    Idle = "idle",
+    WaitingForTransaction = "waiting-for-transaction",
     Error = "error-occured",
 }
 
