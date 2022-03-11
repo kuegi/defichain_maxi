@@ -57,6 +57,7 @@ export async function main(event: maxiEvent): Promise<Object> {
     await program.init()
     if (! await program.isValid()) {
         await telegram.send("Configuration error. please check your values")
+        console.error("Configuration error. please check your values")
         return {
             statusCode: 500
         }
