@@ -7,6 +7,7 @@ import { WalletSetup } from './utils/wallet-setup'
 import { CheckProgram } from './programs/check-program'
 import { ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
+import { nextCollateralRatio } from './utils/helpers'
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -26,6 +27,9 @@ export async function main(event: maxiEvent): Promise<Object> {
     console.log("initial state: "+ProgramStateConverter.toValue(settings.stateInformation))
 
     const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b1]")
+    const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
+    
+    await program.init()
     if (event) {
         console.log("received event " + JSON.stringify(event))
         if (event.overrideSettings) {
@@ -38,67 +42,29 @@ export async function main(event: maxiEvent): Promise<Object> {
         }
 
         if (event.checkSetup) {
-            if (CheckProgram.canDoCheck(settings)) {
-                const program = new CheckProgram(store, new WalletSetup(MainNet, settings))
-                await program.init()
-                await program.reportCheck(telegram)
-                return { statusCode: 200 }
-            } else {
-                const message = CheckProgram.buildCurrentSettingsIntoMessage(settings)
-                console.log(message)
-                await telegram.log(message)
-                await telegram.send(message)
-                return {
-                    statusCode: 500,
-                    message: message
-                }
-            }
+            let result= await program.doAndReportCheck(telegram)
+            return { statusCode: result? 200 : 500 }
         }
     }
 
-    const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
-    await program.init()
-    if (! await program.isValid()) {
-        await telegram.send("Configuration error. please check your values")
-        console.error("Configuration error. please check your values")
+    if (!await program.doValidationChecks(telegram)) {
         return {
             statusCode: 500
         }
     }
 
-    const vaultcheck = await program.getVault()
-    if(!vaultcheck) {
-        console.error("Did not find vault")
-        await telegram.send("Error: vault is gone ")
-        return {
-            statusCode: 500
-        }
-    }
-    if (vaultcheck.state == LoanVaultState.FROZEN || vaultcheck.state == LoanVaultState.IN_LIQUIDATION) {
-        await telegram.send("Error: vault not active, its " + vaultcheck.state)
-        console.error("Vault not active: "+vaultcheck.state)
-        return {
-            statusCode: 500
-        }
-    }
 
-    let vault: LoanVaultActive = vaultcheck
-    if(+vault.collateralValue < 10) {
-        await telegram.send("less than 10 dollar in the vault, can't work with that")
-        console.error("less than 10 dollar in the vault. can't work like that")
-        return {statusCode:500}
-    }
     let result = true
+    let vault: LoanVaultActive = await program.getVault() as LoanVaultActive //already checked before if all is fine
+    
 
     // 2022-03-08 Krysh: Something went wrong on last execution, we need to clean up, whatever was done
-    if (settings.stateInformation && settings.stateInformation.state !== ProgramState.Idle) {
+    if (settings.stateInformation.state !== ProgramState.Idle) {
         const information = settings.stateInformation
         console.log("last execution stopped state " + information.state)
         console.log(" for tx " + information.tx)
         console.log(" for txId " + information.txId)
         console.log(" on block height " + information.blockHeight)
-
-        let shouldCleanUp = false
 
         // 2022-03-09 Krysh: input of kuegi
         // if we are on state waiting for last transaction and we are still on same block height since last execution
@@ -112,8 +78,8 @@ export async function main(event: maxiEvent): Promise<Object> {
         if (information.state === ProgramState.Error || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
             console.log("need to clean up")
             result = await program.cleanUp(vault, telegram)
-            const cleanUpVaultCheck = await program.getVault() as LoanVaultActive
-            await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + cleanUpVaultCheck.collateralRatio)
+            vault = await program.getVault() as LoanVaultActive
+            await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + vault.collateralRatio)
             if(!result) {
                 console.error("Error in cleaning up")
                 await telegram.send("There was an error in recovering from a failed state. please check yourself!")
@@ -129,9 +95,10 @@ export async function main(event: maxiEvent): Promise<Object> {
         }
     }
 
-    const nextCollateralRatio = program.nextCollateralRatio(vault)
-    const usedCollateralRatio= Math.min(+vault.collateralRatio, nextCollateralRatio)
-    console.log("starting with " + vault.collateralRatio + " (next: "+nextCollateralRatio+") in vault, target " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
+    const nextRatio = nextCollateralRatio(vault)
+    const usedCollateralRatio= Math.min(+vault.collateralRatio, nextRatio)
+    console.log("starting with " + vault.collateralRatio + " (next: "+nextRatio+") in vault, target "
+                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
     let exposureChanged= false
     if (0 < usedCollateralRatio && usedCollateralRatio < settings.minCollateralRatio) {
         result = await program.decreaseExposure(vault, telegram)
@@ -146,14 +113,14 @@ export async function main(event: maxiEvent): Promise<Object> {
     
     if (exposureChanged) {
         const oldRatio = +vault.collateralRatio
-        const oldNext = nextCollateralRatio
+        const oldNext = nextRatio
         vault = await program.getVault() as LoanVaultActive
         await telegram.log("executed script " + (result ? "successfully" : "with problems") 
                 + ". vault ratio changed from " + oldRatio + " (next " + oldNext + ") to " 
-                + vault.collateralRatio + " (next " + program.nextCollateralRatio(vault) + ")")
+                + vault.collateralRatio + " (next " + nextCollateralRatio(vault) + ")")
     } else {
         await telegram.log("executed script without changes. vault ratio " 
-                + vault.collateralRatio + " next " + program.nextCollateralRatio(vault))
+                + vault.collateralRatio + " next " + nextRatio)
     }
     await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
     return {
