@@ -25,8 +25,7 @@ export async function main(event: maxiEvent): Promise<Object> {
     console.log("vault maxi v1.0-beta.1")
     console.log("initial state: "+ProgramStateConverter.toValue(settings.stateInformation))
 
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + "v1.0b1 "
-     + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b1]")
     if (event) {
         console.log("received event " + JSON.stringify(event))
         if (event.overrideSettings) {
