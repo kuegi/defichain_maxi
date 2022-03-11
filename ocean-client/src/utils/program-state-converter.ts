@@ -5,10 +5,10 @@ export class ProgramStateConverter {
         return "" + information.state + "|" + information.tx + "|" + information.txId + "|" + information.blockHeight
     }
 
-    static fromValue(value: string): ProgramStateInformation|undefined {
+    static fromValue(value: string): ProgramStateInformation {
         let split = value.split("|")
         if (split.length !== 4) {
-            return undefined
+            return {state: ProgramState.Idle, tx:"",txId:"",blockHeight:0}
         }
         return {
             state: split[0] as ProgramState,

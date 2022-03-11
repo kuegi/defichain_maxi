@@ -112,7 +112,10 @@ export async function main(event: maxiEvent): Promise<Object> {
             await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + cleanUpVaultCheck.collateralRatio)
             if(!result) {
                 console.error("Error in cleaning up")
-                await telegram.send("There was an error in recovering from a failed state. please checkt yourself!")
+                await telegram.send("There was an error in recovering from a failed state. please check yourself!")
+            } else {
+                console.log("cleanup done")
+                await telegram.send("Successfully cleaned up after some error happened")
             }
             //Do not set state to error again, otherwise we risk an endless loop of cleanup-attempts while vault is unmanaged.
             await program.updateToState(ProgramState.Idle, VaultMaxiProgramTransaction.None)
