@@ -68,7 +68,7 @@ export class VaultMaxiProgram extends CommonProgram {
         if(!vaultcheck || +vaultcheck.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
             const message= "Could not find vault or minCollateralRatio is too low. "
             + "trying vault " + this.settings.vault + " in " + this.settings.address + ". "
-            + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio + ". loanscheme minim is " + vaultcheck.loanScheme.minColRatio
+            + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio + ". loanscheme minimum is " + vaultcheck.loanScheme.minColRatio
             await telegram.send(message)
             console.error(message)
             return false
@@ -85,8 +85,8 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
-        if(this.settings.minCollateralRatio >= this.settings.maxCollateralRatio) {
-            const message= "Min collateral must be below max collateral. Please change your settings. "
+        if(this.settings.minCollateralRatio > this.settings.maxCollateralRatio-2) {
+            const message= "Min collateral must be more than 2 below max collateral. Please change your settings. "
             + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
             await telegram.send(message)
             console.error(message)
