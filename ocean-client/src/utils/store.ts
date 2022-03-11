@@ -1,4 +1,5 @@
 import SSM from 'aws-sdk/clients/ssm'
+import { ProgramState } from '../programs/common-program'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 
 export class Store {
@@ -49,16 +50,34 @@ export class Store {
             StateKey,
             ReinvestThreshold,
         ]
-        const result = await this.ssm.getParameters({
-            Names: keys
-        }).promise()
+
+        //store only allows to get 10 parameters per request
+        let parameters = (await this.ssm.getParameters({
+            Names:  [
+                StoreKey.TelegramNotificationChatId,
+                StoreKey.TelegramNotificationToken,
+                StoreKey.TelegramLogsChatId,
+                StoreKey.TelegramLogsToken,
+            ]
+        }).promise()).Parameters ?? []
+
+    
+        parameters= parameters.concat((await this.ssm.getParameters({
+            Names:  [DeFiAddressKey,
+                DeFiVaultKey,
+                MinCollateralRatioKey,
+                MaxCollateralRatioKey,
+                LMTokenKey,
+                StateKey,
+                ReinvestThreshold,
+            ]
+        }).promise()).Parameters ?? [])
 
         const decryptedSeed = await this.ssm.getParameter({
             Name: seedkey,
             WithDecryption: true
         }).promise()
 
-        let parameters = result.Parameters ?? []
         this.settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
         this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
         this.settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
@@ -104,7 +123,7 @@ export class StoredSettings {
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
     reinvestThreshold: number | undefined 
-    stateInformation: ProgramStateInformation|undefined
+    stateInformation: ProgramStateInformation= {state: ProgramState.Idle,tx: '',txId: '',blockHeight: 0}
 }
 
 enum StoreKey {

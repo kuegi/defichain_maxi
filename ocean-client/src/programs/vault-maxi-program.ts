@@ -230,7 +230,7 @@ export class VaultMaxiProgram extends CommonProgram {
         return await this.paybackTokenBalances(wantedTokens, telegram)
     }
 
-    async updateToState(state: ProgramState, transaction: VaultMaxiProgramTransaction, txId: string = "none"): Promise<void> {
+    async updateToState(state: ProgramState, transaction: VaultMaxiProgramTransaction, txId: string = ""): Promise<void> {
         return await this.store.updateToState({
             state: state,
             tx: transaction,

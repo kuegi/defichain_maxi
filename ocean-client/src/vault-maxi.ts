@@ -6,6 +6,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CheckProgram } from './programs/check-program'
 import { ProgramState } from './programs/common-program'
+import { ProgramStateConverter } from './utils/program-state-converter'
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -22,7 +23,10 @@ export async function main(event: maxiEvent): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
     console.log("vault maxi v1.0-beta.1")
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
+    console.log("initial state: "+ProgramStateConverter.toValue(settings.stateInformation))
+
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + "v1.0b1 "
+     + (settings.vault?.length > 6 ? settings.vault.substring(0, 6) : "...") + "]")
     if (event) {
         console.log("received event " + JSON.stringify(event))
         if (event.overrideSettings) {
