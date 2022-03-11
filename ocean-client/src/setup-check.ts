@@ -16,7 +16,7 @@ export async function main (): Promise<Object> {
     var checkedValues = new CheckedValues()
     if (WalletSetup.canInitializeFrom(settings)) {
         const walletSetup = new WalletSetup(MainNet, settings)
-        const program = new CheckProgram(settings, walletSetup)
+        const program = new CheckProgram(store, walletSetup)
         await program.init()
         checkedValues = await program.reportCheck(telegram)
     }

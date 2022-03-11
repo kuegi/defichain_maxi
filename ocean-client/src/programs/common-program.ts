@@ -1,27 +1,32 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { CTransactionSegWit, TokenBalance, TransactionSegWit } from "@defichain/jellyfish-transaction";
-import { JellyfishWallet, WalletAccount, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
+import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
-import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
-import { resolve } from "path/posix";
-import { isThisTypeNode } from "typescript";
-import { delay, isNullOrEmpty } from "../utils/helpers";
+import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
 import { Store, StoredSettings } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 
+export enum ProgramState {
+    Idle = "idle",
+    WaitingForTransaction = "waiting-for-transaction",
+    Error = "error-occured",
+}
+
 export class CommonProgram {
     protected readonly settings: StoredSettings
+    protected readonly store: Store
     private readonly client: WhaleApiClient
     private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
     private account: WhaleWalletAccount | undefined
 
-    constructor(settings: StoredSettings, walletSetup: WalletSetup) {
-        this.settings = settings
+    constructor(store: Store, walletSetup: WalletSetup) {
+        this.settings = store.settings
+        this.store = store
         this.client = walletSetup.client
         this.wallet = new JellyfishWallet(walletSetup.nodeProvider, walletSetup.accountProvider)
     }
@@ -93,6 +98,10 @@ export class CommonProgram {
 
     async getToken(token:string):Promise<TokenData> {
         return this.client.tokens.get(token)
+    }
+
+    async getBlockHeight(): Promise<number> {
+        return (await this.client.stats.get()).count.blocks
     }
 
     async removeLiquidity(poolId: number, amount: BigNumber): Promise<string> {
@@ -193,6 +202,5 @@ export class CommonProgram {
                 }, 5000)
             }, initialTime)
         })
-
     }
 }

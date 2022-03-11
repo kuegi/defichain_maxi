@@ -1,4 +1,6 @@
 import SSM from 'aws-sdk/clients/ssm'
+import { ProgramState } from '../programs/common-program'
+import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 
 export class Store {
     private ssm = new SSM()
@@ -6,6 +8,17 @@ export class Store {
 
     constructor() {
         this.settings = new StoredSettings()
+    }
+
+    async updateToState(information: ProgramStateInformation): Promise<void> {
+        const key = StoreKey.State.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const state = {
+            Name: key,
+            Value: ProgramStateConverter.toValue(information),
+            Overwrite: true,
+            Type: 'String'
+        }
+        await this.ssm.putParameter(state).promise()
     }
 
     async fetchSettings(): Promise<StoredSettings> {
@@ -22,6 +35,7 @@ export class Store {
         let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
+        let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
             StoreKey.TelegramNotificationChatId,
@@ -33,18 +47,37 @@ export class Store {
             MinCollateralRatioKey,
             MaxCollateralRatioKey,
             LMTokenKey,
+            StateKey,
             ReinvestThreshold,
         ]
-        const result = await this.ssm.getParameters({
-            Names: keys
-        }).promise()
+
+        //store only allows to get 10 parameters per request
+        let parameters = (await this.ssm.getParameters({
+            Names:  [
+                StoreKey.TelegramNotificationChatId,
+                StoreKey.TelegramNotificationToken,
+                StoreKey.TelegramLogsChatId,
+                StoreKey.TelegramLogsToken,
+            ]
+        }).promise()).Parameters ?? []
+
+    
+        parameters= parameters.concat((await this.ssm.getParameters({
+            Names:  [DeFiAddressKey,
+                DeFiVaultKey,
+                MinCollateralRatioKey,
+                MaxCollateralRatioKey,
+                LMTokenKey,
+                StateKey,
+                ReinvestThreshold,
+            ]
+        }).promise()).Parameters ?? [])
 
         const decryptedSeed = await this.ssm.getParameter({
             Name: seedkey,
             WithDecryption: true
         }).promise()
 
-        let parameters = result.Parameters ?? []
         this.settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
         this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
         this.settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
@@ -55,11 +88,10 @@ export class Store {
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
+        this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
 
         let seedList= decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g," ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
-        
-        // 2022-03-04 Krysh: TODO add clean up variable
         return this.settings
     }
 
@@ -91,7 +123,7 @@ export class StoredSettings {
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
     reinvestThreshold: number | undefined 
-    shouldCleanUp: boolean = false
+    stateInformation: ProgramStateInformation= {state: ProgramState.Idle,tx: '',txId: '',blockHeight: 0}
 }
 
 enum StoreKey {
@@ -105,6 +137,6 @@ enum StoreKey {
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
-    CleanUp = '/defichain-maxi/settings/clean-up',
-    ReinvestThreshold = '/defichain-maxi/settings/reinvest'
+    ReinvestThreshold = '/defichain-maxi/settings/reinvest',
+    State = '/defichain-maxi/state',
 }
