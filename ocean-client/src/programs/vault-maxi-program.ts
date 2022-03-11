@@ -1,4 +1,4 @@
-import { LoanVaultActive } from "@defichain/whale-api-client/dist/api/loan";
+import { LoanVaultActive, LoanVaultState } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { Telegram } from "../utils/telegram";
@@ -8,6 +8,7 @@ import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { TokenBalance } from "@defichain/jellyfish-transaction/dist";
+import { nextCollateralValue, nextLoanValue } from "../utils/helpers";
 
 
 export enum VaultMaxiProgramTransaction {
@@ -17,6 +18,28 @@ export enum VaultMaxiProgramTransaction {
     TakeLoan = "takeloan",
     AddLiquidity = "addliquidity",
     Reinvest = "reinvest"
+}
+
+export class CheckedValues {
+    //used addres. only set if wallet initialized and address found
+    address: string | undefined
+    // monitored vault. only set if vault found
+    vault: string | undefined
+    
+    minCollateralRatio: number = 0
+    maxCollateralRatio: number = -1
+    LMToken: string | undefined
+    reinvest: number | undefined
+
+    constructMessage(): string {
+        return ""
+        + "Setup-Check result\n"
+        + (this.vault?("monitoring vault "+this.vault):"no vault found") +"\n"
+        + (this.address?("from address " + this.address):"no valid address")+"\n"
+        + "Set collateral ratio range " + this.minCollateralRatio + "-" + this.maxCollateralRatio + "\n"
+        + (this.LMToken ? ("Set dToken "+ this.LMToken ) : "no pool found for token ") +"\n"
+        + (this.reinvest ? ("Will reinvest above "+this.reinvest+" DFI"): "Will not reinvest")
+    }
 }
 
 export class VaultMaxiProgram extends CommonProgram {
@@ -36,42 +59,123 @@ export class VaultMaxiProgram extends CommonProgram {
                 transaction == VaultMaxiProgramTransaction.TakeLoan
     }
 
-    nextCollateralValue(vault: LoanVaultActive) : number {
-        let nextCollateral= 0
-        vault.collateralAmounts.forEach(collateral => {
-            if( collateral.symbol == "DUSD") {
-                nextCollateral += Number(collateral.amount) * 0.99 //no oracle price for DUSD, fixed 0.99
-            } else {
-                nextCollateral += Number(collateral.activePrice?.next?.amount ?? 0) * Number(collateral.amount)
+    
+    async doValidationChecks(telegram:Telegram) : Promise<boolean> {
+        if(!super.doValidationChecks(telegram)) {
+            return false
+        }
+        const vaultcheck = await this.getVault()
+        if(!vaultcheck || +vaultcheck.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
+            const message= "Could not find vault or minCollateralRatio is too low. "
+            + "trying vault " + this.settings.vault + " in " + this.settings.address + ". "
+            + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio + ". loanscheme minim is " + vaultcheck.loanScheme.minColRatio
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
+        if(vaultcheck.state == LoanVaultState.IN_LIQUIDATION) {
+            const message= "Error: Can't maximize a vault in liquidation!"
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
+        if(this.settings.minCollateralRatio >= this.settings.maxCollateralRatio) {
+            const message= "Min collateral must be below max collateral. Please change your settings. "
+            + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
+        const poolPair= this.settings.LMToken+"-DUSD"
+        const pool= await this.getPool(poolPair)
+        if(!pool) {
+            const message= "No pool found for this token. tried: "+ poolPair
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
+        
+        const vault= vaultcheck as LoanVaultActive
+        if(vault.state == LoanVaultState.FROZEN) {
+            const message = "vault is frozen. trying again later "
+            await telegram.send(message)
+            console.warn(message)
+            return false
+        }
+        if(+vault.collateralValue < 10) {
+            const message = "less than 10 dollar in the vault. can't work like that"
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
+
+        // showstoppers checked, now check for warnings
+
+        const safeCollRatio = +vault.loanScheme.minColRatio * 2
+        if (+vault.collateralRatio < safeCollRatio) {
+            //check if we could provide safety
+            const balances = await this.getTokenBalances()
+            const lpTokens = balances.get(poolPair)
+            const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
+            const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
+            if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
+                const message = "vault ratio not safe but either no lpTokens or no loans in vault. Did you change the LMToken? Your vault is NOT safe! "
+                await telegram.send(message)
+                console.warn(message)
+                return true//can still run
             }
-        })
-        return nextCollateral
+            const neededrepay = +vault.loanValue - (+vault.collateralValue * 100 / safeCollRatio)
+            const neededStock = neededrepay / (+tokenLoan.activePrice!.active!.amount + (+pool!.priceRatio.ba))
+            const neededDusd = neededStock * +pool!.priceRatio.ba
+            const neededLPtokens: number = +((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
+            if (neededLPtokens > +lpTokens.amount || neededDusd > +dusdLoan.amount || neededStock > +tokenLoan.amount) {
+                const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
+                    + neededLPtokens + " vs " + lpTokens.amount + " " + lpTokens.symbol + "\n"
+                    + neededDusd + " vs " + dusdLoan.amount + " " + dusdLoan.symbol + "\n"
+                    + neededStock + " vs " + tokenLoan.amount + " " + tokenLoan.symbol + "\n"
+                await telegram.send(message)
+                console.warn(message)
+                return true //can still run
+            }
+        }
+        return true
+    }
+
+    async doAndReportCheck(telegram: Telegram): Promise<boolean> {
+        if(!this.doValidationChecks(telegram)) {
+            return false //report already send inside
+        }
+        var values = new CheckedValues()
+
+        let walletAddress = await this.getAddress()
+        let vault = await this.getVault()
+        const lmPair= this.settings.LMToken+"-DUSD"
+        let pool = await this.getPool(lmPair)
+
+        values.address= walletAddress === this.settings.address ? walletAddress : undefined
+        values.vault = vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
+        values.minCollateralRatio = this.settings.minCollateralRatio
+        values.maxCollateralRatio = this.settings.maxCollateralRatio
+        values.LMToken = (pool && pool.symbol == lmPair) ? this.settings.LMToken : undefined
+        values.reinvest= this.settings.reinvestThreshold
+
+        const message = values.constructMessage()
+        console.log(message)
+        await telegram.send(message)
+        await telegram.log("log channel active")
+
+        return true
     }
 
     
-    nextLoanValue(vault: LoanVaultActive) : number {
-        let nextLoan = 0
-        vault.loanAmounts.forEach(loan => {
-            if( loan.symbol == "DUSD") {
-                nextLoan += Number(loan.amount) // no oracle for DUSD
-            } else {
-                nextLoan += Number(loan.activePrice?.next?.amount ?? 1) * Number(loan.amount)
-            }
-        })
-        return nextLoan
-    }
 
-    nextCollateralRatio(vault: LoanVaultActive) : number {
-       const nextLoan= this.nextLoanValue(vault)
-        return nextLoan <= 0 ? -1 : Math.floor(100 * this.nextCollateralValue(vault) / nextLoan)
-    }
 
     async decreaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
         const neededrepay = Math.max(+vault.loanValue - (+vault.collateralValue / this.targetCollateral),
-                                this.nextLoanValue(vault) - (this.nextCollateralValue(vault) / this.targetCollateral))
-       const neededStock = neededrepay / (+oracle.active!.amount + (+pool!.priceRatio.ba))
+                                nextLoanValue(vault) - (nextCollateralValue(vault) / this.targetCollateral))
+        const neededStock = neededrepay / (+oracle.active!.amount + (+pool!.priceRatio.ba))
         const wantedusd = neededStock * +pool!.priceRatio.ba
         const lptokens: number = +((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
         let dusdLoan: number = 0

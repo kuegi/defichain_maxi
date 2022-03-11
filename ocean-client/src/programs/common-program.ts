@@ -9,6 +9,7 @@ import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
 import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
 import { Store, StoredSettings } from "../utils/store";
+import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
 
 export enum ProgramState {
@@ -44,13 +45,13 @@ export class CommonProgram {
         return true
     }
 
-    async isValid() : Promise<boolean> {
-        if(!this.account) return false
-        const vault= await this.getVault()
-        if(!vault || +vault.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
-            return false
-        }
-        if(this.settings.minCollateralRatio >= this.settings.maxCollateralRatio) {
+    async doValidationChecks(telegram:Telegram) : Promise<boolean> {
+        if(!this.account) {
+            const message= "Could not initialize wallet. Check your settings! "
+            + this.settings.seed.length + " words in seedphrase,"
+            + "trying vault " + this.settings.vault + " in " + this.settings.address + ". "
+            await telegram.send(message)
+            console.error(message)
             return false
         }
         return true
