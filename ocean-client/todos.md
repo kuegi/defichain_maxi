@@ -1,7 +1,7 @@
 # List of todos
 * [x] clean up functionality
 * [ ] send multiple tx in one block to reduce timeout-risk
-* [ ] add check if enough LP-token and loans are available to reduce exposure to at least 2xminLoanScheme, otherwise send warning 
+* [X] add check if enough LP-token and loans are available to reduce exposure to at least 2xminLoanScheme, otherwise send warning 
 * [X] reinvest functionality
 * [X] use min(currentRatio,nextRatio) to anticipate next update
 * [ ] refactor to jellyfish
