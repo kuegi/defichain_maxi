@@ -73,6 +73,12 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
+        if(vaultcheck.ownerAddress !== this.settings.address) {
+            const message= "Error: vault not owned by this address"
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
         if(vaultcheck.state === LoanVaultState.IN_LIQUIDATION) {
             const message= "Error: Can't maximize a vault in liquidation!"
             await telegram.send(message)
@@ -86,10 +92,9 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
-        const poolPair= this.settings.LMToken+"-DUSD"
-        const pool= await this.getPool(poolPair)
+        const pool= await this.getPool(this.lmPair)
         if(!pool) {
-            const message= "No pool found for this token. tried: "+ poolPair
+            const message= "No pool found for this token. tried: "+ this.lmPair
             await telegram.send(message)
             console.error(message)
             return false
@@ -115,7 +120,7 @@ export class VaultMaxiProgram extends CommonProgram {
         if (+vault.collateralRatio < safeCollRatio) {
             //check if we could provide safety
             const balances = await this.getTokenBalances()
-            const lpTokens = balances.get(poolPair)
+            const lpTokens = balances.get(this.lmPair)
             const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
             const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
             if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
@@ -149,14 +154,13 @@ export class VaultMaxiProgram extends CommonProgram {
 
         let walletAddress = await this.getAddress()
         let vault = await this.getVault()
-        const lmPair= this.settings.LMToken+"-DUSD"
-        let pool = await this.getPool(lmPair)
+        let pool = await this.getPool(this.lmPair)
 
         values.address= walletAddress === this.settings.address ? walletAddress : undefined
         values.vault = vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
         values.minCollateralRatio = this.settings.minCollateralRatio
         values.maxCollateralRatio = this.settings.maxCollateralRatio
-        values.LMToken = (pool && pool.symbol == lmPair) ? this.settings.LMToken : undefined
+        values.LMToken = (pool && pool.symbol == this.lmPair) ? this.settings.LMToken : undefined
         values.reinvest= this.settings.reinvestThreshold
 
         const message = values.constructMessage()
@@ -191,6 +195,7 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log("reducing exposure by "+neededrepay+" USD: " + wantedusd + "@DUSD " + neededStock + "@" + this.settings.LMToken + " from " + lptokens + " existing LPTokens")
         if (lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
             await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
+            console.error("can't withdraw from pool, no tokens left or no loans left")
             return false
         }
         const stock_per_token = +pool!.tokenA.reserve / +pool!.totalLiquidity.token
@@ -201,6 +206,7 @@ export class VaultMaxiProgram extends CommonProgram {
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx)
         if (! await this.waitForTx(removeTx)) {
             await telegram.send("ERROR: when removing liquidity")
+            console.error("removing liquidity failed")
             return false
         }
         const tokens = await this.getTokenBalances()
@@ -234,7 +240,7 @@ export class VaultMaxiProgram extends CommonProgram {
             const success = await this.waitForTx(paybackTx)
             if (!success) {
                 await telegram.send("ERROR: paying back tokens")
-                console.error("ERROR: paying back tokens")
+                console.error("paying back tokens failed")
                 return false
             } else {
                 await telegram.send("done reducing exposure")
@@ -242,14 +248,14 @@ export class VaultMaxiProgram extends CommonProgram {
             }
         } else {
             await telegram.send("ERROR: no tokens to pay back")
-            console.error("ERROR: no tokens to pay back")
+            console.error("no tokens to pay back")
             return false
         }
         return true
     }
 
     async increaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
-        console.log(" increasing exposure ")
+        console.log("increasing exposure ")
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
         const additionalLoan = Math.min((+vault.collateralValue / this.targetCollateral) - +vault.loanValue,
@@ -266,29 +272,28 @@ export class VaultMaxiProgram extends CommonProgram {
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeloanTx)
         if (! await this.waitForTx(takeloanTx)) {
             await telegram.send("ERROR: taking loans")
-            console.error("ERROR: taking loans")
+            console.error("taking loans failed")
             return false
         }
         //refresh for latest ratio
         pool = (await this.getPool(this.lmPair))!!
-        neededStock = +pool.priceRatio.ab * neededDUSD
-
-        const tokenBalance = await this.getTokenBalance(this.settings.LMToken)
-        if (neededStock > +tokenBalance!.amount) {
-            neededStock = +tokenBalance!.amount
-            neededDUSD = +pool.priceRatio.ba * neededStock
+        let usedStock = +pool.priceRatio.ab * neededDUSD
+        let usedDUSD = neededDUSD
+        if (usedStock > neededStock) { //ratio changed, but not enough stocks to fill it -> use full stocks and reduce DUSD
+            usedStock = neededStock
+            usedDUSD = +pool.priceRatio.ba * usedStock
         }
 
-        console.log(" adding liquidity " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
+        console.log(" adding liquidity " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
         const addTx = await this.addLiquidity([
-            { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
-            { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) },
+            { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
+            { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
         ])
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx)
         if (! await this.waitForTx(addTx)) {
             await telegram.send("ERROR: adding liquidity")
-            console.error("ERROR: adding liquidity")
+            console.error("adding liquidity failed")
             return false
         } else {
             await telegram.send("done increasing exposure")
@@ -298,18 +303,18 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async checkAndDoReinvest(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
-        if(!this.settings.reinvestThreshold) {
+        if(!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
             return false
         }
         
         const tokenBalance = await this.getTokenBalance("DFI")
         if( tokenBalance && +tokenBalance.amount > this.settings.reinvestThreshold) {
-            console.log(" depositing " + tokenBalance.amount + " DFI to vault ")
+            console.log("depositing " + tokenBalance.amount + " DFI to vault ")
             const tx= await this.depositToVault(parseInt(tokenBalance.id),new BigNumber(tokenBalance.amount))
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx)
             if (! await this.waitForTx(tx)) {
-                await telegram.send("ERROR: depositing")
-                console.error("ERROR: depositing")
+                await telegram.send("ERROR: depositing reinvestment failed")
+                console.error("depositing failed")
                 return false
             } else {
                 await telegram.send("reinvested "+tokenBalance.amount+" DFI")

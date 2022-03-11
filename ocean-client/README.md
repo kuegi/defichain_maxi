@@ -15,7 +15,7 @@ We are developing this thing in our free time. Noone is paying us for it. If you
 
 kügi: df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07
 
-krysh: dZ69fTXJ15YyDKCjAxTKqJ9qx2iV5Yq7cS
+krysh: df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm
 
 # Build & preparing for upload
 We recommend running it as a lambda on AWS. with reasonable settings (trigger every 10 minutes) you will even stay within the free tier of AWS.
