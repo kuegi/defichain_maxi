@@ -32,6 +32,7 @@ export class Store {
         let DeFiVaultKey = StoreKey.DeFiVault.replace("-maxi", "-maxi" + storePostfix)
         let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
+        let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
 
@@ -46,6 +47,7 @@ export class Store {
             MaxCollateralRatioKey,
             LMTokenKey,
             StateKey,
+            ReinvestThreshold,
         ]
         const result = await this.ssm.getParameters({
             Names: keys
@@ -66,14 +68,11 @@ export class Store {
         this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
+        this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
 
-        if ((decryptedSeed.Parameter?.Value?.indexOf(",") ?? -1) > 0) {
-            this.settings.seed = decryptedSeed.Parameter?.Value?.split(',') ?? []
-        } else {
-            this.settings.seed = decryptedSeed.Parameter?.Value?.split(' ') ?? []
-        }
-
+        let seedList= decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g," ")
+        this.settings.seed = seedList?.trim().split(' ') ?? []
         return this.settings
     }
 
@@ -83,7 +82,7 @@ export class Store {
 
     private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {
         let value = parameters?.find(element => element.Name === key)?.Value
-        return value ? parseInt(value) : undefined
+        return value ? +value : undefined
     }
 
     private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
@@ -104,6 +103,7 @@ export class StoredSettings {
     minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
+    reinvestThreshold: number | undefined 
     stateInformation: ProgramStateInformation|undefined
 }
 
@@ -118,5 +118,6 @@ enum StoreKey {
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
+    ReinvestThreshold = '/defichain-maxi/settings/reinvest'
     State = '/defichain-maxi/state',
 }
