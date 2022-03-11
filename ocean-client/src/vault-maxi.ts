@@ -4,7 +4,6 @@ import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-
 import { Store } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
-import { CheckProgram } from './programs/check-program'
 import { ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
 import { nextCollateralRatio } from './utils/helpers'
@@ -23,10 +22,10 @@ class maxiEvent {
 export async function main(event: maxiEvent): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
-    console.log("vault maxi v1.0-beta.1")
+    console.log("vault maxi v1.0-beta.2")
     console.log("initial state: "+ProgramStateConverter.toValue(settings.stateInformation))
 
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b1]")
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b2]")
     const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
     
     await program.init()
@@ -69,10 +68,13 @@ export async function main(event: maxiEvent): Promise<Object> {
         // 2022-03-09 Krysh: input of kuegi
         // if we are on state waiting for last transaction and we are still on same block height since last execution
         // then we should wait for txId
-        const currentBlockHeight = await program.getBlockHeight()
-        if (information.state === ProgramState.WaitingForTransaction && information.blockHeight === currentBlockHeight) {
+        if (information.state === ProgramState.WaitingForTransaction) { //ignore blockheight, just ensure that the tx is done
             console.log("waiting for tx from previous run")
-            await program.waitForTx(information.txId)
+            const result = await program.waitForTx(information.txId)
+            console.log(result ? "done" : " timed out -> cleanup")
+            if (!result) {
+                information.state = ProgramState.Error //force cleanup
+            }
         }
         // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
         if (information.state === ProgramState.Error || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {

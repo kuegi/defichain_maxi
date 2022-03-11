@@ -73,7 +73,7 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
-        if(vaultcheck.state == LoanVaultState.IN_LIQUIDATION) {
+        if(vaultcheck.state === LoanVaultState.IN_LIQUIDATION) {
             const message= "Error: Can't maximize a vault in liquidation!"
             await telegram.send(message)
             console.error(message)
@@ -253,7 +253,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
         const additionalLoan = Math.min((+vault.collateralValue / this.targetCollateral) - +vault.loanValue,
-                                (this.nextCollateralValue(vault) / this.targetCollateral) - this.nextLoanValue(vault))
+                                (nextCollateralValue(vault) / this.targetCollateral) - nextLoanValue(vault))
         let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
         let neededDUSD = +pool.priceRatio.ba * neededStock
 
