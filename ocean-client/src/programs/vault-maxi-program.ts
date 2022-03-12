@@ -274,40 +274,72 @@ export class VaultMaxiProgram extends CommonProgram {
         let neededDUSD = +pool.priceRatio.ba * neededStock
 
         console.log("increasing by "+additionalLoan+" USD, taking loan " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
-        const takeloanTx = await this.takeLoans([
+        const [takeloanTxId, takeLoanTx] = await this.takeLoans([
             { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
             { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) }
         ])
-
-        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeloanTx)
-        if (! await this.waitForTx(takeloanTx)) {
-            await telegram.send("ERROR: taking loans")
-            console.error("taking loans failed")
-            return false
-        }
-        //refresh for latest ratio
-        pool = (await this.getPool(this.lmPair))!!
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeloanTxId)
+        const sendInOneBlock= true
+        let addTx:string= ""
+        if(sendInOneBlock){
+            let usedDUSD = neededDUSD
+            if(this.keepWalletClean) {
+                //use full balance to increase exposure: existing balance + expected from loan
+                const tokens = await this.getTokenBalances()
+                usedDUSD += +(tokens.get("DUSD")?.amount ?? "0") 
+                neededStock+= +(tokens.get(this.settings.LMToken)?.amount ?? "0" ) //upper limit for usedStocks
+            }
         
-        let usedDUSD = neededDUSD
-        if(this.keepWalletClean) {
-            //use full balance to increase exposure
-            const tokens = await this.getTokenBalances()
-            usedDUSD = +(tokens.get("DUSD")!.amount)
-            neededStock=+(tokens.get(this.settings.LMToken)!.amount) //upper limit for usedStocks
-        }
-    
-        let usedStock = +pool.priceRatio.ab * neededDUSD
-        if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
-            usedStock = neededStock
-            usedDUSD = +pool.priceRatio.ba * usedStock
-        }
+            let usedStock = +pool.priceRatio.ab * usedDUSD
+            if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
+                usedStock = neededStock
+                usedDUSD = +pool.priceRatio.ba * usedStock
+            }
 
-        console.log(" adding liquidity " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
-        const addTx = await this.addLiquidity([
-            { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
-            { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
-        ])
-
+            console.log(" adding liquidity in same block " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
+            addTx = await this.addLiquidity([
+                { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
+                { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
+            ],{txid: takeloanTxId,
+                vout: 1,
+                value: takeLoanTx.vout[1].value,
+                script: takeLoanTx.vout[1].script,
+                tokenId: takeLoanTx.vout[1].tokenId
+            })
+        } else {
+            if (!await this.waitForTx(takeloanTxId)) {
+                await telegram.send("ERROR: taking loans")
+                console.error("taking loans failed")
+                return false
+            }
+            //refresh for latest ratio
+            pool = (await this.getPool(this.lmPair))!!
+            
+            let usedDUSD = neededDUSD
+            if(this.keepWalletClean) {
+                //use full balance to increase exposure
+                const tokens = await this.getTokenBalances()
+                usedDUSD = +(tokens.get("DUSD")!.amount)
+                neededStock=+(tokens.get(this.settings.LMToken)!.amount) //upper limit for usedStocks
+            }
+        
+            let usedStock = +pool.priceRatio.ab * usedDUSD
+            if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
+                usedStock = neededStock
+                usedDUSD = +pool.priceRatio.ba * usedStock
+            }
+            //need to give ocean time to sync mempool across instances
+            await new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve(true)
+                }, 2000)
+            })
+            console.log(" adding liquidity " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
+            addTx = await this.addLiquidity([
+                { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
+                { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
+            ])
+        }
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx)
         if (! await this.waitForTx(addTx)) {
             await telegram.send("ERROR: adding liquidity")
