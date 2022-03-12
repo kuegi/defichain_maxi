@@ -117,8 +117,11 @@ export class VaultMaxiProgram extends CommonProgram {
         }
 
         // showstoppers checked, now check for warnings
-
-        const safeCollRatio = +vault.loanScheme.minColRatio * 2
+        const safetyOverride= process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE ? +(process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE) : undefined
+        const safeCollRatio = safetyOverride ?? +vault.loanScheme.minColRatio * 2
+        if(safetyOverride) {
+            console.log("using override for vault safety level: "+safetyOverride)
+        }
         if (+vault.collateralRatio < safeCollRatio) {
             //check if we could provide safety
             const balances = await this.getTokenBalances()
@@ -159,7 +162,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let pool = await this.getPool(this.lmPair)
 
         values.address= walletAddress === this.settings.address ? walletAddress : undefined
-        values.vault = vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
+        values.vault = (vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress) ? vault.vaultId : undefined
         values.minCollateralRatio = this.settings.minCollateralRatio
         values.maxCollateralRatio = this.settings.maxCollateralRatio
         values.LMToken = (pool && pool.symbol == this.lmPair) ? this.settings.LMToken : undefined
