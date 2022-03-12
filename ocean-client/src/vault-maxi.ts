@@ -25,10 +25,6 @@ export async function main(event: maxiEvent): Promise<Object> {
     console.log("vault maxi v1.0-beta.2")
     console.log("initial state: "+ProgramStateConverter.toValue(settings.stateInformation))
 
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b2]")
-    const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
-    
-    await program.init()
     if (event) {
         console.log("received event " + JSON.stringify(event))
         if (event.overrideSettings) {
@@ -39,7 +35,13 @@ export async function main(event: maxiEvent): Promise<Object> {
             if (event.overrideSettings.LMToken)
                 settings.LMToken = event.overrideSettings.LMToken
         }
+    }
 
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b2]")
+    const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
+    await program.init()
+    
+    if(event){
         if (event.checkSetup) {
             let result= await program.doAndReportCheck(telegram)
             return { statusCode: result ? 200 : 500 }

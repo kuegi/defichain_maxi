@@ -122,7 +122,7 @@ export class VaultMaxiProgram extends CommonProgram {
         if(safetyOverride) {
             console.log("using override for vault safety level: "+safetyOverride)
         }
-        if (+vault.collateralRatio < safeCollRatio) {
+        if (+vault.collateralRatio > 0 && +vault.collateralRatio < safeCollRatio) {
             //check if we could provide safety
             const balances = await this.getTokenBalances()
             const lpTokens = balances.get(this.lmPair)
@@ -231,7 +231,11 @@ export class VaultMaxiProgram extends CommonProgram {
             paybackTokens.push(token)
         }
 
-        return await this.paybackTokenBalances(paybackTokens, telegram)
+        if(await this.paybackTokenBalances(paybackTokens, telegram)) {
+            await telegram.send("done reducing exposure")
+            return true
+        }
+        return false
     }
 
     private async paybackTokenBalances(addressTokens: AddressToken[], telegram: Telegram): Promise<boolean> {
@@ -250,7 +254,6 @@ export class VaultMaxiProgram extends CommonProgram {
                 console.error("paying back tokens failed")
                 return false
             } else {
-                await telegram.send("done reducing exposure")
                 console.log("done")
             }
         } else {
