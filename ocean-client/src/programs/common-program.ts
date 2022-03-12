@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, TokenBalance, TransactionSegWit } from "@defichain/jellyfish-transaction";
+import { CTransactionSegWit, ScriptBalances, TokenBalance, TransactionSegWit } from "@defichain/jellyfish-transaction";
 import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
@@ -162,6 +162,17 @@ export class CommonProgram {
                 token: token,
                 amount: amount
             }
+        }, script)
+
+        return this.send(txn)
+    }
+
+    
+    async utxoToOwnAccount(amount: BigNumber) : Promise<string> {
+        const script = await this.account!.getScript()
+        const balances : ScriptBalances[] = [{script:script, balances:[{token:0,amount:amount}]}] //DFI has tokenId 0
+        const txn = await this.account!.withTransactionBuilder().account.utxosToAccount({
+            to: balances
         }, script)
 
         return this.send(txn)
