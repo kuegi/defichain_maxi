@@ -140,9 +140,9 @@ export class VaultMaxiProgram extends CommonProgram {
             const neededLPtokens: number = +((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
             if (neededLPtokens > +lpTokens.amount || neededDusd > +dusdLoan.amount || neededStock > +tokenLoan.amount) {
                 const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
-                    + neededLPtokens + " vs " + lpTokens.amount + " " + lpTokens.symbol + "\n"
-                    + neededDusd + " vs " + dusdLoan.amount + " " + dusdLoan.symbol + "\n"
-                    + neededStock + " vs " + tokenLoan.amount + " " + tokenLoan.symbol + "\n"
+                    + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
+                    + neededDusd.toFixed(1) + " vs " + (+dusdLoan.amount).toFixed(1) + " " + dusdLoan.symbol + "\n"
+                    + neededStock.toFixed(4) + " vs " + (+tokenLoan.amount).toFixed(4) + " " + tokenLoan.symbol + "\n"
                 await telegram.send(message)
                 console.warn(message)
                 return true //can still run
