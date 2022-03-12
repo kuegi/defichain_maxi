@@ -169,7 +169,7 @@ export class VaultMaxiProgram extends CommonProgram {
         values.reinvest= this.settings.reinvestThreshold
 
         const message = values.constructMessage() + "\n" 
-                    + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and comissions")
+                    + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
         console.log(message)
         await telegram.send(message)
         await telegram.log("log channel active")
