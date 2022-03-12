@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, ScriptBalances, TokenBalance, TransactionSegWit } from "@defichain/jellyfish-transaction";
+import { CTransactionSegWit, DeFiTransactionConstants, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
@@ -11,6 +11,8 @@ import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
 import { Store, StoredSettings } from "../utils/store";
 import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
+import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder/dist/txn/txn_fee'
+import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
 
 export enum ProgramState {
     Idle = "idle",
@@ -117,16 +119,31 @@ export class CommonProgram {
         return this.send(txn)
     }
 
-    async addLiquidity(amounts: TokenBalance[]): Promise<string> {
+    async addLiquidity(amounts: TokenBalance[],prevout:Prevout | undefined = undefined): Promise<string> {
         const script= await this.account!.getScript()
-        const txn = await this.account!.withTransactionBuilder().liqPool.addLiquidity({
+        const txBuilder= this.account!.withTransactionBuilder().liqPool
+        let txn = await txBuilder.addLiquidity({
             from: [{ 
                 script:script, 
                 balances:amounts }],
             shareAddress: script
             }
             ,script)
-            
+        if (prevout) {
+            const customTx: Transaction = {
+                version: DeFiTransactionConstants.Version,
+                vin: [{ txid: prevout.txid, index: prevout.vout, script: {stack:[]}, sequence: 0xffffffff }],
+                vout: txn.vout,
+                lockTime: 0x00000000
+            }
+            const fee = calculateFeeP2WPKH( new BigNumber(await this.client.fee.estimate()), customTx)
+            customTx.vout[1].value = prevout.value.minus(fee)
+            let signed= await this.account?.signTx(customTx,[prevout])
+            if(!signed) {
+                throw new Error("can't sign custom transaction for add liquidity")
+            }
+            txn = signed
+        }
         return this.send(txn)
     }
 
@@ -141,7 +158,7 @@ export class CommonProgram {
         return this.send(txn)
     }
 
-    async takeLoans(amounts: TokenBalance[]): Promise<string> {
+    async takeLoans(amounts: TokenBalance[]): Promise<[string,Transaction]> {
         const script= await this.account!.getScript()
         const txn= await this.account!.withTransactionBuilder().loans.takeLoan({
                 vaultId: this.settings.vault,
@@ -149,7 +166,7 @@ export class CommonProgram {
                 tokenAmounts: amounts
             },
              script)
-        return this.send(txn)
+        return [await this.send(txn), txn]
 
     }
 
