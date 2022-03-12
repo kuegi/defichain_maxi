@@ -321,6 +321,23 @@ export class VaultMaxiProgram extends CommonProgram {
         if(!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
             return false
         }
+
+        const utxoBalance= await this.getUTXOBalance()
+        if(utxoBalance.gt(this.settings.reinvestThreshold) && utxoBalance.gt(1)) {
+            const amount= utxoBalance.minus(1)
+            console.log("converting " + amount + " UTXOs to token ")
+            const tx= await this.utxoToOwnAccount(amount)
+            //@Krysh ok if we flag this also as reinvest? or different transaction? if we have a timeout after this, we don't need a cleanup
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx) 
+            if (! await this.waitForTx(tx)) {
+                await telegram.send("ERROR: converting UTXOs failed")
+                console.error("converting UTXOs failed")
+                return false
+            } else {
+                await telegram.send("converted "+amount+" UTXOs to token")
+                console.log("done ")
+            }
+        }
         
         const tokenBalance = await this.getTokenBalance("DFI")
         if( tokenBalance && +tokenBalance.amount > this.settings.reinvestThreshold) {
