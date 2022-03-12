@@ -46,12 +46,14 @@ export class VaultMaxiProgram extends CommonProgram {
     
     private readonly targetCollateral: number
     private readonly lmPair: string
+    private readonly keepWalletClean: boolean
 
     constructor(store: Store, walletSetup: WalletSetup) {
         super(store, walletSetup);
 
         this.lmPair = this.settings.LMToken + "-DUSD"
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
+        this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== "false" ?? true
     }
 
     static shouldCleanUpBasedOn(transaction: VaultMaxiProgramTransaction): boolean {
@@ -163,16 +165,14 @@ export class VaultMaxiProgram extends CommonProgram {
         values.LMToken = (pool && pool.symbol == this.lmPair) ? this.settings.LMToken : undefined
         values.reinvest= this.settings.reinvestThreshold
 
-        const message = values.constructMessage()
+        const message = values.constructMessage() + "\n" 
+                    + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and comissions")
         console.log(message)
         await telegram.send(message)
         await telegram.log("log channel active")
 
         return true
     }
-
-    
-
 
     async decreaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
@@ -215,12 +215,16 @@ export class VaultMaxiProgram extends CommonProgram {
         let paybackTokens: AddressToken[] = []
         let token = tokens.get("DUSD")
         if (token) {
-            token.amount = "" + Math.min(+token.amount, wantedusd)
+            if(!this.keepWalletClean) {
+                token.amount = "" + Math.min(+token.amount, wantedusd)
+            }
             paybackTokens.push(token)
         }
         token = tokens.get(this.settings.LMToken)
         if (token) {
-            token.amount = "" + Math.min(+token.amount, neededStock)
+            if(!this.keepWalletClean) {
+                token.amount = "" + Math.min(+token.amount, neededStock)
+            }
             paybackTokens.push(token)
         }
 
@@ -277,9 +281,17 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         //refresh for latest ratio
         pool = (await this.getPool(this.lmPair))!!
-        let usedStock = +pool.priceRatio.ab * neededDUSD
+        
         let usedDUSD = neededDUSD
-        if (usedStock > neededStock) { //ratio changed, but not enough stocks to fill it -> use full stocks and reduce DUSD
+        if(this.keepWalletClean) {
+            //use full balance to increase exposure
+            const tokens = await this.getTokenBalances()
+            usedDUSD = +(tokens.get("DUSD")!.amount)
+            neededStock=+(tokens.get(this.settings.LMToken)!.amount) //upper limit for usedStocks
+        }
+    
+        let usedStock = +pool.priceRatio.ab * neededDUSD
+        if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
             usedStock = neededStock
             usedDUSD = +pool.priceRatio.ba * usedStock
         }
