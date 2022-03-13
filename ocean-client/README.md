@@ -34,6 +34,8 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/settings/min-collateral-ratio
 /defichain-maxi/settings/max-collateral-ratio
 /defichain-maxi/settings/lm-token
+/defichain-maxi/settings/reinvest
+/defichain-maxi/state
 ```
 saved as a SecureString:
 ```
@@ -47,4 +49,56 @@ optional parameters (if you want telegram notifications)
 /defichain-maxi/telegram/logs/token
 ```
 
+# Advanced usage
+Besides having parameters in the AWS ParameterStore, there is the possibility to set environment variables on a AWS Lambda execution.
 
+Currently following keys are respected with a small description on how they alter execution functionality
+
+## VAULTMAXI_STORE_POSTIX
+value: string
+
+Extends name of following ParameterStore parameters with your value:
+```
+/defichain-maxi/wallet/address
+/defichain-maxi/wallet/vault
+/defichain-maxi/settings/min-collateral-ratio
+/defichain-maxi/settings/max-collateral-ratio
+/defichain-maxi/settings/lm-token
+/defichain-maxi/settings/reinvest
+/defichain-maxi/state
+```
+Example for value = -second
+```
+/defichain-maxi-second/wallet/address
+/defichain-maxi-second/wallet/vault
+/defichain-maxi-second/settings/min-collateral-ratio
+/defichain-maxi-second/settings/max-collateral-ratio
+/defichain-maxi-second/settings/lm-token
+/defichain-maxi-second/settings/reinvest
+/defichain-maxi-second/state
+```
+This will allow you to create a second lambda, with the code you built to run on a second address + vault
+
+## DEFICHAIN_SEED_KEY
+value: string
+
+This value overwrites the default seed key parameter to another SecureString parameter, which is further used to initialise your wallet.
+
+## VAULTMAXI_KEEP_CLEAN
+value: string
+possible values: `"true", "false"`
+
+Enabled: keeps your address clean by using commissions (dust) to payback loans and adding liquidity to your pool-pair
+
+Disabled: will not touch commissions (dust), only what is needed by default calculations
+
+## VAULTMAXI_VAULT_SAFETY_OVERRIDE
+value: number
+possible values: `loanScheme.minColRatio < x < loanSchemen.minColRatio * 2`
+
+There is a warning if too less LM tokens of configured token is available to safeguard your vault. This might be because of having other loans within the very same vault.
+
+To avoid getting spammed, because this is a calculated risk from you, you can change this safety warning to a lower ratio.
+
+Example: Vault with MIN150 => minColRatio = 150
+Safety warning will be raised if paying back all configured LM tokens will result in a collateral ratio of below 300. Setting this value to 250, will raise this warning to below 250.
