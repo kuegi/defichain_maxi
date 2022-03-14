@@ -120,5 +120,6 @@ export async function main(event: maxiEvent): Promise<Object> {
         await telegram.log("executed script without changes. vault ratio " + vault.collateralRatio + " next " + nextRatio)
     }
     await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
+    console.log("wrote state, script done")
     return { statusCode: result ? 200 : 500 }
 }

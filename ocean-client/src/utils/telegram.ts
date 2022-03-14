@@ -4,10 +4,10 @@ import { StoredSettings } from "./store"
 
 export class Telegram {
     private readonly prefix:string= "[VaultMaxi]"
-    private readonly chatId: string = ""
-    private readonly token: string = ""
-    private readonly logChatId: string = ""
-    private readonly logToken: string = ""
+    readonly chatId: string = ""
+    readonly token: string = ""
+    readonly logChatId: string = ""
+    readonly logToken: string = ""
     private readonly endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
 
     constructor(settings:StoredSettings, prefix : string = "") {  
