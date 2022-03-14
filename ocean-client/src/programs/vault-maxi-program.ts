@@ -331,7 +331,7 @@ export class VaultMaxiProgram extends CommonProgram {
         const amountToUse= fromUtxos.plus(amountFromBalance)
 
         let prevout:Prevout|undefined = undefined
-        console.log("checking for reinvest: "+fromUtxos+" from UTXOs, "+amountFromBalance+" tokens. total "+amountToUse+" vs . "+this.settings.reinvestThreshold)
+        console.log("checking for reinvest: "+fromUtxos+" from UTXOs, "+amountFromBalance+" tokens. total "+amountToUse+" vs "+this.settings.reinvestThreshold)
         if(amountToUse.gt(this.settings.reinvestThreshold) && fromUtxos.gt(0)) {
             console.log("converting " + fromUtxos + " UTXOs to token ")
             const tx= await this.utxoToOwnAccount(fromUtxos)

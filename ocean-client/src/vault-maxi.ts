@@ -22,7 +22,7 @@ class maxiEvent {
 export async function main(event: maxiEvent): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
-    console.log("vault maxi v1.0-beta.2")
+    console.log("vault maxi v1.0-beta.3")
     console.log("initial state: "+ProgramStateConverter.toValue(settings.stateInformation))
 
     if (event) {
@@ -37,7 +37,7 @@ export async function main(event: maxiEvent): Promise<Object> {
         }
     }
 
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b2]")
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b3]")
     const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
     await program.init()
     
