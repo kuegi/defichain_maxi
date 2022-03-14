@@ -199,7 +199,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 dusdLoan = +loanamount.amount
             }
         })
-        console.log("reducing exposure by "+neededrepay+" USD: " + wantedusd + "@DUSD " + neededStock + "@" + this.settings.LMToken + " from " + lptokens + " existing LPTokens")
+        console.log("reducing exposure by "+neededrepay.toFixed(4)+" USD: " + wantedusd.toFixed(2) + "@DUSD " + neededStock.toFixed(8) + "@" + this.settings.LMToken + " from " + lptokens.toFixed(8) + " existing LPTokens")
         if (lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
             await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             console.error("can't withdraw from pool, no tokens left or no loans left")
@@ -207,7 +207,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         const stock_per_token = +pool!.tokenA.reserve / +pool!.totalLiquidity.token
         const removeTokens = Math.min(neededStock / stock_per_token, lptokens)
-        console.log(" would need " + (neededStock / stock_per_token) + " doing " + removeTokens + " ")
+        console.log(" would need " + (neededStock / stock_per_token).toFixed(8) + " doing " + removeTokens.toFixed(8) + " ")
         const removeTx = await this.removeLiquidity(+pool!.id, new BigNumber(removeTokens))
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
@@ -250,7 +250,7 @@ export class VaultMaxiProgram extends CommonProgram {
             let paybackTokens: AddressToken[] = [
                 {
                     id: pool.tokenA.id,
-                    amount: "" + neededStock,
+                    amount: neededStock.toFixed(8),
                     symbol: pool.tokenA.symbol,
                     displaySymbol: pool.tokenA.displaySymbol,
                     symbolKey: pool.tokenA.symbol,
@@ -261,7 +261,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 },
                 {
                     id: pool.tokenB.id,
-                    amount: "" + wantedusd,
+                    amount: wantedusd.toFixed(8),
                     symbol: pool.tokenB.symbol,
                     displaySymbol: pool.tokenB.displaySymbol,
                     symbolKey: pool.tokenB.symbol,
