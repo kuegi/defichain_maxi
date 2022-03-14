@@ -107,7 +107,7 @@ export class CommonProgram {
         return (await this.client.stats.get()).count.blocks
     }
 
-    async removeLiquidity(poolId: number, amount: BigNumber): Promise<string> {
+    async removeLiquidity(poolId: number, amount: BigNumber, prevout:Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const script= await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().liqPool.removeLiquidity({
                 script: script,
@@ -115,39 +115,22 @@ export class CommonProgram {
                 amount: amount
             }
             ,script)
-            
-        return this.send(txn)
+        return this.sendWithPrevout(txn,prevout)
     }
 
-    async addLiquidity(amounts: TokenBalance[],prevout:Prevout | undefined = undefined): Promise<string> {
+    async addLiquidity(amounts: TokenBalance[], prevout:Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const script= await this.account!.getScript()
-        const txBuilder= this.account!.withTransactionBuilder().liqPool
-        let txn = await txBuilder.addLiquidity({
+        let txn = await this.account!.withTransactionBuilder().liqPool.addLiquidity({
             from: [{ 
                 script:script, 
                 balances:amounts }],
             shareAddress: script
             }
             ,script)
-        if (prevout) {
-            const customTx: Transaction = {
-                version: DeFiTransactionConstants.Version,
-                vin: [{ txid: prevout.txid, index: prevout.vout, script: {stack:[]}, sequence: 0xffffffff }],
-                vout: txn.vout,
-                lockTime: 0x00000000
-            }
-            const fee = calculateFeeP2WPKH( new BigNumber(await this.client.fee.estimate()), customTx)
-            customTx.vout[1].value = prevout.value.minus(fee)
-            let signed= await this.account?.signTx(customTx,[prevout])
-            if(!signed) {
-                throw new Error("can't sign custom transaction for add liquidity")
-            }
-            txn = signed
-        }
-        return this.send(txn)
+        return this.sendWithPrevout(txn,prevout)
     }
 
-    async paybackLoans(amounts: TokenBalance[]): Promise<string> {
+    async paybackLoans(amounts: TokenBalance[], prevout:Prevout|undefined= undefined): Promise<CTransactionSegWit> {
         const script= await this.account!.getScript()
         const txn= await this.account!.withTransactionBuilder().loans.paybackLoan({
                 vaultId: this.settings.vault,
@@ -155,10 +138,10 @@ export class CommonProgram {
                 tokenAmounts: amounts
             },
              script)
-        return this.send(txn)
+        return this.sendWithPrevout(txn,prevout)
     }
 
-    async takeLoans(amounts: TokenBalance[]): Promise<[string,Transaction]> {
+    async takeLoans(amounts: TokenBalance[], prevout:Prevout|undefined= undefined): Promise<CTransactionSegWit> {
         const script= await this.account!.getScript()
         const txn= await this.account!.withTransactionBuilder().loans.takeLoan({
                 vaultId: this.settings.vault,
@@ -166,11 +149,10 @@ export class CommonProgram {
                 tokenAmounts: amounts
             },
              script)
-        return [await this.send(txn), txn]
-
+        return this.sendWithPrevout(txn,prevout)
     }
 
-    async depositToVault(token: number, amount: BigNumber): Promise<string> {
+    async depositToVault(token: number, amount: BigNumber, prevout:Prevout|undefined= undefined): Promise<CTransactionSegWit> {
         const script = await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().loans.depositToVault({
             vaultId: this.settings.vault,
@@ -180,26 +162,81 @@ export class CommonProgram {
                 amount: amount
             }
         }, script)
-
-        return this.send(txn)
+        return this.sendWithPrevout(txn,prevout)
     }
 
     
-    async utxoToOwnAccount(amount: BigNumber) : Promise<string> {
+    async utxoToOwnAccount(amount: BigNumber, prevout:Prevout|undefined= undefined) : Promise<CTransactionSegWit> {
         const script = await this.account!.getScript()
         const balances : ScriptBalances[] = [{script:script, balances:[{token:0,amount:amount}]}] //DFI has tokenId 0
         const txn = await this.account!.withTransactionBuilder().account.utxosToAccount({
             to: balances
         }, script)
-
-        return this.send(txn)
+        return this.sendWithPrevout(txn,prevout)
     }
 
-    async send(txn: TransactionSegWit): Promise<string> {
-        const hex: string = new CTransactionSegWit(txn).toHex()
-        const txId: string = await this.client.rawtx.send({ hex: hex })
-        console.log("Send txId: " + txId)
-        return txId
+
+    async sendWithPrevout(txn:TransactionSegWit, prevout:Prevout|undefined):Promise<CTransactionSegWit> {
+        if (prevout) {
+            const customTx: Transaction = {
+                version: DeFiTransactionConstants.Version,
+                vin: [{ txid: prevout.txid, index: prevout.vout, script: {stack:[]}, sequence: 0xffffffff }],
+                vout: txn.vout,
+                lockTime: 0x00000000
+            }
+            const fee = calculateFeeP2WPKH( new BigNumber(await this.client.fee.estimate(10)), customTx)
+            customTx.vout[1].value = prevout.value.minus(fee)
+            let signed= await this.account?.signTx(customTx,[prevout])
+            if(!signed) {
+                throw new Error("can't sign custom transaction")
+            }
+            txn = signed
+        }
+        return this.send(txn,prevout?2000:0) //initial wait time when depending on other tx
+    }
+
+    async send(txn: TransactionSegWit, initialWaitTime: number= 0): Promise<CTransactionSegWit> {
+        const ctx= new CTransactionSegWit(txn)
+        const hex: string = ctx.toHex()
+        
+        console.log("Sending txId: " +ctx.txId)
+        let start = initialWaitTime
+        const waitTime= 5000
+        const txId: string = await new Promise((resolve,error) => {
+            let intervalID: NodeJS.Timeout
+            const sendTransaction = (): void => {
+                this.client.rawtx.send({ hex: hex }).then((txId) => {
+                    if (intervalID !== undefined) {
+                        clearInterval(intervalID)
+                    }
+                    resolve(txId)
+                }).catch((e) => {
+                    if(e.error.message !== "Missing inputs") {
+                        if (intervalID !== undefined) {
+                            clearInterval(intervalID)
+                        }
+                        console.log("failed to send tx, retry won't help ("+e.error.message+")")
+                        error(e)
+                    } else if (start >= waitTime*3) {
+                        if (intervalID !== undefined) {
+                            clearInterval(intervalID)
+                        }
+                        console.log("failed to send tx even after after multiple retries ("+e.error.message+")")
+                        error(e)
+                    } else {
+                        console.log("error sending tx ("+e.error.message+"). retrying after 5 seconds")
+                    }
+                })
+            }
+            setTimeout(() => {
+                sendTransaction()
+                intervalID = setInterval(() => {
+                    start += waitTime
+                    sendTransaction()
+                }, waitTime)
+            }, initialWaitTime)
+        })
+        return ctx
     }
 
     async waitForTx(txId: string): Promise<boolean> {
