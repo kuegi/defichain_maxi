@@ -96,6 +96,8 @@ Disabled: will not touch commissions (dust), only what is needed by default calc
 value: number
 possible values: `loanScheme.minColRatio < x < loanSchemen.minColRatio * 2`
 
+### DISCLAIMER - only use this variable if you really know what you do, as this might risk your vault getting liquidated without a proper warning message
+
 There is a warning if too less LM tokens of configured token is available to safeguard your vault. This might be because of having other loans within the very same vault.
 
 To avoid getting spammed, because this is a calculated risk from you, you can change this safety warning to a lower ratio.
