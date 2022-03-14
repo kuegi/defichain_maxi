@@ -48,7 +48,6 @@ export class VaultMaxiProgram extends CommonProgram {
     private readonly targetCollateral: number
     private readonly lmPair: string
     private readonly keepWalletClean: boolean
-    private readonly sendInOneBlock: boolean = true
 
     constructor(store: Store, walletSetup: WalletSetup) {
         super(store, walletSetup);
@@ -56,7 +55,6 @@ export class VaultMaxiProgram extends CommonProgram {
         this.lmPair = this.settings.LMToken + "-DUSD"
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
         this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== "false" ?? true
-        this.sendInOneBlock = process.env.VAULTMAXI_SEND_IN_1_BLOCK !== "false" ?? true
     }
 
     static shouldCleanUpBasedOn(transaction: VaultMaxiProgramTransaction): boolean {
@@ -173,7 +171,6 @@ export class VaultMaxiProgram extends CommonProgram {
 
         const message = values.constructMessage()  
                     + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
-                    + "\n" + (this.sendInOneBlock ? "sending tx in one block" : "not sending in one block")
         console.log(message)
         console.log("using telegram for log: "+telegram.logToken+" chatId: "+telegram.logChatId)
         console.log("using telegram for notification: "+telegram.token+" chatId: "+telegram.chatId)
@@ -214,92 +211,35 @@ export class VaultMaxiProgram extends CommonProgram {
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
 
-        const paybackNextBlock = async (): Promise<boolean> => {
-            if (! await this.waitForTx(removeTx.txId)) {
-                await telegram.send("ERROR: when removing liquidity")
-                console.error("removing liquidity failed")
-                return false
-            }
-            const tokens = await this.getTokenBalances()
-            console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
-
-            let paybackTokens: AddressToken[] = []
-            let token = tokens.get("DUSD")
-            if (token) {
-                if (!this.keepWalletClean) {
-                    token.amount = "" + Math.min(+token.amount, wantedusd)
-                }
-                paybackTokens.push(token)
-            }
-            token = tokens.get(this.settings.LMToken)
-            if (token) {
-                if (!this.keepWalletClean) {
-                    token.amount = "" + Math.min(+token.amount, neededStock)
-                }
-                paybackTokens.push(token)
-            }
-
-            if (await this.paybackTokenBalances(paybackTokens, telegram)) {
-                await telegram.send("done reducing exposure")
-                return true
-            }
+        if (! await this.waitForTx(removeTx.txId)) {
+            await telegram.send("ERROR: when removing liquidity")
+            console.error("removing liquidity failed")
             return false
         }
+        const tokens = await this.getTokenBalances()
+        console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
 
-        if (this.sendInOneBlock) {
-            //can't keep wallet clean when sending in one block, because we are not 100% sure if we get the expected tokens from LM pool, 
-            // so use the balance as buffer in case of pool change before we remove
-            let paybackTokens: AddressToken[] = [
-                {
-                    id: pool.tokenA.id,
-                    amount: neededStock.toFixed(8),
-                    symbol: pool.tokenA.symbol,
-                    displaySymbol: pool.tokenA.displaySymbol,
-                    symbolKey: pool.tokenA.symbol,
-                    name: pool.tokenA.symbol,
-                    isDAT: true,
-                    isLPS: false,
-                    isLoanToken: true,
-                },
-                {
-                    id: pool.tokenB.id,
-                    amount: wantedusd.toFixed(8),
-                    symbol: pool.tokenB.symbol,
-                    displaySymbol: pool.tokenB.displaySymbol,
-                    symbolKey: pool.tokenB.symbol,
-                    name: pool.tokenB.symbol,
-                    isDAT: true,
-                    isLPS: false,
-                    isLoanToken: true,
-                }
-            ]
-            console.log("paying back loans in same block -> can't use wallet balance")
-            //@krysh: not sure if we should do this.
-            // trouble: we can't know for sure how much tokens we get out of LM. we assume but don't know. 
-            //          if we get a different amount than expected, one balance might be too low and payback fails.
-            // worst case: payback tx already got into the mempool but can't be executed -> might not be able to send another one as its double spent. but i think ocean is not that strict
-            // question: is all this trouble with error handling and risks worth it to be faster? or better do the safe but slower version for reducing?
-            // if the whole thing fails, the next round does a cleanup and everything is good again. but i don't like to rely on clean up on a regular basis
-            return await new Promise((resolve) => {
-                this.paybackTokenBalances(paybackTokens, telegram, this.prevOutFromTx(removeTx)).then(success => {
-                    if (success) {
-                        telegram.send("done reducing exposure").then(() => resolve(true))
-                    } else {
-                        // if we are here, it means the tx got sent, but not confirmed. not sure if that will ever happen. 
-                        // likely that such a transaction will already fail the mempool test and therefore never even get into the mempool
-                        console.warn("error paying back directly, sending seperatly")
-                        paybackNextBlock().then(success => resolve(success))
-                    }
-                }).catch(e => {
-                    // means the tx didn't make it into the mempool, redo token calculations and send again
-                    console.warn("error paying back directly, sending seperatly")
-                    paybackNextBlock().then(success => resolve(success))
-                })
-            })
-
-        } else {
-            return paybackNextBlock()
+        let paybackTokens: AddressToken[] = []
+        let token = tokens.get("DUSD")
+        if (token) {
+            if (!this.keepWalletClean) {
+                token.amount = "" + Math.min(+token.amount, wantedusd)
+            }
+            paybackTokens.push(token)
         }
+        token = tokens.get(this.settings.LMToken)
+        if (token) {
+            if (!this.keepWalletClean) {
+                token.amount = "" + Math.min(+token.amount, neededStock)
+            }
+            paybackTokens.push(token)
+        }
+
+        if (await this.paybackTokenBalances(paybackTokens, telegram)) {
+            await telegram.send("done reducing exposure")
+            return true
+        }
+        return false
     }
 
     private async paybackTokenBalances(addressTokens: AddressToken[], telegram: Telegram, prevout:Prevout|undefined= undefined): Promise<boolean> {
@@ -345,54 +285,26 @@ export class VaultMaxiProgram extends CommonProgram {
         ])
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
         let addTx:CTransactionSegWit
-        if(this.sendInOneBlock){
-            let usedDUSD = neededDUSD
-            if(this.keepWalletClean) {
-                //use full balance to increase exposure: existing balance + expected from loan
-                const tokens = await this.getTokenBalances()
-                usedDUSD += +(tokens.get("DUSD")?.amount ?? "0") 
-                neededStock+= +(tokens.get(this.settings.LMToken)?.amount ?? "0" ) //upper limit for usedStocks
-            }
-        
-            let usedStock = +pool.priceRatio.ab * usedDUSD
-            if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
-                usedStock = neededStock
-                usedDUSD = +pool.priceRatio.ba * usedStock
-            }
-
-            console.log(" adding liquidity in same block " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
-            addTx = await this.addLiquidity([
-                { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
-                { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
-            ], this.prevOutFromTx(takeLoanTx))
-        } else {
-            if (!await this.waitForTx(takeLoanTx.txId)) {
-                await telegram.send("ERROR: taking loans")
-                console.error("taking loans failed")
-                return false
-            }
-            //refresh for latest ratio
-            pool = (await this.getPool(this.lmPair))!!
-            
-            let usedDUSD = neededDUSD
-            if(this.keepWalletClean) {
-                //use full balance to increase exposure
-                const tokens = await this.getTokenBalances()
-                usedDUSD = +(tokens.get("DUSD")!.amount)
-                neededStock=+(tokens.get(this.settings.LMToken)!.amount) //upper limit for usedStocks
-            }
-        
-            let usedStock = +pool.priceRatio.ab * usedDUSD
-            if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
-                usedStock = neededStock
-                usedDUSD = +pool.priceRatio.ba * usedStock
-            }
-            console.log(" adding liquidity " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
-            addTx = await this.addLiquidity([
-                { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
-                { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
-            ])
+        let usedDUSD = neededDUSD
+        if(this.keepWalletClean) {
+            //use full balance to increase exposure: existing balance + expected from loan
+            const tokens = await this.getTokenBalances()
+            usedDUSD += +(tokens.get("DUSD")?.amount ?? "0") 
+            neededStock+= +(tokens.get(this.settings.LMToken)?.amount ?? "0" ) //upper limit for usedStocks
         }
+    
+        let usedStock = +pool.priceRatio.ab * usedDUSD
+        if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
+            usedStock = neededStock
+            usedDUSD = +pool.priceRatio.ba * usedStock
+        }
+
+        console.log(" adding liquidity in same block " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
+        addTx = await this.addLiquidity([
+            { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
+            { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
+        ], this.prevOutFromTx(takeLoanTx))
+        
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
         if (! await this.waitForTx(addTx.txId)) {
             await telegram.send("ERROR: adding liquidity")
@@ -424,18 +336,7 @@ export class VaultMaxiProgram extends CommonProgram {
             console.log("converting " + fromUtxos + " UTXOs to token ")
             const tx= await this.utxoToOwnAccount(fromUtxos)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
-            if(this.sendInOneBlock) {
-                prevout= this.prevOutFromTx(tx)
-                console.log("trying to continue in same block")
-            } else {
-                if (! await this.waitForTx(tx.txId)) {
-                    await telegram.send("ERROR: converting UTXOs failed")
-                    console.error("converting UTXOs failed")
-                    return false
-                } else {
-                    console.log("done ")
-                }
-            }
+            prevout= this.prevOutFromTx(tx)           
         }
 
         if(amountToUse.gt(this.settings.reinvestThreshold)) {
