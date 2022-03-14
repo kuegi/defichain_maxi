@@ -1,6 +1,6 @@
 # List of todos
 * [x] clean up functionality
-* [ ] send multiple tx in one block to reduce timeout-risk
+* [X] send multiple tx in one block to reduce timeout-risk
 * [X] add check if enough LP-token and loans are available to reduce exposure to at least 2xminLoanScheme, otherwise send warning 
 * [X] reinvest functionality
 * [X] use min(currentRatio,nextRatio) to anticipate next update
@@ -14,3 +14,4 @@
 * [ ] recover from state
 * [ ] use getRemainingTimeInMillis() to avoid hardcut timeouts
 * [ ] error handling: currently an error in the promises is not caught. should to a catch around everything in the main program. so we at least report the error. (not only in the log)
+* [ ] add telegram message on reinvest to remind user what they gained from using the bot and recommend donating some.
