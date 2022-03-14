@@ -13,3 +13,4 @@
 * [ ] allow multiple dToken (split liquidity evenly across them)
 * [ ] recover from state
 * [ ] use getRemainingTimeInMillis() to avoid hardcut timeouts
+* [ ] error handling: currently an error in the promises is not caught. should to a catch around everything in the main program. so we at least report the error. (not only in the log)

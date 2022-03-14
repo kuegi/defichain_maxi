@@ -7,8 +7,9 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { TokenBalance } from "@defichain/jellyfish-transaction/dist";
+import { CTransactionSegWit, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
 import { nextCollateralValue, nextLoanValue } from "../utils/helpers";
+import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
 
 
 export enum VaultMaxiProgramTransaction {
@@ -47,6 +48,7 @@ export class VaultMaxiProgram extends CommonProgram {
     private readonly targetCollateral: number
     private readonly lmPair: string
     private readonly keepWalletClean: boolean
+    private readonly sendInOneBlock: boolean = true
 
     constructor(store: Store, walletSetup: WalletSetup) {
         super(store, walletSetup);
@@ -54,6 +56,7 @@ export class VaultMaxiProgram extends CommonProgram {
         this.lmPair = this.settings.LMToken + "-DUSD"
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
         this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== "false" ?? true
+        this.sendInOneBlock = process.env.VAULTMAXI_SEND_IN_1_BLOCK !== "false" ?? true
     }
 
     static shouldCleanUpBasedOn(transaction: VaultMaxiProgramTransaction): boolean {
@@ -168,8 +171,9 @@ export class VaultMaxiProgram extends CommonProgram {
         values.LMToken = (pool && pool.symbol == this.lmPair) ? this.settings.LMToken : undefined
         values.reinvest= this.settings.reinvestThreshold
 
-        const message = values.constructMessage() + "\n" 
-                    + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
+        const message = values.constructMessage()  
+                    + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
+                    + "\n" + (this.sendInOneBlock ? "sending tx in one block" : "not sending in one block")
         console.log(message)
         await telegram.send(message)
         await telegram.log("log channel active")
@@ -206,49 +210,107 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log(" would need " + (neededStock / stock_per_token) + " doing " + removeTokens + " ")
         const removeTx = await this.removeLiquidity(+pool!.id, new BigNumber(removeTokens))
 
-        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx)
-        if (! await this.waitForTx(removeTx)) {
-            await telegram.send("ERROR: when removing liquidity")
-            console.error("removing liquidity failed")
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
+
+        const paybackNextBlock = async (): Promise<boolean> => {
+            if (! await this.waitForTx(removeTx.txId)) {
+                await telegram.send("ERROR: when removing liquidity")
+                console.error("removing liquidity failed")
+                return false
+            }
+            const tokens = await this.getTokenBalances()
+            console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
+
+            let paybackTokens: AddressToken[] = []
+            let token = tokens.get("DUSD")
+            if (token) {
+                if (!this.keepWalletClean) {
+                    token.amount = "" + Math.min(+token.amount, wantedusd)
+                }
+                paybackTokens.push(token)
+            }
+            token = tokens.get(this.settings.LMToken)
+            if (token) {
+                if (!this.keepWalletClean) {
+                    token.amount = "" + Math.min(+token.amount, neededStock)
+                }
+                paybackTokens.push(token)
+            }
+
+            if (await this.paybackTokenBalances(paybackTokens, telegram)) {
+                await telegram.send("done reducing exposure")
+                return true
+            }
             return false
         }
-        const tokens = await this.getTokenBalances()
-        console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
-        
-        let paybackTokens: AddressToken[] = []
-        let token = tokens.get("DUSD")
-        if (token) {
-            if(!this.keepWalletClean) {
-                token.amount = "" + Math.min(+token.amount, wantedusd)
-            }
-            paybackTokens.push(token)
-        }
-        token = tokens.get(this.settings.LMToken)
-        if (token) {
-            if(!this.keepWalletClean) {
-                token.amount = "" + Math.min(+token.amount, neededStock)
-            }
-            paybackTokens.push(token)
-        }
 
-        if(await this.paybackTokenBalances(paybackTokens, telegram)) {
-            await telegram.send("done reducing exposure")
-            return true
+        if (this.sendInOneBlock) {
+            //can't keep wallet clean when sending in one block, because we are not 100% sure if we get the expected tokens from LM pool, 
+            // so use the balance as buffer in case of pool change before we remove
+            let paybackTokens: AddressToken[] = [
+                {
+                    id: pool.tokenA.id,
+                    amount: "" + neededStock,
+                    symbol: pool.tokenA.symbol,
+                    displaySymbol: pool.tokenA.displaySymbol,
+                    symbolKey: pool.tokenA.symbol,
+                    name: pool.tokenA.symbol,
+                    isDAT: true,
+                    isLPS: false,
+                    isLoanToken: true,
+                },
+                {
+                    id: pool.tokenB.id,
+                    amount: "" + wantedusd,
+                    symbol: pool.tokenB.symbol,
+                    displaySymbol: pool.tokenB.displaySymbol,
+                    symbolKey: pool.tokenB.symbol,
+                    name: pool.tokenB.symbol,
+                    isDAT: true,
+                    isLPS: false,
+                    isLoanToken: true,
+                }
+            ]
+            console.log("paying back loans in same block -> can't use wallet balance")
+            //@krysh: not sure if we should do this.
+            // trouble: we can't know for sure how much tokens we get out of LM. we assume but don't know. 
+            //          if we get a different amount than expected, one balance might be too low and payback fails.
+            // worst case: payback tx already got into the mempool but can't be executed -> might not be able to send another one as its double spent. but i think ocean is not that strict
+            // question: is all this trouble with error handling and risks worth it to be faster? or better do the safe but slower version for reducing?
+            // if the whole thing fails, the next round does a cleanup and everything is good again. but i don't like to rely on clean up on a regular basis
+            return await new Promise((resolve) => {
+                this.paybackTokenBalances(paybackTokens, telegram, this.prevOutFromTx(removeTx)).then(success => {
+                    if (success) {
+                        telegram.send("done reducing exposure").then(() => resolve(true))
+                    } else {
+                        // if we are here, it means the tx got sent, but not confirmed. not sure if that will ever happen. 
+                        // likely that such a transaction will already fail the mempool test and therefore never even get into the mempool
+                        console.warn("error paying back directly, sending seperatly")
+                        paybackNextBlock().then(success => resolve(success))
+                    }
+                }).catch(e => {
+                    // means the tx didn't make it into the mempool, redo token calculations and send again
+                    console.warn("error paying back directly, sending seperatly")
+                    paybackNextBlock().then(success => resolve(success))
+                })
+            })
+
+        } else {
+            return paybackNextBlock()
         }
-        return false
     }
 
-    private async paybackTokenBalances(addressTokens: AddressToken[], telegram: Telegram): Promise<boolean> {
+    private async paybackTokenBalances(addressTokens: AddressToken[], telegram: Telegram, prevout:Prevout|undefined= undefined): Promise<boolean> {
         let paybackTokens: TokenBalance[] = []
         addressTokens.forEach(addressToken => {
             paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
         })
         console.log(" paying back tokens " + addressTokens.map(token => " " + token.amount + "@" + token.symbol))
         if (paybackTokens.length > 0) {
-            const paybackTx = await this.paybackLoans(paybackTokens)
+            const paybackTx = await this.paybackLoans(paybackTokens,prevout)
 
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, paybackTx)
-            const success = await this.waitForTx(paybackTx)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, paybackTx.txId)
+            const success = await this.waitForTx(paybackTx.txId)
             if (!success) {
                 await telegram.send("ERROR: paying back tokens")
                 console.error("paying back tokens failed")
@@ -273,15 +335,15 @@ export class VaultMaxiProgram extends CommonProgram {
         let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
         let neededDUSD = +pool.priceRatio.ba * neededStock
 
-        console.log("increasing by "+additionalLoan+" USD, taking loan " + neededStock + "@" + this.settings.LMToken + " " + neededDUSD + "@DUSD ")
-        const [takeloanTxId, takeLoanTx] = await this.takeLoans([
+        console.log("increasing by "+additionalLoan+" USD, taking loan " + neededStock + "@" + this.settings.LMToken 
+                                                                    + " " + neededDUSD + "@DUSD ")
+        const takeLoanTx = await this.takeLoans([
             { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
             { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) }
         ])
-        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeloanTxId)
-        const sendInOneBlock= true
-        let addTx:string= ""
-        if(sendInOneBlock){
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
+        let addTx:CTransactionSegWit
+        if(this.sendInOneBlock){
             let usedDUSD = neededDUSD
             if(this.keepWalletClean) {
                 //use full balance to increase exposure: existing balance + expected from loan
@@ -300,14 +362,9 @@ export class VaultMaxiProgram extends CommonProgram {
             addTx = await this.addLiquidity([
                 { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
                 { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
-            ],{txid: takeloanTxId,
-                vout: 1,
-                value: takeLoanTx.vout[1].value,
-                script: takeLoanTx.vout[1].script,
-                tokenId: takeLoanTx.vout[1].tokenId
-            })
+            ], this.prevOutFromTx(takeLoanTx))
         } else {
-            if (!await this.waitForTx(takeloanTxId)) {
+            if (!await this.waitForTx(takeLoanTx.txId)) {
                 await telegram.send("ERROR: taking loans")
                 console.error("taking loans failed")
                 return false
@@ -328,20 +385,14 @@ export class VaultMaxiProgram extends CommonProgram {
                 usedStock = neededStock
                 usedDUSD = +pool.priceRatio.ba * usedStock
             }
-            //need to give ocean time to sync mempool across instances
-            await new Promise((resolve) => {
-                setTimeout(() => {
-                    resolve(true)
-                }, 2000)
-            })
             console.log(" adding liquidity " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
             addTx = await this.addLiquidity([
                 { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
                 { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
             ])
         }
-        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx)
-        if (! await this.waitForTx(addTx)) {
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
+        if (! await this.waitForTx(addTx.txId)) {
             await telegram.send("ERROR: adding liquidity")
             console.error("adding liquidity failed")
             return false
@@ -352,38 +403,49 @@ export class VaultMaxiProgram extends CommonProgram {
         return true
     }
 
+
     async checkAndDoReinvest(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
         if(!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
             return false
         }
 
         const utxoBalance= await this.getUTXOBalance()
-        if(utxoBalance.gt(this.settings.reinvestThreshold) && utxoBalance.gt(1)) {
-            const amount= utxoBalance.minus(1)
-            console.log("converting " + amount + " UTXOs to token ")
-            const tx= await this.utxoToOwnAccount(amount)
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx) 
-            if (! await this.waitForTx(tx)) {
-                await telegram.send("ERROR: converting UTXOs failed")
-                console.error("converting UTXOs failed")
-                return false
+        const tokenBalance = await this.getTokenBalance("DFI")
+
+        const amountFromBalance= +(tokenBalance?.amount ?? "0")
+        const fromUtxos = utxoBalance.gt(1) ? utxoBalance.minus(1) : new BigNumber(0)
+        const amountToUse= fromUtxos.plus(amountFromBalance)
+
+        let prevout:Prevout|undefined = undefined
+        console.log("checking for reinvest: "+fromUtxos+" from UTXOs, "+amountFromBalance+" tokens. total "+amountToUse+" vs . "+this.settings.reinvestThreshold)
+        if(amountToUse.gt(this.settings.reinvestThreshold) && fromUtxos.gt(0)) {
+            console.log("converting " + fromUtxos + " UTXOs to token ")
+            const tx= await this.utxoToOwnAccount(fromUtxos)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
+            if(this.sendInOneBlock) {
+                prevout= this.prevOutFromTx(tx)
+                console.log("trying to continue in same block")
             } else {
-                await telegram.send("converted "+amount+" UTXOs to token")
-                console.log("done ")
+                if (! await this.waitForTx(tx.txId)) {
+                    await telegram.send("ERROR: converting UTXOs failed")
+                    console.error("converting UTXOs failed")
+                    return false
+                } else {
+                    console.log("done ")
+                }
             }
         }
-        
-        const tokenBalance = await this.getTokenBalance("DFI")
-        if( tokenBalance && +tokenBalance.amount > this.settings.reinvestThreshold) {
-            console.log("depositing " + tokenBalance.amount + " DFI to vault ")
-            const tx= await this.depositToVault(parseInt(tokenBalance.id),new BigNumber(tokenBalance.amount))
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx)
-            if (! await this.waitForTx(tx)) {
+
+        if(amountToUse.gt(this.settings.reinvestThreshold)) {
+            console.log("depositing "+ amountToUse+" (" + amountFromBalance + "+"+fromUtxos+") DFI to vault ")
+            const tx= await this.depositToVault(0,amountToUse,prevout) //DFI is token 0
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
+            if (! await this.waitForTx(tx.txId)) {
                 await telegram.send("ERROR: depositing reinvestment failed")
                 console.error("depositing failed")
                 return false
             } else {
-                await telegram.send("reinvested "+tokenBalance.amount+" DFI")
+                await telegram.send("reinvested "+ amountToUse.toFixed(4)+" (" + amountFromBalance.toFixed(4) + " tokens, "+fromUtxos.toFixed(4)+" UTXOs) DFI")
                 console.log("done ")
                 return true
             }
@@ -412,5 +474,14 @@ export class VaultMaxiProgram extends CommonProgram {
             txId: txId,
             blockHeight: await this.getBlockHeight()
         })
+    }
+
+    private prevOutFromTx(tx:CTransactionSegWit):Prevout {
+        return {txid: tx.txId,
+            vout: 1,
+            value: tx.vout[1].value,
+            script: tx.vout[1].script,
+            tokenId: tx.vout[1].tokenId
+        }
     }
 }
