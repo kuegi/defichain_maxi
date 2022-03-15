@@ -53,7 +53,7 @@ export class Store {
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
-            Names:  [
+            Names: [
                 StoreKey.TelegramNotificationChatId,
                 StoreKey.TelegramNotificationToken,
                 StoreKey.TelegramLogsChatId,
@@ -61,9 +61,9 @@ export class Store {
             ]
         }).promise()).Parameters ?? []
 
-    
-        parameters= parameters.concat((await this.ssm.getParameters({
-            Names:  [DeFiAddressKey,
+
+        parameters = parameters.concat((await this.ssm.getParameters({
+            Names: [DeFiAddressKey,
                 DeFiVaultKey,
                 MinCollateralRatioKey,
                 MaxCollateralRatioKey,
@@ -90,7 +90,7 @@ export class Store {
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
 
-        let seedList= decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g," ")
+        let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
         return this.settings
     }
@@ -122,8 +122,8 @@ export class StoredSettings {
     minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
-    reinvestThreshold: number | undefined 
-    stateInformation: ProgramStateInformation= {state: ProgramState.Idle,tx: '',txId: '',blockHeight: 0}
+    reinvestThreshold: number | undefined
+    stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
 }
 
 enum StoreKey {
