@@ -8,7 +8,7 @@ export class ProgramStateConverter {
     static fromValue(value: string): ProgramStateInformation {
         let split = value?.split("|")
         if (!split || split.length !== 4) {
-            return {state: ProgramState.Idle, tx:"",txId:"",blockHeight:0}
+            return { state: ProgramState.Idle, tx: "", txId: "", blockHeight: 0 }
         }
         return {
             state: split[0] as ProgramState,

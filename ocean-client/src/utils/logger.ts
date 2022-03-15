@@ -10,7 +10,7 @@ export class Logger {
     public setTelegram(telegram: Telegram) {
         this.telegram = telegram
     }
-    
+
     public log(message: string) {
         this.telegram?.log(message)
     }
