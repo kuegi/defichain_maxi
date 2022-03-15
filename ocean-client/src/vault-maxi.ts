@@ -6,7 +6,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
-import { nextCollateralRatio } from './utils/helpers'
+import { isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -38,6 +38,8 @@ export async function main(event: maxiEvent): Promise<Object> {
     }
 
     const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " v1.0b3]")
+    try {
+    
     const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
     await program.init()
     
@@ -126,4 +128,22 @@ export async function main(event: maxiEvent): Promise<Object> {
     await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
     console.log("wrote state, script done")
     return { statusCode: result ? 200 : 500 }
+} catch(e) {
+    console.error("Error in script")
+    console.error(e)
+    const message= "There was an unexpected error in the script. please check the logs"
+    if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
+        await telegram.send(message)
+    } else {
+        await telegram.log(message)
+    }
+    //program might not be there, so directly the store with no access to ocean
+    await store.updateToState({
+        state: ProgramState.Error,
+        tx: "",
+        txId: "",
+        blockHeight: 0
+    })
+    return { statusCode: 500 }
+}
 }

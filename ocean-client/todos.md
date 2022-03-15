@@ -8,10 +8,10 @@
 * [X] change telegram notification to prefix with `[VaultMaxi]`
 * [ ] status message every day at 9 am
 * [X] check for address in the wallet (not only first address) so that new address in wallet works
-* [ ] rules in CloudFormationTemplate to not allow empty address / vault
+* [X] rules in CloudFormationTemplate to not allow empty address / vault
 * [ ] use additional LMToken/loans in case that wanted dtoken is used up, but collateral still low and more LPTokens available
 * [ ] allow multiple dToken (split liquidity evenly across them)
 * [ ] recover from state
 * [ ] use getRemainingTimeInMillis() to avoid hardcut timeouts
-* [ ] error handling: currently an error in the promises is not caught. should to a catch around everything in the main program. so we at least report the error. (not only in the log)
-* [ ] add telegram message on reinvest to remind user what they gained from using the bot and recommend donating some.
+* [X] error handling: currently an error in the promises is not caught. should to a catch around everything in the main program. so we at least report the error. (not only in the log)
+* [X] add telegram message on reinvest to remind user what they gained from using the bot and recommend donating some.
