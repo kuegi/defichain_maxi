@@ -318,28 +318,34 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async sendMotivationalLog(telegram: Telegram): Promise<void> {
-        if (this.targetCollateral > 250) {
+        if (this.targetCollateral > 2.50) {
             return //TODO: send message that user could maximize further?
         }
-        const referenceRatio = this.targetCollateral < 170 ? 200 : 250
+        const referenceRatio = this.targetCollateral < 1.8 ? 250 : 300
         const pool: PoolPairData | undefined = await this.getPool(this.lmPair)
         if (!pool?.apr) {
             //no data, not motivation
             return
         }
         const vault = await this.getVault() as LoanVaultActive
-        const loanDiff = 100 * +vault.collateralValue * (1 / this.targetCollateral - 1 / referenceRatio)
+        const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
         const rewardDiff = loanDiff * pool.apr.total
+        if(rewardDiff < 100) {
+            return //just a testvault, no need to motivate anyone
+        }
+        console.log("diff: "+loanDiff+" "+rewardDiff+" "+this.targetCollateral+" "+referenceRatio+" "+vault.collateralValue+" "+pool.apr.total)
         let rewardMessage: string
         if (rewardDiff > 100 * 365) {
-            rewardMessage = "$" + (rewardDiff / 365).toFixed(0) + " per day"
+            rewardMessage = "$" + (rewardDiff / 365).toFixed(0) + " in rewards per day"
         } else if (rewardDiff > 100 * 52) {
-            rewardMessage = "$" + (rewardDiff / 52).toFixed(0) + " per week"
+            rewardMessage = "$" + (rewardDiff / 52).toFixed(0) + " in rewards per week"
+        } else if (rewardDiff > 100 * 12) {
+            rewardMessage = "$" + (rewardDiff / 12).toFixed(0) + " in rewards per month"
         } else {
-            rewardMessage = "$" + (rewardDiff / 12).toFixed(0) + " per month"
+            rewardMessage = "$" + (rewardDiff).toFixed(0) + " in rewards per year"
         }
-        const message = "With VaultMaxi you currently earn " + rewardMessage + " extra rewards compared to using " + referenceRatio + "% collateral ratio.\n"
-            + "You are welcome.\nDonations always appreciated!"
+        const message = "With VaultMaxi you currently earn additional " + rewardMessage + " (compared to using " + referenceRatio + "% collateral ratio).\n"
+            + "You are very welcome.\nDonations are always appreciated!"
         if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
             await telegram.send(message)
         } else {
