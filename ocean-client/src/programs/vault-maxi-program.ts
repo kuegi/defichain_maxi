@@ -8,7 +8,7 @@ import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { CTransactionSegWit, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
-import { nextCollateralValue, nextLoanValue } from "../utils/helpers";
+import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
 
 
@@ -317,6 +317,36 @@ export class VaultMaxiProgram extends CommonProgram {
         return true
     }
 
+    async sendMotivationalLog(telegram: Telegram): Promise<void> {
+        if(this.targetCollateral > 250) {
+            return //TODO: send message that user could maximize further?
+        }
+        const referenceRatio = this.targetCollateral < 170 ? 200 : 250
+        const pool: PoolPairData | undefined = await this.getPool(this.lmPair)
+        if(!pool?.apr) {
+            //no data, not motivation
+            return
+        }
+        const vault = await this.getVault() as LoanVaultActive
+        const loanDiff = 100 * +vault.collateralValue*(1/this.targetCollateral - 1/referenceRatio)
+        const rewardDiff= loanDiff * pool.apr.total
+        let rewardMessage:string
+        if(rewardDiff > 100*365) {
+            rewardMessage= "$"+(rewardDiff/365).toFixed(0)+" per day"
+        } else if(rewardDiff > 100*52) {
+            rewardMessage= "$"+(rewardDiff/52).toFixed(0)+" per week"
+        } else {
+            rewardMessage= "$"+(rewardDiff/12).toFixed(0)+" per month"
+        }
+        const message= "With VaultMaxi you currently earn "+rewardMessage+" extra rewards compared to using "+referenceRatio+"% collateral ratio.\n"
+                        +"You are welcome.\nDonations always appreciated!"
+        if(!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
+            await telegram.send(message)
+        } else {
+            await telegram.log(message)
+        }     
+    }
+
 
     async checkAndDoReinvest(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
         if(!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
@@ -350,6 +380,7 @@ export class VaultMaxiProgram extends CommonProgram {
             } else {
                 await telegram.send("reinvested "+ amountToUse.toFixed(4)+" (" + amountFromBalance.toFixed(4) + " tokens, "+fromUtxos.toFixed(4)+" UTXOs) DFI")
                 console.log("done ")
+                await this.sendMotivationalLog(telegram)
                 return true
             }
         }
