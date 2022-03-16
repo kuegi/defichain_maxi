@@ -39,7 +39,7 @@ export class CheckedValues {
             + (this.address ? ("from address " + this.address) : "no valid address") + "\n"
             + "Set collateral ratio range " + this.minCollateralRatio + "-" + this.maxCollateralRatio + "\n"
             + (this.LMToken ? ("Set dToken " + this.LMToken) : "no pool found for token ") + "\n"
-            + (this.reinvest ? ("Will reinvest above " + this.reinvest + " DFI") : "Will not reinvest")
+            + ((this.reinvest && this.reinvest > 0) ? ("Will reinvest above " + this.reinvest + " DFI") : "Will not reinvest")
     }
 }
 
