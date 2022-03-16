@@ -110,12 +110,6 @@ export class VaultMaxiProgram extends CommonProgram {
             console.warn(message)
             return false
         }
-        if (+vault.collateralValue < 10) {
-            const message = "less than 10 dollar in the vault. can't work like that"
-            await telegram.send(message)
-            console.error(message)
-            return false
-        }
 
         // showstoppers checked, now check for warnings
         const safetyOverride = process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE ? +(process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE) : undefined

@@ -109,9 +109,15 @@ export async function main(event: maxiEvent): Promise<Object> {
         } else {
             result = true
             exposureChanged = await program.checkAndDoReinvest(vault, telegram)
-            if (!exposureChanged && (usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio)) {
-                result = await program.increaseExposure(vault, telegram)
-                exposureChanged = true
+            if(!exposureChanged) {
+                if (+vault.collateralValue < 10) {
+                    const message = "less than 10 dollar in the vault. can't work like that"
+                    await telegram.send(message)
+                    console.error(message)
+                } else if ((usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio)) {
+                    result = await program.increaseExposure(vault, telegram)
+                    exposureChanged = true
+                }
             }
         }
 
