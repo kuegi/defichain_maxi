@@ -127,9 +127,11 @@ export async function main(event: maxiEvent): Promise<Object> {
             vault = await program.getVault() as LoanVaultActive
             await telegram.log("executed script " + (result ? "successfully" : "with problems")
                 + ". vault ratio changed from " + oldRatio + " (next " + oldNext + ") to "
-                + vault.collateralRatio + " (next " + nextCollateralRatio(vault) + ")")
+                + vault.collateralRatio + " (next " + nextCollateralRatio(vault) +
+                "). target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
         } else {
-            await telegram.log("executed script without changes. vault ratio " + vault.collateralRatio + " next " + nextRatio)
+            await telegram.log("executed script without changes. vault ratio " + vault.collateralRatio + " next " + nextRatio
+                + ". target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
         }
         await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
         console.log("wrote state, script done")

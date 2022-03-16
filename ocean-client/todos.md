@@ -19,4 +19,4 @@
 * [X] errorhandling in case the seedparameter is missing
 * [X] add environment variable for log-id (to add to the telegram prefix to distinguish different bots in different regions)
 * [ ] make desktop bech32 adresses possible
-* [ ] add min/max value to log message
+* [X] add min/max value to log message
