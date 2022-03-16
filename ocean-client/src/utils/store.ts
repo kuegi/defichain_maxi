@@ -73,11 +73,16 @@ export class Store {
             ]
         }).promise()).Parameters ?? [])
 
-        const decryptedSeed = await this.ssm.getParameter({
-            Name: seedkey,
-            WithDecryption: true
-        }).promise()
-
+        let decryptedSeed
+        try {
+            decryptedSeed = await this.ssm.getParameter({
+                Name: seedkey,
+                WithDecryption: true
+            }).promise()
+        } catch(e) {
+            console.error("Seed Parameter not found!")
+            decryptedSeed= undefined
+        }
         this.settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
         this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
         this.settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
