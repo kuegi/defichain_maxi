@@ -5,6 +5,8 @@ Best way to run it is as a lambda function on AWS. There you can define trigger 
 In general the script checks the provided vault, if the collateral ratio is above the threshold it takes loans in DUSD and the defined dToken so that the collateral ratio comes into the range. The minted tokens will be put into the LM pool to produce rewards.
 If the collateral ratio falls below the defined threshold, LM-tokens are removed from the pool and loans in the vault are payed back to get the ratio back within the wanted range. With this the vault produces optimized rewards on the collateral.
 
+Script works only with bech32 adresses, but you can use Mnemonic seed (24 words) or privateKey (from fullnode)
+
 # Disclaimer / WARNING
 Do not use this tool if you don't understand vaults on defichain. If you set the wrong parameter, you risk liquidating your vault and losing the whole collateral.
 
