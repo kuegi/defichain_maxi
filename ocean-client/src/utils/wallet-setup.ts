@@ -1,14 +1,16 @@
-import { Network } from "@defichain/jellyfish-network";
-import { WalletAccountProvider, WalletHdNode, WalletHdNodeProvider } from "@defichain/jellyfish-wallet";
+import { Network } from '@defichain/jellyfish-network'
+import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
+import { WalletClassic } from "@defichain/jellyfish-wallet-classic";
 import { Bip32Options, MnemonicHdNodeProvider } from "@defichain/jellyfish-wallet-mnemonic";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { WhaleWalletAccount, WhaleWalletAccountProvider } from "@defichain/whale-api-wallet";
 import { StoredSettings } from "./store";
+import { WIF } from '@defichain/jellyfish-crypto'
 
 export class WalletSetup {
     readonly client: WhaleApiClient
-    readonly accountProvider: WalletAccountProvider<WhaleWalletAccount>
-    readonly nodeProvider: WalletHdNodeProvider<WalletHdNode>
+    readonly wallet: WalletClassic | JellyfishWallet<WhaleWalletAccount, WalletHdNode>
+    private account: WhaleWalletAccount | undefined
     private static NEEDED_SEED_LENGTH = 24
 
     constructor(network: Network, settings: StoredSettings) {
@@ -17,8 +19,35 @@ export class WalletSetup {
             version: 'v0',
             network: network.name
         })
-        this.accountProvider = new WhaleWalletAccountProvider(this.client, network)
-        this.nodeProvider = MnemonicHdNodeProvider.fromWords(settings.seed, this.bip32Options(network))
+        if (settings.seed && settings.seed.length == 1) {
+            this.wallet = new WalletClassic(WIF.asEllipticPair(settings.seed[0]))
+            this.account = new WhaleWalletAccount(this.client, this.wallet, network)
+        } else {
+            this.wallet = new JellyfishWallet(MnemonicHdNodeProvider.fromWords(settings.seed, this.bip32Options(network)),
+                new WhaleWalletAccountProvider(this.client, network))
+        }
+    }
+
+    async getAccount(wantedAddress: string): Promise<WhaleWalletAccount | undefined> {
+        if (this.account) {
+            const address = await this.account.getAddress()
+            if (address != wantedAddress) {
+                this.account = undefined
+            }
+        } else {
+            const wallet = this.wallet as JellyfishWallet<WhaleWalletAccount, WalletHdNode>
+            let accounts = await wallet.discover()
+            this.account = undefined
+            for (let i = 0; i < accounts.length; i++) {
+                const account = accounts[i]
+                let address = await account.getAddress()
+                if (address == wantedAddress) {
+                    this.account = account
+                    break
+                }
+            }
+        }
+        return this.account
     }
 
     private bip32Options(network: Network): Bip32Options {
