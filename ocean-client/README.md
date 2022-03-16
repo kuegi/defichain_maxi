@@ -54,6 +54,11 @@ Besides having parameters in the AWS ParameterStore, there is the possibility to
 
 Currently following keys are respected with a small description on how they alter execution functionality
 
+## VAULTMAXI_LOGID
+value: string
+
+will be shown in the prefix of every telegram message. Meant to easily distinguish log messages of different bots
+
 ## VAULTMAXI_STORE_POSTIX
 value: string
 
