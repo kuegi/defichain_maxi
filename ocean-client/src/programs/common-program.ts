@@ -13,6 +13,7 @@ import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder/dist/txn/txn_fee'
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
+import { WalletClassic } from "@defichain/jellyfish-wallet-classic";
 
 export enum ProgramState {
     Idle = "idle",
@@ -24,26 +25,18 @@ export class CommonProgram {
     protected readonly settings: StoredSettings
     protected readonly store: Store
     private readonly client: WhaleApiClient
-    private readonly wallet: JellyfishWallet<WhaleWalletAccount, WalletHdNode>
+    private readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
 
     constructor(store: Store, walletSetup: WalletSetup) {
         this.settings = store.settings
         this.store = store
         this.client = walletSetup.client
-        this.wallet = new JellyfishWallet(walletSetup.nodeProvider, walletSetup.accountProvider)
+        this.walletSetup= walletSetup
     }
 
     async init(): Promise<boolean> {
-        let accounts = await this.wallet.discover()
-        for (let i = 0; i < accounts.length; i++) {
-            const account = accounts[i]
-            let address = await account.getAddress()
-            if (address == this.settings.address) {
-                this.account = account
-                break
-            }
-        }
+        this.account= await this.walletSetup.getAccount(this.settings.address)
         return true
     }
 
