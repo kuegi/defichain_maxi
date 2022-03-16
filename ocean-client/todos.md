@@ -10,13 +10,13 @@
 * [X] error handling: currently an error in the promises is not caught. should to a catch around everything in the main program. so we at least report the error. (not only in the log)
 * [X] add telegram message on reinvest to remind user what they gained from using the bot and recommend donating some.
 * [ ] refactor to jellyfish
-* [ ] status message every day at 9 am
-* [ ] use additional LMToken/loans in case that wanted dtoken is used up, but collateral still low and more LPTokens available
-* [ ] allow multiple dToken (split liquidity evenly across them)
-* [ ] recover from state
+* [ ] ?status message every day at 9 am
+* [ ] ?use additional LMToken/loans in case that wanted dtoken is used up, but collateral still low and more LPTokens available
+* [ ] ??allow multiple dToken (split liquidity evenly across them)
+* [ ] ?recover from state
 * [ ] use getRemainingTimeInMillis() to avoid hardcut timeouts
 * [X] check and handle empty vault
 * [X] errorhandling in case the seedparameter is missing
 * [X] add environment variable for log-id (to add to the telegram prefix to distinguish different bots in different regions)
-* [ ] make desktop bech32 adresses possible
+* [X] make desktop bech32 adresses possible
 * [X] add min/max value to log message
