@@ -397,8 +397,12 @@ export class VaultMaxiProgram extends CommonProgram {
                 wantedTokens.push(token)
             }
         })
-
-        return await this.paybackTokenBalances(wantedTokens, telegram)
+        if(wantedTokens.length == 0) {
+            console.log("No tokens to pay back. nothing to clean up")
+            return true // not an error
+        } else {
+            return await this.paybackTokenBalances(wantedTokens, telegram)
+        }
     }
 
     async updateToState(state: ProgramState, transaction: VaultMaxiProgramTransaction, txId: string = ""): Promise<void> {
