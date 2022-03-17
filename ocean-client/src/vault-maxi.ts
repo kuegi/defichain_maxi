@@ -22,7 +22,7 @@ class maxiEvent {
 export async function main(event: maxiEvent): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
-    console.log("vault maxi v1.0-rc.1")
+    console.log("vault maxi v1.0-rc.1a")
     console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
 
     if (event) {
