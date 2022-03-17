@@ -70,14 +70,17 @@ export async function main(event: maxiEvent): Promise<Object> {
             // if we are on state waiting for last transaction,  we should wait for txId
             if (information.state === ProgramState.WaitingForTransaction) {
                 console.log("waiting for tx from previous run")
-                const result = await program.waitForTx(information.txId)
+                const result = await program.waitForTx(information.txId, information.blockHeight)
                 console.log(result ? "done" : " timed out -> cleanup")
-                if (!result) {
+                if (!result || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
                     information.state = ProgramState.Error //force cleanup
+                } else {
+                    information.state = ProgramState.Idle
                 }
+                await program.updateToState(information.state, VaultMaxiProgramTransaction.None)
             }
             // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
-            if (information.state === ProgramState.Error || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
+            if (information.state === ProgramState.Error) {
                 console.log("need to clean up")
                 result = await program.cleanUp(vault, telegram)
                 vault = await program.getVault() as LoanVaultActive
@@ -114,13 +117,15 @@ export async function main(event: maxiEvent): Promise<Object> {
                     const message = "less than 10 dollar in the vault. can't work like that"
                     await telegram.send(message)
                     console.error(message)
-                } else if ((usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio)) {
+                } else if (usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio) {
                     result = await program.increaseExposure(vault, telegram)
                     exposureChanged = true
                 }
             }
         }
 
+        await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
+        console.log("wrote state")
         if (exposureChanged) {
             const oldRatio = +vault.collateralRatio
             const oldNext = nextRatio
@@ -133,8 +138,7 @@ export async function main(event: maxiEvent): Promise<Object> {
             await telegram.log("executed script without changes. vault ratio " + vault.collateralRatio + " next " + nextRatio
                 + ". target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
         }
-        await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
-        console.log("wrote state, script done")
+        console.log("script done")
         return { statusCode: result ? 200 : 500 }
     } catch (e) {
         console.error("Error in script")

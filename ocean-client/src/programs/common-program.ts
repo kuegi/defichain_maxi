@@ -233,7 +233,11 @@ export class CommonProgram {
         return ctx
     }
 
-    async waitForTx(txId: string): Promise<boolean> {
+    async waitForTx(txId: string, startBlock: number= 0): Promise<boolean> {
+        // wait max 10 blocks (otherwise the tx won't get in anymore)
+        if(startBlock == 0){
+            startBlock= await this.getBlockHeight()
+        }
         const initialTime = 5000
         let start = initialTime
         return await new Promise((resolve) => {
@@ -252,6 +256,16 @@ export class CommonProgram {
                         }
                         resolve(false)
                     }
+                    //also check blockcount
+                    this.getBlockHeight().then(block => {
+                        if(block > startBlock + 10) {
+                            console.error("waited 10 blocks for tx. possible a conflict with other UTXOs")
+                            if (intervalID !== undefined) {
+                                clearInterval(intervalID)
+                            }
+                            resolve(false)
+                        }
+                    })
                 })
             }
             setTimeout(() => {
