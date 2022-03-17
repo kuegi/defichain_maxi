@@ -20,14 +20,14 @@ export class Telegram {
 
     async send(message: string): Promise<unknown> {
         if (isNullOrEmpty(this.chatId) || isNullOrEmpty(this.token)) {
-            return new Promise(resolve => null)
+            return
         }
         return this.internalSend(message, this.chatId, this.token)
     }
 
     async log(message: string): Promise<unknown> {
         if (isNullOrEmpty(this.logChatId) || isNullOrEmpty(this.logToken)) {
-            return new Promise(resolve => null)
+            return
         }
         return this.internalSend(message, this.logChatId, this.logToken)
     }
