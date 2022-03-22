@@ -20,3 +20,7 @@
 * [X] add environment variable for log-id (to add to the telegram prefix to distinguish different bots in different regions)
 * [X] make desktop bech32 adresses possible
 * [X] add min/max value to log message
+* [ ] add environmentVariable to deactivate motivation-log
+* [ ] improve log on ocean-timeout
+* [ ] allow increase directly after reinvest (no wait for next trigger)
+* [ ] run script directly after clean up (timeout shouldn't be an issue, not to waist time for actions)
