@@ -19,7 +19,7 @@ class maxiEvent {
     checkSetup: boolean | undefined
 }
 
-export async function main(event: maxiEvent): Promise<Object> {
+export async function main(event: maxiEvent,context: any): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
     console.log("vault maxi v1.0-rc.1b")
@@ -94,10 +94,15 @@ export async function main(event: maxiEvent): Promise<Object> {
                 }
                 //Do not set state to error again, otherwise we risk an endless loop of cleanup-attempts while vault is unmanaged.
                 await program.updateToState(ProgramState.Idle, VaultMaxiProgramTransaction.None)
-                return { statusCode: result ? 200 : 500 }
+                console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after cleanup")
+                if(context.getRemainingTimeInMillis() < 300*1000) { //min 5 minutes for action
+                    return { statusCode: result ? 200 : 500 } //not enough time left, better quit and have a clean run on next invocation
+                }
+                
             }
         }
 
+        const oldRatio = +vault.collateralRatio
         const nextRatio = nextCollateralRatio(vault)
         const usedCollateralRatio = Math.min(+vault.collateralRatio, nextRatio)
         console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
@@ -109,10 +114,16 @@ export async function main(event: maxiEvent): Promise<Object> {
         if (0 < usedCollateralRatio && usedCollateralRatio < settings.minCollateralRatio) {
             result = await program.decreaseExposure(vault, telegram)
             exposureChanged = true
+            vault= await program.getVault() as LoanVaultActive
         } else {
             result = true
             exposureChanged = await program.checkAndDoReinvest(vault, telegram)
-            if(!exposureChanged) {
+            console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after reinvest")
+            if(exposureChanged){
+                vault= await program.getVault() as LoanVaultActive 
+            }
+            if(context.getRemainingTimeInMillis() > 300*1000) {//min 5 minutes for action
+                const usedCollateralRatio = Math.min(+vault.collateralRatio, nextCollateralRatio(vault))
                 if (+vault.collateralValue < 10) {
                     const message = "less than 10 dollar in the vault. can't work like that"
                     await telegram.send(message)
@@ -127,15 +138,12 @@ export async function main(event: maxiEvent): Promise<Object> {
         await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
         console.log("wrote state")
         if (exposureChanged) {
-            const oldRatio = +vault.collateralRatio
-            const oldNext = nextRatio
-            vault = await program.getVault() as LoanVaultActive
             await telegram.log("executed script " + (result ? "successfully" : "with problems")
-                + ". vault ratio changed from " + oldRatio + " (next " + oldNext + ") to "
+                + ". vault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
                 + vault.collateralRatio + " (next " + nextCollateralRatio(vault) +
                 "). target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
         } else {
-            await telegram.log("executed script without changes. vault ratio " + vault.collateralRatio + " next " + nextRatio
+            await telegram.log("executed script without changes. vault ratio " + oldRatio + " next " + nextRatio
                 + ". target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
         }
         console.log("script done")
