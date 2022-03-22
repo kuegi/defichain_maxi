@@ -327,7 +327,6 @@ export class VaultMaxiProgram extends CommonProgram {
         if(rewardDiff < 100) {
             return //just a testvault, no need to motivate anyone
         }
-        console.log("diff: "+loanDiff+" "+rewardDiff+" "+this.targetCollateral+" "+referenceRatio+" "+vault.collateralValue+" "+pool.apr.total)
         let rewardMessage: string
         if (rewardDiff > 100 * 365) {
             rewardMessage = "$" + (rewardDiff / 365).toFixed(0) + " in rewards per day"
