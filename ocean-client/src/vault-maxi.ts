@@ -7,6 +7,7 @@ import { WalletSetup } from './utils/wallet-setup'
 import { ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
 import { isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
+import { BigNumber } from "@defichain/jellyfish-api-core";
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -18,6 +19,8 @@ class maxiEvent {
     overrideSettings: SettingsOverride | undefined
     checkSetup: boolean | undefined
 }
+
+const MIN_TIME_PER_ACTION_MS = 300*1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
 export async function main(event: maxiEvent,context: any): Promise<Object> {
     let store = new Store()
@@ -95,7 +98,7 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
                 //Do not set state to error again, otherwise we risk an endless loop of cleanup-attempts while vault is unmanaged.
                 await program.updateToState(ProgramState.Idle, VaultMaxiProgramTransaction.None)
                 console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after cleanup")
-                if(context.getRemainingTimeInMillis() < 300*1000) { //min 5 minutes for action
+                if(context.getRemainingTimeInMillis() < MIN_TIME_PER_ACTION_MS) { 
                     return { statusCode: result ? 200 : 500 } //not enough time left, better quit and have a clean run on next invocation
                 }
                 
@@ -104,14 +107,14 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
 
         const oldRatio = +vault.collateralRatio
         const nextRatio = nextCollateralRatio(vault)
-        const usedCollateralRatio = Math.min(+vault.collateralRatio, nextRatio)
+        const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
         console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
             + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
         let exposureChanged = false
         //first check for decreaseExposure
         // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
         // no reinvest -> check for increase exposure
-        if (0 < usedCollateralRatio && usedCollateralRatio < settings.minCollateralRatio) {
+        if (usedCollateralRatio.gt(0) && usedCollateralRatio.lt(settings.minCollateralRatio)) {
             result = await program.decreaseExposure(vault, telegram)
             exposureChanged = true
             vault= await program.getVault() as LoanVaultActive
@@ -122,13 +125,13 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
             if(exposureChanged){
                 vault= await program.getVault() as LoanVaultActive 
             }
-            if(context.getRemainingTimeInMillis() > 300*1000) {//min 5 minutes for action
-                const usedCollateralRatio = Math.min(+vault.collateralRatio, nextCollateralRatio(vault))
+            if(context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {// enough time left -> continue
+                const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, nextCollateralRatio(vault))
                 if (+vault.collateralValue < 10) {
                     const message = "less than 10 dollar in the vault. can't work like that"
                     await telegram.send(message)
                     console.error(message)
-                } else if (usedCollateralRatio < 0 || usedCollateralRatio > settings.maxCollateralRatio) {
+                } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
                     result = await program.increaseExposure(vault, telegram)
                     exposureChanged = true
                 }

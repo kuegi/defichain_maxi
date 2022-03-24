@@ -129,11 +129,11 @@ export class VaultMaxiProgram extends CommonProgram {
                 console.warn(message)
                 return true//can still run
             }
-            const neededrepay = +vault.loanValue - (+vault.collateralValue * 100 / safeCollRatio)
-            const neededStock = neededrepay / (+tokenLoan.activePrice!.active!.amount + (+pool!.priceRatio.ba))
-            const neededDusd = neededStock * +pool!.priceRatio.ba
-            const neededLPtokens: number = +((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
-            if (neededLPtokens > +lpTokens.amount || neededDusd > +dusdLoan.amount || neededStock > +tokenLoan.amount) {
+            const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
+            const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount,pool!.priceRatio.ba))
+            const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
+            const neededLPtokens = new BigNumber((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
+            if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan.amount) || neededStock.gt(tokenLoan.amount)) {
                 const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
                     + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
                     + neededDusd.toFixed(1) + " vs " + (+dusdLoan.amount).toFixed(1) + " " + dusdLoan.symbol + "\n"
@@ -177,31 +177,32 @@ export class VaultMaxiProgram extends CommonProgram {
     async decreaseExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
-        const neededrepay = Math.max(+vault.loanValue - (+vault.collateralValue / this.targetCollateral),
-            nextLoanValue(vault) - (nextCollateralValue(vault) / this.targetCollateral))
-        const neededStock = neededrepay / (+oracle.active!.amount + (+pool!.priceRatio.ba))
-        const wantedusd = neededStock * +pool!.priceRatio.ba
-        const lptokens: number = +((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
-        let dusdLoan: number = 0
-        let tokenLoan: number = 0
+        const neededrepay = BigNumber.max(
+                    new BigNumber(vault.loanValue).minus( new BigNumber(vault.collateralValue).dividedBy(this.targetCollateral)),
+                    nextLoanValue(vault).minus(nextCollateralValue(vault).div(this.targetCollateral)))
+        const neededStock = neededrepay.dividedBy(BigNumber.sum(oracle.active!.amount,pool!.priceRatio.ba))
+        const wantedusd = neededStock.multipliedBy(pool!.priceRatio.ba)
+        const lptokens: BigNumber = new BigNumber((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
+        let dusdLoan: BigNumber = new BigNumber(0)
+        let tokenLoan: BigNumber = new BigNumber(0)
         vault.loanAmounts.forEach(loanamount => {
             if (loanamount.symbol == this.settings.LMToken) {
-                tokenLoan = +loanamount.amount
+                tokenLoan = new BigNumber(loanamount.amount)
             }
             if (loanamount.symbol == "DUSD") {
-                dusdLoan = +loanamount.amount
+                dusdLoan = new BigNumber(loanamount.amount)
             }
         })
         console.log("reducing exposure by " + neededrepay.toFixed(4) + " USD: " + wantedusd.toFixed(2) + "@DUSD " + neededStock.toFixed(8) + "@" + this.settings.LMToken + " from " + lptokens.toFixed(8) + " existing LPTokens")
-        if (lptokens == 0 || dusdLoan == 0 || tokenLoan == 0) {
+        if (lptokens.lte(0) || dusdLoan.lte(0) || tokenLoan.lte(0)) {
             await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             console.error("can't withdraw from pool, no tokens left or no loans left")
             return false
         }
         const stock_per_token = +pool!.tokenA.reserve / +pool!.totalLiquidity.token
-        const removeTokens = Math.min(neededStock / stock_per_token, lptokens)
-        console.log(" would need " + (neededStock / stock_per_token).toFixed(8) + " doing " + removeTokens.toFixed(8) + " ")
-        const removeTx = await this.removeLiquidity(+pool!.id, new BigNumber(removeTokens))
+        const removeTokens = BigNumber.min(neededStock.div(stock_per_token), lptokens)
+        console.log(" would need " + neededStock.div(stock_per_token).toFixed(8) + " doing " + removeTokens.toFixed(8) + " ")
+        const removeTx = await this.removeLiquidity(+pool!.id, removeTokens)
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
 
@@ -217,14 +218,14 @@ export class VaultMaxiProgram extends CommonProgram {
         let token = tokens.get("DUSD")
         if (token) {
             if (!this.keepWalletClean) {
-                token.amount = "" + Math.min(+token.amount, wantedusd)
+                token.amount = "" + BigNumber.min(token.amount, wantedusd)
             }
             paybackTokens.push(token)
         }
         token = tokens.get(this.settings.LMToken)
         if (token) {
             if (!this.keepWalletClean) {
-                token.amount = "" + Math.min(+token.amount, neededStock)
+                token.amount = "" + BigNumber.min(token.amount, neededStock)
             }
             paybackTokens.push(token)
         }
@@ -266,16 +267,17 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log("increasing exposure ")
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
-        const additionalLoan = Math.min((+vault.collateralValue / this.targetCollateral) - +vault.loanValue,
-            (nextCollateralValue(vault) / this.targetCollateral) - nextLoanValue(vault))
-        let neededStock = additionalLoan / (+oracle.active!.amount + +pool.priceRatio.ba)
-        let neededDUSD = +pool.priceRatio.ba * neededStock
+        const additionalLoan = BigNumber.min(
+                new BigNumber(vault.collateralValue).div(this.targetCollateral).minus(vault.loanValue),
+                new BigNumber(nextCollateralValue(vault)).div(this.targetCollateral).minus(nextLoanValue(vault)))
+        let neededStock =  additionalLoan.div(BigNumber.sum(oracle.active!.amount,pool.priceRatio.ba))
+        let neededDUSD = neededStock.multipliedBy(pool.priceRatio.ba)
 
         console.log("increasing by " + additionalLoan + " USD, taking loan " + neededStock + "@" + this.settings.LMToken
             + " " + neededDUSD + "@DUSD ")
         const takeLoanTx = await this.takeLoans([
-            { token: +pool.tokenA.id, amount: new BigNumber(neededStock) },
-            { token: +pool.tokenB.id, amount: new BigNumber(neededDUSD) }
+            { token: +pool.tokenA.id, amount: neededStock },
+            { token: +pool.tokenB.id, amount: neededDUSD }
         ])
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
         let addTx: CTransactionSegWit
@@ -283,20 +285,20 @@ export class VaultMaxiProgram extends CommonProgram {
         if (this.keepWalletClean) {
             //use full balance to increase exposure: existing balance + expected from loan
             const tokens = await this.getTokenBalances()
-            usedDUSD += +(tokens.get("DUSD")?.amount ?? "0")
-            neededStock += +(tokens.get(this.settings.LMToken)?.amount ?? "0") //upper limit for usedStocks
+            usedDUSD = usedDUSD.plus(tokens.get("DUSD")?.amount ?? "0")
+            neededStock = neededStock.plus(tokens.get(this.settings.LMToken)?.amount ?? "0") //upper limit for usedStocks
         }
 
-        let usedStock = +pool.priceRatio.ab * usedDUSD
-        if (usedStock > neededStock) { //not enough stocks to fill it -> use full stocks and reduce DUSD
+        let usedStock = usedDUSD.multipliedBy(pool.priceRatio.ab)
+        if (usedStock.gt(neededStock)) { //not enough stocks to fill it -> use full stocks and reduce DUSD
             usedStock = neededStock
-            usedDUSD = +pool.priceRatio.ba * usedStock
+            usedDUSD = usedStock.multipliedBy(pool.priceRatio.ba)
         }
 
         console.log(" adding liquidity in same block " + usedStock + "@" + this.settings.LMToken + " " + usedDUSD + "@DUSD ")
         addTx = await this.addLiquidity([
-            { token: +pool.tokenA.id, amount: new BigNumber(usedStock) },
-            { token: +pool.tokenB.id, amount: new BigNumber(usedDUSD) },
+            { token: +pool.tokenA.id, amount: usedStock },
+            { token: +pool.tokenB.id, amount: usedDUSD },
         ], this.prevOutFromTx(takeLoanTx))
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
@@ -355,7 +357,7 @@ export class VaultMaxiProgram extends CommonProgram {
         const utxoBalance = await this.getUTXOBalance()
         const tokenBalance = await this.getTokenBalance("DFI")
 
-        const amountFromBalance = +(tokenBalance?.amount ?? "0")
+        const amountFromBalance = new BigNumber(tokenBalance?.amount ?? "0")
         const fromUtxos = utxoBalance.gt(1) ? utxoBalance.minus(1) : new BigNumber(0)
         const amountToUse = fromUtxos.plus(amountFromBalance)
 
