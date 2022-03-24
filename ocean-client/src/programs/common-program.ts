@@ -61,7 +61,6 @@ export class CommonProgram {
     }
 
     async getTokenBalances(): Promise<Map<string, AddressToken>> {
-        let result = new Map<string, AddressToken>()
         const tokens = await this.client.address.listToken(await this.getAddress(), 100)
 
         return new Map(tokens.map(token => [token.symbol, token]))
