@@ -88,7 +88,7 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
-        if (this.settings.minCollateralRatio > this.settings.maxCollateralRatio - 2) {
+        if (this.settings.maxCollateralRatio > 0 && this.settings.minCollateralRatio > this.settings.maxCollateralRatio - 2) {
             const message = "Min collateral must be more than 2 below max collateral. Please change your settings. "
                 + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
             await telegram.send(message)
@@ -232,6 +232,59 @@ export class VaultMaxiProgram extends CommonProgram {
 
         if (await this.paybackTokenBalances(paybackTokens, telegram)) {
             await telegram.send("done reducing exposure")
+            return true
+        }
+        return false
+    }
+
+    
+    async removeExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
+        let pool: PoolPairData = (await this.getPool(this.lmPair))!!
+        const balances = await this.getTokenBalances()
+        const lpTokens = balances.get(this.lmPair)
+        const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
+        const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
+        const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
+        const dusd_per_token = new BigNumber(pool!.tokenB.reserve).div(pool!.totalLiquidity.token)
+        if(!tokenLoan || !dusdLoan || !lpTokens ) {
+            await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
+            console.error("can't withdraw from pool, no tokens left or no loans left")
+            return false
+        }
+        const maxTokenFromStock= new BigNumber(tokenLoan!.amount).div(stock_per_token)
+        const maxTokenFromDUSD = new BigNumber(dusdLoan!.amount).div(dusd_per_token)
+        const usedTokens= BigNumber.min(lpTokens.amount,maxTokenFromDUSD,maxTokenFromStock)
+        if(usedTokens.lte(0)) {
+            await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left")
+            console.error("can't withdraw 0 from pool, no tokens left or no loans left")
+            return false
+        }
+
+        console.log("removing as much exposure as possible " + usedTokens.toFixed(4) + "tokens. max from USD: " + maxTokenFromDUSD.toFixed(2) + ", max from dToken: " + maxTokenFromStock.toFixed(8) + " max LPtoken available: " + lpTokens.amount)
+        const removeTx = await this.removeLiquidity(+pool!.id, usedTokens)
+
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
+
+        if (! await this.waitForTx(removeTx.txId)) {
+            await telegram.send("ERROR: when removing liquidity")
+            console.error("removing liquidity failed")
+            return false
+        }
+        const tokens = await this.getTokenBalances()
+        console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
+
+        let paybackTokens: AddressToken[] = []
+        let token = tokens.get("DUSD")
+        if (token) {//reducing exposure: keep wallet clean
+            paybackTokens.push(token)
+        }
+        token = tokens.get(this.settings.LMToken)
+        if (token) { //reducing exposure: keep wallet clean
+            paybackTokens.push(token)
+        }
+
+        if (await this.paybackTokenBalances(paybackTokens, telegram)) {
+            await telegram.send("done removing exposure")
             return true
         }
         return false

@@ -22,10 +22,12 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300*1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
+const VERSION = "v1.0"
+
 export async function main(event: maxiEvent,context: any): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
-    console.log("vault maxi v1.0-rc.1b")
+    console.log("vault maxi "+VERSION)
     console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
 
     if (event) {
@@ -40,7 +42,7 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         }
     }
     const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix+ " v1.0rc1b"+logId+"]")
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix+ " "+VERSION+logId+"]")
     try {
 
         const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
@@ -114,7 +116,13 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         //first check for decreaseExposure
         // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
         // no reinvest -> check for increase exposure
-        if (usedCollateralRatio.gt(0) && usedCollateralRatio.lt(settings.minCollateralRatio)) {
+        if(settings.maxCollateralRatio <= 0) {
+            if(usedCollateralRatio.gt(0)) {
+                result = await program.removeExposure(vault, telegram)
+                exposureChanged = true
+                vault= await program.getVault() as LoanVaultActive
+            }
+        } else if (usedCollateralRatio.gt(0) && usedCollateralRatio.lt(settings.minCollateralRatio)) {
             result = await program.decreaseExposure(vault, telegram)
             exposureChanged = true
             vault= await program.getVault() as LoanVaultActive

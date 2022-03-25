@@ -25,3 +25,4 @@
 * [X] allow increase directly after reinvest (no wait for next trigger)
 * [X] run script directly after clean up (timeout shouldn't be an issue, not to waist time for actions)
 * [X] switch all calculations to BigNumber to prevent rounding error
+* [X] remove all exposure on maxCollateralRatio < 0
