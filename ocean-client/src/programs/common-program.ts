@@ -79,7 +79,7 @@ export class CommonProgram {
     }
 
     async getPool(poolId: string): Promise<PoolPairData | undefined> {
-        const respose = await this.client.poolpairs.list()
+        const respose = await this.client.poolpairs.list(1000)
 
         return respose.find(pool => {
             return pool.symbol == poolId
