@@ -253,14 +253,17 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         const maxTokenFromStock= new BigNumber(tokenLoan!.amount).div(stock_per_token)
         const maxTokenFromDUSD = new BigNumber(dusdLoan!.amount).div(dusd_per_token)
-        const usedTokens= BigNumber.min(lpTokens.amount,maxTokenFromDUSD,maxTokenFromStock)
+        let usedTokens= BigNumber.min(lpTokens.amount,maxTokenFromDUSD,maxTokenFromStock)
+        if(usedTokens.div(0.95).gt(lpTokens.amount)) { // usedtokens > lpTokens * 0.95 
+            usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
+        }
         if(usedTokens.lte(0)) {
             await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left")
             console.error("can't withdraw 0 from pool, no tokens left or no loans left")
             return false
         }
 
-        console.log("removing as much exposure as possible " + usedTokens.toFixed(4) + "tokens. max from USD: " + maxTokenFromDUSD.toFixed(2) + ", max from dToken: " + maxTokenFromStock.toFixed(8) + " max LPtoken available: " + lpTokens.amount)
+        console.log("removing as much exposure as possible: " + usedTokens.toFixed(5) + "tokens. max from USD: " + maxTokenFromDUSD.toFixed(5) + ", max from dToken: " + maxTokenFromStock.toFixed(5) + " max LPtoken available: " + lpTokens.amount)
         const removeTx = await this.removeLiquidity(+pool!.id, usedTokens)
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
