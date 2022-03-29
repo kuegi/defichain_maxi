@@ -24,10 +24,15 @@ function handleExec(res) {
  * Build and ZIP for AWS Lambda Execution
  */
 async function buildLambda(file) {
-  fs.rmSync('./dist', {force: true, recursive: true}); //delete dist before build to ensure no old files exists 
-
+  //delete dist before build to ensure no old files exists 
+  fs.rmSync('./dist', {force: true, recursive: true}); 
+  //delete native build in debian of tiny-secp256k1. Which not exist on Windows (and Mac?)
+  //then an elliptic binding is used
+  fs.rmSync('./node_modules/tiny-secp256k1/build', {force: true, recursive: true}); 
   {
-    const command = `npx --package @vercel/ncc ncc build ./src/${file}.ts --source-map -o ./dist/${file}`
+    //-m minify. Some modules in Windows haf CRLF instead of only LF.
+    // no sourcemap files
+    const command = `npx --package @vercel/ncc ncc build ./src/${file}.ts -o ./dist/${file} -m`
     const res = await exec(command, { cwd: __dirname })
     handleExec(res)
   }
