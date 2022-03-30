@@ -1,4 +1,8 @@
 const util = require('util')
+const fs = require('fs');
+const zip = require('deterministic-zip');
+const crypto = require('crypto');
+
 const exec = util.promisify(require('child_process').exec)
 
 fileToBuild = process.env.npm_config_file
@@ -20,18 +24,26 @@ function handleExec(res) {
  * Build and ZIP for AWS Lambda Execution
  */
 async function buildLambda(file) {
+  //delete dist before build to ensure no old files exists 
+  fs.rmSync('./dist', {force: true, recursive: true}); 
+  //delete native build in debian of tiny-secp256k1. Which not exist on Windows (and Mac?)
+  //then an elliptic binding is used
+  fs.rmSync('./node_modules/tiny-secp256k1/build', {force: true, recursive: true}); 
   {
-    const command = `npx --package @vercel/ncc ncc build ./src/${file}.ts --source-map -o ./dist/${file}`
+    //-m minify. Some modules in Windows haf CRLF instead of only LF.
+    // no sourcemap files
+    const command = `npx --package @vercel/ncc ncc build ./src/${file}.ts -o ./dist/${file} -m`
     const res = await exec(command, { cwd: __dirname })
     handleExec(res)
   }
+  
+  zip(`./dist/${file}`, `./dist/${file}.zip`, {includes: [`*`], cwd: `./dist/${file}`}, (err) => {
+    console.log(`src/${file}.ts -> dist/${file}.zip`)
+    //calc hash
+    const hash = (crypto.createHash('sha256')).update(fs.readFileSync(`./dist/${file}.zip`)).digest('base64');
+    console.log(`sha256 hash: ${hash}`);
+  });
 
-  {
-    const res = await exec(`zip -r -j ./dist/${file}.zip ./dist/${file}/*`)
-    handleExec(res)
-  }
-
-  console.log(`src/${file}.ts -> dist/${file}.zip`)
 }
 
 buildLambda(fileToBuild).catch(
