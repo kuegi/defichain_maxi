@@ -26,3 +26,4 @@
 * [X] run script directly after clean up (timeout shouldn't be an issue, not to waist time for actions)
 * [X] switch all calculations to BigNumber to prevent rounding error
 * [X] remove all exposure on maxCollateralRatio < 0
+* [X] retry send tx also on other ocean error. cause might be due to inconsistency in ocean
