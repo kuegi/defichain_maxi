@@ -8,6 +8,7 @@ import { ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
 import { isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
+import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -22,7 +23,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300*1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v1.0"
+const VERSION = "v1.0rc2"
 
 export async function main(event: maxiEvent,context: any): Promise<Object> {
     let store = new Store()
@@ -162,7 +163,11 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
     } catch (e) {
         console.error("Error in script")
         console.error(e)
-        const message = "There was an unexpected error in the script. please check the logs"
+        let message = "There was an unexpected error in the script. please check the logs"
+        if(e instanceof WhaleClientTimeoutException) {
+            message= "There was a timeout from the ocean api. will try again later."
+            //TODO: do we have to go to error state in this case? or just continue on current state next time?
+        }
         if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
             await telegram.send(message)
         } else {
