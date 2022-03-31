@@ -26,9 +26,11 @@ const MIN_TIME_PER_ACTION_MS = 300*1000 //min 5 minutes for action. probably onl
 const VERSION = "v1.0rc2"
 
 export async function main(event: maxiEvent,context: any): Promise<Object> {
+    console.log("vault maxi "+VERSION)
+while(context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
+    console.log("starting with " + context.getRemainingTimeInMillis() +"ms available")
     let store = new Store()
     let settings = await store.fetchSettings()
-    console.log("vault maxi "+VERSION)
     console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
 
     if (event) {
@@ -165,7 +167,7 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         console.error(e)
         let message = "There was an unexpected error in the script. please check the logs"
         if(e instanceof WhaleClientTimeoutException) {
-            message= "There was a timeout from the ocean api. will try again later."
+            message= "There was a timeout from the ocean api. will try again."
             //TODO: do we have to go to error state in this case? or just continue on current state next time?
         }
         if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
@@ -180,6 +182,7 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
             txId: "",
             blockHeight: 0
         })
-        return { statusCode: 500 }
     }
+}
+return { statusCode: 500 } //means we came out of error loop due to not enough time left
 }
