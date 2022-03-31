@@ -65,6 +65,15 @@ while(context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
         let result = true
         let vault: LoanVaultActive = await program.getVault() as LoanVaultActive //already checked before if all is fine
 
+        if (vault.state == LoanVaultState.FROZEN) {
+            // TODO: activate this once FCR is active
+            //await program.removeExposure(vault, telegram,true)
+            const message = "vault is frozen. trying again later "
+            await telegram.send(message)
+            console.warn(message)
+            return false
+        }
+
         //TODO: move that block to function in programm
         // 2022-03-08 Krysh: Something went wrong on last execution, we need to clean up, whatever was done
         if (settings.stateInformation.state !== ProgramState.Idle) {
