@@ -430,19 +430,18 @@ export class VaultMaxiProgram extends CommonProgram {
          //   const tx = await this.tokenToUtxo(amountFromBalance)
          //   await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
          //   prevout = this.prevOutFromTx(tx)
-            const newtx = await this.withdraw(amountFromBalance,prevout)
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, newtx.txId)
-            if(! await this.waitForTx(newtx.txId)) {
-                await telegram.send("ERROR: withdraw: " + amountToUse+ "DFI to: " + this.settings.moveToAddress + " !")
+            const tx = await this.withdraw(amountToUse,prevout)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
+            if(! await this.waitForTx(tx.txId)) {
+                await telegram.send("ERROR: withdraw: " + amountToUse+ " DFI to: " + this.settings.moveToAddress + " txid: " + tx.txId)
                 console.log("withdraw failed")
                 return false
             } else {
-                await telegram.send("Withdraw: " + amountToUse + "DFI to: " + this.settings.moveToAddress + " done")
-                console.log("withdraw down")
+                await telegram.send("Withdraw: " + amountToUse + "\n" + "DFI to: " + this.settings.moveToAddress + "\n" + "txid: " + tx.txId + " done")
+                console.log("withdraw done")
                 return true
             }
         }
-
         return false
     }
 
