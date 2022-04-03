@@ -108,44 +108,42 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
 
-        const vault = vaultcheck as LoanVaultActive
-        if (vault.state == LoanVaultState.FROZEN) {
-            const message = "vault is frozen. trying again later "
-            await telegram.send(message)
-            console.warn(message)
-            return false
-        }
-
         // showstoppers checked, now check for warnings
-        const safetyOverride = process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE ? +(process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE) : undefined
-        const safeCollRatio = safetyOverride ?? +vault.loanScheme.minColRatio * 2
-        if (safetyOverride) {
-            console.log("using override for vault safety level: " + safetyOverride)
-        }
-        if (+vault.collateralRatio > 0 && +vault.collateralRatio < safeCollRatio) {
-            //check if we could provide safety
-            const balances = await this.getTokenBalances()
-            const lpTokens = balances.get(this.lmPair)
-            const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
-            const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
-            if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
-                const message = "vault ratio not safe but either no lpTokens or no loans in vault. Did you change the LMToken? Your vault is NOT safe! "
-                await telegram.send(message)
-                console.warn(message)
-                return true//can still run
+        const vault = vaultcheck as LoanVaultActive
+        if (vault.state != LoanVaultState.FROZEN) {
+            //coll ratio checks only done if not frozen (otherwise the ratio might be off)
+            //if frozen: its handled outside anyway
+            
+            const safetyOverride = process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE ? +(process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE) : undefined
+            const safeCollRatio = safetyOverride ?? +vault.loanScheme.minColRatio * 2
+            if (safetyOverride) {
+                console.log("using override for vault safety level: " + safetyOverride)
             }
-            const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
-            const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount,pool!.priceRatio.ba))
-            const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
-            const neededLPtokens = new BigNumber((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
-            if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan.amount) || neededStock.gt(tokenLoan.amount)) {
-                const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
-                    + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
-                    + neededDusd.toFixed(1) + " vs " + (+dusdLoan.amount).toFixed(1) + " " + dusdLoan.symbol + "\n"
-                    + neededStock.toFixed(4) + " vs " + (+tokenLoan.amount).toFixed(4) + " " + tokenLoan.symbol + "\n"
-                await telegram.send(message)
-                console.warn(message)
-                return true //can still run
+            if (+vault.collateralRatio > 0 && +vault.collateralRatio < safeCollRatio) {
+                //check if we could provide safety
+                const balances = await this.getTokenBalances()
+                const lpTokens = balances.get(this.lmPair)
+                const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
+                const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
+                if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
+                    const message = "vault ratio not safe but either no lpTokens or no loans in vault. Did you change the LMToken? Your vault is NOT safe! "
+                    await telegram.send(message)
+                    console.warn(message)
+                    return true//can still run
+                }
+                const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
+                const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount, pool!.priceRatio.ba))
+                const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
+                const neededLPtokens = new BigNumber((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
+                if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan.amount) || neededStock.gt(tokenLoan.amount)) {
+                    const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
+                        + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
+                        + neededDusd.toFixed(1) + " vs " + (+dusdLoan.amount).toFixed(1) + " " + dusdLoan.symbol + "\n"
+                        + neededStock.toFixed(4) + " vs " + (+tokenLoan.amount).toFixed(4) + " " + tokenLoan.symbol + "\n"
+                    await telegram.send(message)
+                    console.warn(message)
+                    return true //can still run
+                }
             }
         }
         return true
@@ -245,7 +243,7 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     
-    async removeExposure(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
+    async removeExposure(vault: LoanVaultActive, telegram: Telegram, silentOnNothingToDo: boolean = false): Promise<boolean> {
         let pool: PoolPairData = (await this.getPool(this.lmPair))!!
         const balances = await this.getTokenBalances()
         const lpTokens = balances.get(this.lmPair)
@@ -254,8 +252,10 @@ export class VaultMaxiProgram extends CommonProgram {
         const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
         const dusd_per_token = new BigNumber(pool!.tokenB.reserve).div(pool!.totalLiquidity.token)
         if(!tokenLoan || !dusdLoan || !lpTokens ) {
-            await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
-            console.error("can't withdraw from pool, no tokens left or no loans left")
+            console.info("can't withdraw from pool, no tokens left or no loans left")
+            if(!silentOnNothingToDo) {
+                await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
+            }
             return false
         }
         const maxTokenFromStock= new BigNumber(tokenLoan!.amount).div(stock_per_token)
@@ -265,8 +265,10 @@ export class VaultMaxiProgram extends CommonProgram {
             usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
         }
         if(usedTokens.lte(0)) {
-            await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left")
-            console.error("can't withdraw 0 from pool, no tokens left or no loans left")
+            console.info("can't withdraw 0 from pool, no tokens left or no loans left")
+            if(!silentOnNothingToDo) {
+                await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left")
+            }
             return false
         }
 
