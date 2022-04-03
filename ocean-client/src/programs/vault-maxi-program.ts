@@ -425,15 +425,23 @@ export class VaultMaxiProgram extends CommonProgram {
 
         let prevout: Prevout | undefined = undefined
         console.log("checking for moving DFI: " + fromUtxos + " from UTXOs, " + amountFromBalance + " token. total " + amountToUse + " vs " + this.settings.moveToTreshold)
-        // need to switch Token to UTXO
-        if(amountToUse.gt(this.settings.moveToTreshold) && amountFromBalance.gt(0)) {
+        if(amountToUse.gt(this.settings.moveToTreshold) && fromUtxos.gt(0)) {
          //   const tx = await this.tokenToUtxo(amountFromBalance)
          //   await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
          //   prevout = this.prevOutFromTx(tx)
+            console.log("converting " + fromUtxos + " UTXOs to token ")
+            const tx = await this.utxoToOwnAccount(fromUtxos)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
+            prevout = this.prevOutFromTx(tx)
+        }
+
+        if(amountToUse.gt(this.settings.moveToTreshold))
+        {
+            console.log("Starting withdraw: " + amountToUse + " DFI")
             const tx = await this.withdraw(amountToUse,prevout)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
             if(! await this.waitForTx(tx.txId)) {
-                await telegram.send("ERROR: withdraw: " + amountToUse+ " DFI to: " + this.settings.moveToAddress + " txid: " + tx.txId)
+                await telegram.send("ERROR: withdraw: " + amountToUse + " DFI to: " + this.settings.moveToAddress + " txid: " + tx.txId)
                 console.log("withdraw failed")
                 return false
             } else {
