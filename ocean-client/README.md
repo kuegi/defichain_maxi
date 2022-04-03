@@ -19,6 +19,11 @@ kügi: df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07
 
 krysh: df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm
 
+## About this fork
+This fork is designed to send the rewards to another address. There you need two parameters: 
+- /defichain-maxi/settings/move-to-treshold = treshold DFI amount. IF amount > treshold DFI will moved
+- /defichain-maxi/settings/move-to-address = DFI address of the receiver
+
 # Build & preparing for upload
 We recommend running it as a lambda on AWS. with reasonable settings (trigger every 10 minutes) you will even stay within the free tier of AWS.
 
@@ -38,6 +43,8 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/settings/lm-token
 /defichain-maxi/settings/reinvest
 /defichain-maxi/state
+/defichain-maxi/settings/move-to-treshold
+/defichain-maxi/settings/move-to-address
 ```
 saved as a SecureString:
 ```
