@@ -10,10 +10,8 @@
 * [X] error handling: currently an error in the promises is not caught. should to a catch around everything in the main program. so we at least report the error. (not only in the log)
 * [X] add telegram message on reinvest to remind user what they gained from using the bot and recommend donating some.
 * [ ] refactor to jellyfish
-* [ ] ?status message every day at 9 am
 * [ ] ?use additional LMToken/loans in case that wanted dtoken is used up, but collateral still low and more LPTokens available
-* [ ] ??allow multiple dToken (split liquidity evenly across them)
-* [ ] ?recover from state
+* [X] ?recover from state
 * [ ] use getRemainingTimeInMillis() to avoid hardcut timeouts
 * [X] check and handle empty vault
 * [X] errorhandling in case the seedparameter is missing
@@ -21,9 +19,11 @@
 * [X] make desktop bech32 adresses possible
 * [X] add min/max value to log message
 * [ ] add environmentVariable to deactivate motivation-log
-* [ ] improve log on ocean-timeout
+* [X] improve log on ocean-timeout
 * [X] allow increase directly after reinvest (no wait for next trigger)
 * [X] run script directly after clean up (timeout shouldn't be an issue, not to waist time for actions)
 * [X] switch all calculations to BigNumber to prevent rounding error
 * [X] remove all exposure on maxCollateralRatio < 0
 * [X] retry send tx also on other ocean error. cause might be due to inconsistency in ocean
+* [X] run lambda in loop to retry on timeout error
+* [ ] remove all exposure when vault is frozen
