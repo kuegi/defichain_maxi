@@ -1,6 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { CTransactionSegWit, DeFiTransactionConstants, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
-import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { Address, AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { fromAddress } from '@defichain/jellyfish-address'
@@ -14,7 +13,6 @@ import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder/dist/txn/txn_fee'
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
-import { WalletClassic } from "@defichain/jellyfish-wallet-classic";
 
 export enum ProgramState {
     Idle = "idle",
