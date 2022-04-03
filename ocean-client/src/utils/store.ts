@@ -155,6 +155,6 @@ enum StoreKey {
     LMToken = '/defichain-maxi/settings/lm-token',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
-    MoveToTreshold = 'defichain-maxi/settings/move-to-treshold',
-    MoveToAddress = 'defichain-maxi/settings/move-to-address'
+    MoveToTreshold = '/defichain-maxi/settings/move-to-treshold',
+    MoveToAddress = '/defichain-maxi/settings/move-to-address'
 }
