@@ -418,7 +418,7 @@ export class VaultMaxiProgram extends CommonProgram {
         const amountToUse = fromUtxos.plus(amountFromBalance)
 
         let prevout: Prevout | undefined = undefined
-        console.console.log("checking for moving DFI: " + fromUtxos + " from UTXOs, " + amountFromBalance + " token. total " + amountToUse + " vs " + this.settings.moveToTreshold)
+        console.log("checking for moving DFI: " + fromUtxos + " from UTXOs, " + amountFromBalance + " token. total " + amountToUse + " vs " + this.settings.moveToTreshold)
         // need to switch Token to UTXO
         if(amountToUse.gt(this.settings.moveToTreshold) && amountFromBalance.gt(0)) {
             const tx = await this.tokenToUtxo(amountFromBalance)
