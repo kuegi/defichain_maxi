@@ -32,6 +32,8 @@ export class CheckedValues {
     maxCollateralRatio: number = -1
     LMToken: string | undefined
     reinvest: number | undefined
+    moveToTreshold: number | undefined
+    moveToAddress: string | undefined
 
     constructMessage(): string {
         return ""
@@ -40,7 +42,9 @@ export class CheckedValues {
             + (this.address ? ("from address " + this.address) : "no valid address") + "\n"
             + "Set collateral ratio range " + this.minCollateralRatio + "-" + this.maxCollateralRatio + "\n"
             + (this.LMToken ? ("Set dToken " + this.LMToken) : "no pool found for token ") + "\n"
-            + ((this.reinvest && this.reinvest > 0) ? ("Will reinvest above " + this.reinvest + " DFI") : "Will not reinvest")
+            + ((this.reinvest && this.reinvest > 0) ? ("Will reinvest above " + this.reinvest + " DFI") : "Will not reinvest") + "\n"
+            + (this.moveToAddress ? ("moveToAddress " + this.moveToAddress) : "no moveToAdress set") + "\n"
+            + (this.moveToTreshold ? ("moveToTreshold " + this.moveToTreshold) : "no Treshold set") + "\n"
     }
 }
 
@@ -163,6 +167,8 @@ export class VaultMaxiProgram extends CommonProgram {
         values.maxCollateralRatio = this.settings.maxCollateralRatio
         values.LMToken = (pool && pool.symbol == this.lmPair) ? this.settings.LMToken : undefined
         values.reinvest = this.settings.reinvestThreshold
+        values.moveToAddress = this.settings.moveToAddress
+        values.moveToTreshold = this.settings.moveToTreshold
 
         const message = values.constructMessage()
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
@@ -421,10 +427,10 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log("checking for moving DFI: " + fromUtxos + " from UTXOs, " + amountFromBalance + " token. total " + amountToUse + " vs " + this.settings.moveToTreshold)
         // need to switch Token to UTXO
         if(amountToUse.gt(this.settings.moveToTreshold) && amountFromBalance.gt(0)) {
-            const tx = await this.tokenToUtxo(amountFromBalance)
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
-            prevout = this.prevOutFromTx(tx)
-            const newtx = await this.withdraw(amountToUse,prevout)
+         //   const tx = await this.tokenToUtxo(amountFromBalance)
+         //   await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
+         //   prevout = this.prevOutFromTx(tx)
+            const newtx = await this.withdraw(amountFromBalance,prevout)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, newtx.txId)
             if(! await this.waitForTx(newtx.txId)) {
                 await telegram.send("ERROR: withdraw: " + amountToUse+ "DFI to: " + this.settings.moveToAddress + " !")
