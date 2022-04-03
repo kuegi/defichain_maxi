@@ -18,7 +18,8 @@ export enum VaultMaxiProgramTransaction {
     PaybackLoan = "paybackloan",
     TakeLoan = "takeloan",
     AddLiquidity = "addliquidity",
-    Reinvest = "reinvest"
+    Reinvest = "reinvest",
+    Withdraw = "withdraw"
 }
 
 export class CheckedValues {
@@ -402,6 +403,41 @@ export class VaultMaxiProgram extends CommonProgram {
         } else {
             await telegram.log(message)
         }
+    }
+
+    async moveTo(telegram: Telegram): Promise<boolean> {
+        if(!this.settings.moveToTreshold || this.settings.moveToTreshold <=0) {
+            return false
+        }
+
+        const utxoBalance = await this.getUTXOBalance()
+        const tokenBalance = await this.getTokenBalance("DFI")
+
+        const amountFromBalance = new BigNumber(tokenBalance?.amount ?? "0")
+        const fromUtxos = utxoBalance.gt(1) ? utxoBalance.minus(1) : new BigNumber(0)
+        const amountToUse = fromUtxos.plus(amountFromBalance)
+
+        let prevout: Prevout | undefined = undefined
+        console.console.log("checking for moving DFI: " + fromUtxos + " from UTXOs, " + amountFromBalance + " token. total " + amountToUse + " vs " + this.settings.moveToTreshold)
+        // need to switch Token to UTXO
+        if(amountToUse.gt(this.settings.moveToTreshold) && amountFromBalance.gt(0)) {
+            const tx = await this.tokenToUtxo(amountFromBalance)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, tx.txId)
+            prevout = this.prevOutFromTx(tx)
+            const newtx = await this.withdraw(amountToUse,prevout)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Withdraw, newtx.txId)
+            if(! await this.waitForTx(newtx.txId)) {
+                await telegram.send("ERROR: withdraw: " + amountToUse+ "DFI to: " + this.settings.moveToAddress + " !")
+                console.log("withdraw failed")
+                return false
+            } else {
+                await telegram.send("Withdraw: " + amountToUse + "DFI to: " + this.settings.moveToAddress + " done")
+                console.log("withdraw down")
+                return true
+            }
+        }
+
+        return false
     }
 
 

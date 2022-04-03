@@ -2,7 +2,8 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { CTransactionSegWit, DeFiTransactionConstants, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
-import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
+import { Address, AddressToken } from "@defichain/whale-api-client/dist/api/address";
+import { fromAddress } from '@defichain/jellyfish-address'
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
@@ -168,6 +169,31 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
+    async tokenToUtxo(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const script = await this.account!.getScript()
+        const txn = await this.account!.withTransactionBuilder().account.accountToUtxos({
+            from: script,
+            balances: [{token: 0, amount: amount}],
+            mintingOutputsStart: 2 // 0: DfTx, 1: change, 2: minted utxos (mandated by jellyfish SDK)
+        }, script)
+        return this.sendWithPrevout(txn, prevout)
+    }
+
+    async withdraw(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const MOVE_ADDRESS_SCRIPT = fromAddress(this.settings.moveToAddress, 'mainnet')!.script
+        const script = await this.account!.getScript()
+        const txn = await this.account!.withTransactionBuilder().account.accountToAccount({
+            from: script,
+            to: [{
+                script: MOVE_ADDRESS_SCRIPT,
+                balances: [{
+                    token: 0,
+                    amount: amount
+                }]
+            }]
+        }, script)
+        return this.sendWithPrevout(txn, prevout)
+    }
 
     async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransactionSegWit> {
         if (prevout) {

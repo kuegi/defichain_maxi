@@ -114,6 +114,7 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
             + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
         let exposureChanged = false
+        let moveTo = false
         //first check for removeExposure, then decreaseExposure
         // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
         // no reinvest (or reinvest done and still time left) -> check for increase exposure
@@ -130,6 +131,9 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         } else {
             result = true
             exposureChanged = await program.checkAndDoReinvest(vault, telegram)
+            if(!exposureChanged) {
+                moveTo = await program.moveTo(telegram)
+            }
             console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after reinvest")
             if(exposureChanged){
                 vault= await program.getVault() as LoanVaultActive 

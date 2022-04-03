@@ -36,6 +36,9 @@ export class Store {
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
+        let MoveToAddress = StoreKey.MoveToAddress.replace("-maxi","-maxi" + storePostfix)
+        let MoveToTreshold = StoreKey.MoveToTreshold.replace("-maxi", "-maxi" + storePostfix)
+
 
         let keys = [
             StoreKey.TelegramNotificationChatId,
@@ -49,6 +52,8 @@ export class Store {
             LMTokenKey,
             StateKey,
             ReinvestThreshold,
+            MoveToAddress,
+            MoveToTreshold
         ]
 
         //store only allows to get 10 parameters per request
@@ -70,6 +75,8 @@ export class Store {
                 LMTokenKey,
                 StateKey,
                 ReinvestThreshold,
+                MoveToAddress,
+                MoveToTreshold
             ]
         }).promise()).Parameters ?? [])
 
@@ -94,6 +101,8 @@ export class Store {
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+        this.settings.moveToAddress = this.getValue(MoveToAddress, parameters)
+        this.settings.moveToTreshold = this.getNumberValue(MoveToTreshold, parameters)
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
@@ -129,6 +138,8 @@ export class StoredSettings {
     LMToken: string = "GLD"
     reinvestThreshold: number | undefined
     stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
+    moveToTreshold: number | undefined
+    moveToAddress: string = ""
 }
 
 enum StoreKey {
@@ -144,4 +155,6 @@ enum StoreKey {
     LMToken = '/defichain-maxi/settings/lm-token',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
+    MoveToTreshold = 'defichain-maxi/settings/move-to-treshold',
+    MoveToAddress = 'defichain-maxi/settings/move-to-address'
 }
