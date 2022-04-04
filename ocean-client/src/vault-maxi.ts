@@ -9,6 +9,7 @@ import { ProgramStateConverter } from './utils/program-state-converter'
 import { isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
+import os from 'os';
 
 class SettingsOverride {
     minCollateralRatio: number | undefined
@@ -21,14 +22,14 @@ class maxiEvent {
     checkSetup: boolean | undefined
 }
 
-const MIN_TIME_PER_ACTION_MS = 300*1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
+const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
 const VERSION = "v1.0rc2"
 
-export async function main(event: maxiEvent,context: any): Promise<Object> {
+export async function main(event: maxiEvent, context: any): Promise<Object> {
     let store = new Store()
     let settings = await store.fetchSettings()
-    console.log("vault maxi "+VERSION)
+    console.log("vault maxi " + VERSION)
     console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
 
     if (event) {
@@ -43,7 +44,8 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         }
     }
     const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
-    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix+ " "+VERSION+logId+"]")
+    const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + VERSION + logId + "]")
+
     try {
 
         const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
@@ -100,11 +102,10 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
                 }
                 //Do not set state to error again, otherwise we risk an endless loop of cleanup-attempts while vault is unmanaged.
                 await program.updateToState(ProgramState.Idle, VaultMaxiProgramTransaction.None)
-                console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after cleanup")
-                if(context.getRemainingTimeInMillis() < MIN_TIME_PER_ACTION_MS) { 
+                console.log("got " + (context.getRemainingTimeInMillis() / 1000).toFixed(1) + " sec left after cleanup")
+                if (context.getRemainingTimeInMillis() < MIN_TIME_PER_ACTION_MS) {
                     return { statusCode: result ? 200 : 500 } //not enough time left, better quit and have a clean run on next invocation
                 }
-                
             }
         }
 
@@ -117,24 +118,24 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         //first check for removeExposure, then decreaseExposure
         // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
         // no reinvest (or reinvest done and still time left) -> check for increase exposure
-        if(settings.maxCollateralRatio <= 0) {
-            if(usedCollateralRatio.gt(0)) {
+        if (settings.maxCollateralRatio <= 0) {
+            if (usedCollateralRatio.gt(0)) {
                 result = await program.removeExposure(vault, telegram)
                 exposureChanged = true
-                vault= await program.getVault() as LoanVaultActive
+                vault = await program.getVault() as LoanVaultActive
             }
         } else if (usedCollateralRatio.gt(0) && usedCollateralRatio.lt(settings.minCollateralRatio)) {
             result = await program.decreaseExposure(vault, telegram)
             exposureChanged = true
-            vault= await program.getVault() as LoanVaultActive
+            vault = await program.getVault() as LoanVaultActive
         } else {
             result = true
             exposureChanged = await program.checkAndDoReinvest(vault, telegram)
-            console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after reinvest")
-            if(exposureChanged){
-                vault= await program.getVault() as LoanVaultActive 
+            console.log("got " + (context.getRemainingTimeInMillis() / 1000).toFixed(1) + " sec left after reinvest")
+            if (exposureChanged) {
+                vault = await program.getVault() as LoanVaultActive
             }
-            if(context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {// enough time left -> continue
+            if ((context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS)) {// enough time left -> continue
                 const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, nextCollateralRatio(vault))
                 if (+vault.collateralValue < 10) {
                     const message = "less than 10 dollar in the vault. can't work like that"
@@ -164,8 +165,8 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         console.error("Error in script")
         console.error(e)
         let message = "There was an unexpected error in the script. please check the logs"
-        if(e instanceof WhaleClientTimeoutException) {
-            message= "There was a timeout from the ocean api. will try again later."
+        if (e instanceof WhaleClientTimeoutException) {
+            message = "There was a timeout from the ocean api. will try again later."
             //TODO: do we have to go to error state in this case? or just continue on current state next time?
         }
         if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
@@ -182,4 +183,18 @@ export async function main(event: maxiEvent,context: any): Promise<Object> {
         })
         return { statusCode: 500 }
     }
+}
+
+if (typeof require !== 'undefined' && require.main === module) {
+    class contexTimer {
+        private start = Date.now();
+        public getRemainingTimeInMillis() { return 15000 * 60 - (Date.now() - this.start) } //on AWS max. 15 min execution time
+    }
+    process.env.VAULTMAXI_LOGID = process.env.VAULTMAXI_LOGID ?? "on " + os.hostname()
+    const myArgs = process.argv.slice(2);
+    var event = undefined;
+    if (!((myArgs.length>0) && (myArgs[0]=='run')))
+        event = { overrideSettings: undefined, checkSetup: true }
+    //@ts-ignore
+    main(event, new contexTimer)
 }
