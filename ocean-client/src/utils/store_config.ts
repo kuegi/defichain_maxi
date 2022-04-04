@@ -20,7 +20,7 @@ export class StoreConfig implements IStore {
         this.configpath += "/.vault-maxi";
         // create dir if not exist
         if (!fs.existsSync(this.configpath)) fs.mkdirSync(this.configpath);
-        this.statefile = this.configpath + "/state${this.settings.paramPostFix}.txt";
+        this.statefile = this.configpath + `/state${this.settings.paramPostFix}.txt`;
         this.config = this.GetConfig();
         if (!fs.existsSync(this.config.seedfile))
             throw new Error(`seedfile ${this.config.seedfile} not exists!`)
