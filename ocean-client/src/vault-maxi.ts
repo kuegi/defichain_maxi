@@ -181,10 +181,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 await telegram.log("executed script " + (result ? "successfully" : "with problems")
                     + ". vault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
                     + vault.collateralRatio + " (next " + nextCollateralRatio(vault) +
-                    "). target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
+                    "). target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + "\n" + " Token: " + settings.LMToken)
             } else {
                 await telegram.log("executed script without changes. vault ratio " + oldRatio + " next " + nextRatio
-                    + ". target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
+                    + ". target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + "\n" + " Token: " + settings.LMToken)
             }
             console.log("script done")
             return { statusCode: result ? 200 : 500 }
