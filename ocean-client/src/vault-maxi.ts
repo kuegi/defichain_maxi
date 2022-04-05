@@ -144,7 +144,20 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             exposureChanged = await program.checkAndDoReinvest(vault, telegram)
             if(!exposureChanged) {
                 moveTo = await program.moveTo(telegram)
-            }
+                if(moveTo) {
+                    console.log("need to clean up")
+                    vault = await program.getVault() as LoanVaultActive
+                    result = await program.cleanUp(vault, telegram)
+                    if (!result) {
+                        console.error("Error in cleaning up")
+                        await telegram.send("There was an error in cleaning after withdraw DFI. please check yourself!")
+                    } else {
+                        console.log("cleanup done")
+                        await telegram.send("Successfully cleaned up after withdraw DFI")
+                        exposureChanged = true
+                    }
+                }
+        }
             console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after reinvest")
             if(exposureChanged){
                 vault= await program.getVault() as LoanVaultActive 
