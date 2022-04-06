@@ -59,6 +59,8 @@ export class StoreConfig implements IStore {
         this.settings.maxCollateralRatio = this.config.maxCollateralRatio;
         this.settings.LMToken = this.config.LMToken;
         this.settings.reinvestThreshold = this.config.reinvestThreshold;
+        this.settings.moveToAddress = this.config.moveToAddress;
+        this.settings.moveToTreshold = this.config.moveToTreshold;
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile));
         let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, " ");
         this.settings.seed = seedList?.trim().split(' ') ?? [];
@@ -78,4 +80,6 @@ class ConfigFile {
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
     reinvestThreshold: number | undefined = 0
+    moveToTreshold: number | undefined
+    moveToAddress: string = ""
 }
