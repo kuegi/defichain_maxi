@@ -488,7 +488,7 @@ export class VaultMaxiProgram extends CommonProgram {
             } else {
                 await telegram.send("reinvested " + amountToUse.toFixed(4) + " (" + amountFromBalance.toFixed(4) + " tokens, " + fromUtxos.toFixed(4) + " UTXOs) DFI")
                 console.log("done ")
-                await this.sendMotivationalLog(telegram)
+                // await this.sendMotivationalLog(telegram)
                 return true
             }
         }

@@ -153,7 +153,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                         await telegram.send("There was an error in cleaning after withdraw DFI. please check yourself!")
                     } else {
                         console.log("cleanup done")
-                        await telegram.send("Successfully cleaned up after withdraw DFI")
+                        await telegram.log("Successfully cleaned up after withdraw DFI")
                         exposureChanged = true
                     }
                 }
