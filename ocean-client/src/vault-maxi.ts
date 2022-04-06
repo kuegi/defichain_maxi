@@ -45,7 +45,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             }
         }
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
-        const telegram = new Telegram(settings, "[ " + settings.LMToken + " | " + settings.paramPostFix + " " + VERSION + logId + "]")
+        const telegram = new Telegram(settings, "[ " + settings.LMToken + settings.paramPostFix + " " + VERSION + logId + "]")
         try {
 
             const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
