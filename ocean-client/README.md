@@ -15,9 +15,9 @@ Of course, this is not financial advice! We do not take any responsibility for l
 ## Donations
 We are developing this thing in our free time. Noone is paying us for it. If you benefit from our work, it would be a nice gesture to give something back. Here are our DFI donation addresses:
 
-kügi: df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07
+@kuegi : df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07
 
-krysh: df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm
+@Krysh90 : df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm
 
 ## About this fork
 This fork is designed to send the rewards to another address. There you need two parameters: 
@@ -27,13 +27,14 @@ This fork is designed to send the rewards to another address. There you need two
 # Build & preparing for upload
 We recommend running it as a lambda on AWS. with reasonable settings (trigger every 10 minutes) you will even stay within the free tier of AWS.
 
-to build it run:
+to build it run in folder ocean-client:
 ```
 npm i
 npm run build --file=vault-maxi
 ```
+Upload the file dist/vault-maxi.zip to AWS.
 
-# Settings
+## Settings
 To run, the script needs parameters set in the AWS ParameterStore:
 ```
 /defichain-maxi/wallet/address
@@ -58,17 +59,17 @@ optional parameters (if you want telegram notifications)
 /defichain-maxi/telegram/logs/token
 ```
 
-# Advanced usage
+## Advanced usage
 Besides having parameters in the AWS ParameterStore, there is the possibility to set environment variables on a AWS Lambda execution.
 
 Currently following keys are respected with a small description on how they alter execution functionality
 
-## VAULTMAXI_LOGID
+### VAULTMAXI_LOGID
 value: string
 
 will be shown in the prefix of every telegram message. Meant to easily distinguish log messages of different bots
 
-## VAULTMAXI_STORE_POSTIX
+### VAULTMAXI_STORE_POSTIX
 value: string
 
 Extends name of following ParameterStore parameters with your value:
@@ -93,12 +94,12 @@ Example for value = -second
 ```
 This will allow you to create a second lambda, with the code you built to run on a second address + vault
 
-## DEFICHAIN_SEED_KEY
+### DEFICHAIN_SEED_KEY
 value: string
 
 This value overwrites the default seed key parameter to another SecureString parameter, which is further used to initialise your wallet.
 
-## VAULTMAXI_KEEP_CLEAN
+### VAULTMAXI_KEEP_CLEAN
 value: string
 possible values: `"true", "false"`
 
@@ -106,7 +107,7 @@ Enabled: keeps your address clean by using commissions (dust) to payback loans a
 
 Disabled: will not touch commissions (dust), only what is needed by default calculations
 
-## VAULTMAXI_VAULT_SAFETY_OVERRIDE
+### VAULTMAXI_VAULT_SAFETY_OVERRIDE
 value: number
 possible values: `loanScheme.minColRatio < x < loanSchemen.minColRatio * 2`
 
@@ -118,3 +119,103 @@ To avoid getting spammed, because this is a calculated risk from you, you can ch
 
 Example: Vault with MIN150 => minColRatio = 150
 Safety warning will be raised if paying back all configured LM tokens will result in a collateral ratio of below 300. Setting this value to 250, will raise this warning to below 250.
+
+# Usage as main module on local computer, VPS or docker container
+
+## Local Settings
+
+The script check the environment variable AWS_EXECUTION_ENV, which is set inside AWS.
+If AWS_EXECUTION_ENV does not exist, local settings are used in the folder .vault-maxi in $HOME (linux) or %USERPROFILE% (Windows).
+
+The last execution state is used from and written to state.txt or state%VAULTMAXI_STORE_POSTIX%.txt.  
+
+The settings are read from the file settings.json or settings%VAULTMAXI_STORE_POSTIX%.json.  
+If the file not exist, a new empty is created and the program stop with the error message 
+"new empty config created: ... Enter your values before the next start. Set seedfile to an encrypted folder."  
+
+The only difference to the AWS parameter is
+
+```
+  "seedfile": "V:/store/vault-maxi-seed.txt",
+```
+which is the full path to a text file in an encrypted storage which contains the seed words in the first line.
+
+If the environment variable VAULTMAXI_LOGID is not set, the app will set it to the hostname of the computer, which will be shown in the prefix of every telegram message.
+
+## Debug in VSCode
+
+The debugging configuration is set in .vscode/launch.json:
+
+```
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Launch Program",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\src\\app.ts",
+            "args": ["if not 'run', event argument with checkSetup: true is used "],
+            "preLaunchTask": "tsc: build - tsconfig.json",
+            "outFiles": ["${workspaceFolder}/out/**/*.js"],
+        }
+    ]
+}
+```
+If "args" is not ["run"], vault-maxi.main() is called with checkSetup: true for security reason.
+
+The tsconfig.json is also used to compile with tsc to the output folder 'out'.
+
+Set a breakpoint in app.ts with F9 and start debugging with F5.
+
+## Build an run
+
+The function fs.rmSync in the build script need at least node version 14. However, all tests were performed with node version 16.
+
+Download the windows installer (.msi) 64 bit from https://nodejs.org/en/download/.
+
+In the debian 11 packet manager is inluded version 12.
+
+First install the necessary repository:
+```
+curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
+```
+Install nodejs
+```
+sudo apt install nodejs
+```
+and check version.
+```
+node --version
+```
+
+
+To build one minified javascript file, run in folder ocean-client:
+
+```
+npm i
+npm run build-app
+```
+which create index.js in folder 'dist.app'.
+
+Start the script with checkSetup:
+```
+node index.js   
+```
+Start the script with normal run:
+```
+node index.js run  
+```
+As an alternative, the individual files in folder 'out' can be used:
+```
+node app.js
+```
+
+
+
+
+
+
