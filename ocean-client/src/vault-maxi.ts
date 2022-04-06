@@ -6,7 +6,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
-import { isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
+import { delay, isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 
@@ -23,7 +23,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v1.0move"
+const VERSION = "v1.01-m"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
@@ -155,6 +155,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                         console.log("cleanup done")
                         await telegram.log("Successfully cleaned up after withdraw DFI")
                         exposureChanged = true
+                        vault = await program.getVault() as LoanVaultActive
                     }
                 }
         }
@@ -208,6 +209,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 txId: "",
                 blockHeight: 0
             })
+            await delay(10000) // cooldown and not to spam telegram
         }
     }
     return { statusCode: 500 } //means we came out of error loop due to not enough time left

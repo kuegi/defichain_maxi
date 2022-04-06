@@ -134,7 +134,8 @@ export class VaultMaxiProgram extends CommonProgram {
                 const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
                 const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount, pool!.priceRatio.ba))
                 const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
-                const neededLPtokens = new BigNumber((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
+                const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
+                const neededLPtokens = neededStock.div(stock_per_token)
                 if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan.amount) || neededStock.gt(tokenLoan.amount)) {
                     const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
                         + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
