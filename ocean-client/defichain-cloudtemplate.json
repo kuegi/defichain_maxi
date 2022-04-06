@@ -1,0 +1,651 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Defichain Wallet information (Don't forget to add your seed parameter as SecureString seperatly)"
+          },
+          "Parameters": [
+            "DeFiAddress",
+            "DeFiVault"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Script Parameters"
+          },
+          "Parameters": [
+            "MinCollateralRatio",
+            "MaxCollateralRatio",
+            "LMToken",
+            "MinReinvest"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Telegram Notifications (Optional)"
+          },
+          "Parameters": [
+            "TelegramNotificationChatId",
+            "TelegramNotificationToken",
+            "TelegramLogsChatId",
+            "TelegramLogsToken"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Monitoring User (Optional but recommended for security)"
+          },
+          "Parameters": [
+            "MonitoringUsername",
+            "MonitoringPassword"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "DeFiAddress": {
+          "default": "Defichain Address"
+        },
+        "DeFiVault": {
+          "default": "Defichain Vault Id"
+        },
+        "MinCollateralRatio": {
+          "default": "Minimum Collateral Ratio"
+        },
+        "MaxCollateralRatio": {
+          "default": "Maximum Collateral Ratio"
+        },
+        "LMToken": {
+          "default": "LM Token"
+        },
+        "MinReinvest": {
+          "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
+        },
+        "TelegramNotificationChatId": {
+          "default": "Notification Chat Id"
+        },
+        "TelegramNotificationToken": {
+          "default": "Notification Token"
+        },
+        "TelegramLogsChatId": {
+          "default": "Chat Id for Logs"
+        },
+        "TelegramLogsToken": {
+          "default": "Token for Logs"
+        },
+        "MonitoringUsername": {
+          "default": "Monitoring username"
+        },
+        "MonitoringPassword": {
+          "default": "Monitoring user password"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "MonitoringUsername": {
+      "Type": "String",
+      "Default": "",
+      "Description": "username to be used for monitoring the script. Needs to be unique within your AWS (even across regions!)"
+    },
+    "MonitoringPassword": {
+      "Type": "String",
+      "Default": "",
+      "NoEcho": true,
+      "Description": "password to be used for monitoring the script. Password must have at least one number, Password must have at least one symbol"
+    },
+    "DeFiAddress": {
+      "Type": "String",
+      "MinLength": "42",
+      "MaxLength": "42",
+      "AllowedPattern" : "df1[a-zA-Z0-9]*",
+      "Description": "Your defichain address to use, must be from the wallet defined by the seed parameter"
+    },
+    "DeFiVault": {
+      "Type": "String",
+      "MinLength": "64",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-f0-9]*",
+      "Description": "The id of your vault on defichain. given dfi address must be owner of the vault"
+    },
+    "MinCollateralRatio": {
+      "Type": "Number",
+      "MinValue": 151,
+      "Default": "200",
+      "Description": "If vault goes below this, the script will decrease LM exposure"
+    },
+    "MaxCollateralRatio": {
+      "Type": "Number",
+      "Default": "210",
+      "Description": "If vault goes above this, the script will increase LM exposure"
+    },
+    "LMToken": {
+      "Type": "String",
+      "Default": "QQQ",
+      "MinLength": "2",
+      "AllowedPattern" : "[A-Z]*",
+      "Description": "The dToken used for Liquidity Mining f.e. QQQ"
+    },
+    "MinReinvest": {
+      "Type": "Number",
+      "Default": 1,
+      "Description": "Above this threshold script will add DFI as collateral"
+    },
+    "TelegramNotificationChatId": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern" : "(-?[0-9]+)?",
+      "Description": "telegram chatId to use for notifications (optional) f.e. 1234567890"
+    },
+    "TelegramNotificationToken": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern" : "([0-9]{10}:.*)?",
+      "Description": "Token of the telegram bot to use for notifications (optional) f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+    },
+    "TelegramLogsChatId": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern" : "(-?[0-9]+)?",
+      "Description": "telegram chatId to use for logs (optional) f.e. -1001234567890"
+    },
+    "TelegramLogsToken": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern" : "([0-9]{10}:.*)?",
+      "Description": "Token of the telegram bot to use for logs (optional) f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+    }
+  },
+  "Rules": {
+    "testInstanceType": {
+      "RuleCondition": {
+        "Fn::Not": [
+          {
+            "Fn::Equals": [
+              {
+                "Ref": "MonitoringUsername"
+              },
+              ""
+            ]
+          }
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Equals": [
+                  {
+                    "Ref": "MonitoringPassword"
+                  },
+                  ""
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Password can not be empty"
+        }
+      ]
+    }
+  },
+  "Conditions": {
+    "CreateMonitoringUser": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "MonitoringUsername"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "CreateMinReinvest": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "MinReinvest"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "CreateTelegramLogs": {
+      "Fn::And": [
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramLogsChatId"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramLogsToken"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "CreateTelegramNotifications": {
+      "Fn::And": [
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramNotificationChatId"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramNotificationToken"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "monitoringUser": {
+      "Type": "AWS::IAM::User",
+      "Condition": "CreateMonitoringUser",
+      "Properties": {
+        "UserName": {
+          "Ref": "MonitoringUsername"
+        },
+        "Path": "/",
+        "LoginProfile": {
+          "Password": {
+            "Ref": "MonitoringPassword"
+          }
+        },
+        "Policies": [
+          {
+            "PolicyName": "vaultMaxiMonitoring",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:Describe*"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:Get*",
+                    "ssm:List*",
+                    "ssm:PutParameter*"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*-collateral-ratio"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/lm-token"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:Get*",
+                    "ssm:List*"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/state"
+                    }
+                  ]
+                },
+                {
+                  "Action": [
+                    "logs:Describe*",
+                    "logs:Get*",
+                    "logs:List*",
+                    "logs:StartQuery",
+                    "logs:StopQuery",
+                    "logs:TestMetricFilter",
+                    "logs:FilterLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "events:DescribeRule",
+                    "events:DescribeEventBus",
+                    "events:DescribeEventSource",
+                    "events:ListRules",
+                    "events:ListEventBuses"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "events:ListTargetsByRule",
+                    "events:EnableRule",
+                    "events:DisableRule"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "vaultMaxiTrigger",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "vaultMaxiRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "LogsAndSSM",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:Describe*",
+                    "ssm:Get*",
+                    "ssm:List*"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:ssm",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        "parameter/defichain-maxi/*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:PutParameter"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      ":",
+                      [
+                        "arn:aws:ssm",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        "parameter/defichain-maxi/state"
+                      ]
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "vaultMaxiTrigger": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "vaultMaxiTrigger",
+        "Description": "Triggers the vault maxi",
+        "ScheduleExpression": "rate(15 minutes)",
+        "Targets": [
+          {
+            "Id": "vaultMaxiTarget",
+            "Arn": {
+              "Fn::GetAtt": [
+                "vaultMaxiLambda",
+                "Arn"
+              ]
+            }
+          }
+        ],
+        "State": "ENABLED"
+      }
+    },
+    "vaultMaxiTriggerInvokeLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "vaultMaxiLambda"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "vaultMaxiTrigger",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "vaultMaxiLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "defichain-vault-maxi",
+        "Handler": "index.main",
+        "Role": {
+          "Fn::GetAtt": [
+            "vaultMaxiRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "S3Bucket": {"Fn::Sub": "defichain-maxi-public-${AWS::Region}"},
+          "S3Key": "vault-maxi_1_0.zip"
+        },
+        "Runtime": "nodejs14.x",
+        "Timeout": 890
+      }
+    },
+    "vaultMaxiParamMinReinvest": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateMinReinvest",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Threshold for reinvesting measured in DFI",
+        "Name": "/defichain-maxi/settings/reinvest",
+        "Type": "String",
+        "Value": {
+          "Ref": "MinReinvest"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramNotificationChatId": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramNotifications",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram ChatId for notifications",
+        "Name": "/defichain-maxi/telegram/notifications/chat-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramNotificationChatId"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramNotificationToken": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramNotifications",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram Token for notifications",
+        "Name": "/defichain-maxi/telegram/notifications/token",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramNotificationToken"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramLogsChatId": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramLogs",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram Bot ChatId for log messages",
+        "Name": "/defichain-maxi/telegram/logs/chat-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramLogsChatId"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramLogsToken": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramLogs",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram Bot Token for log messages",
+        "Name": "/defichain-maxi/telegram/logs/token",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramLogsToken"
+        }
+      }
+    },
+    "vaultMaxiParamDeFiAddress": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Your defichain address",
+        "Name": "/defichain-maxi/wallet/address",
+        "Type": "String",
+        "Value": {
+          "Ref": "DeFiAddress"
+        }
+      }
+    },
+    "vaultMaxiParamDeFiVault": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Id of your defichain vault (address must be owner)",
+        "Name": "/defichain-maxi/wallet/vault",
+        "Type": "String",
+        "Value": {
+          "Ref": "DeFiVault"
+        }
+      }
+    },
+    "vaultMaxiParamMinCollateralRatio": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "minimum collateral ratio",
+        "Name": "/defichain-maxi/settings/min-collateral-ratio",
+        "Type": "String",
+        "Value": {
+          "Ref": "MinCollateralRatio"
+        }
+      }
+    },
+    "vaultMaxiParamMaxCollateralRatio": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "maximum collateral ratio",
+        "Name": "/defichain-maxi/settings/max-collateral-ratio",
+        "Type": "String",
+        "Value": {
+          "Ref": "MaxCollateralRatio"
+        }
+      }
+    },
+    "vaultMaxiParamLMToken": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "the dToken to use for LM",
+        "Name": "/defichain-maxi/settings/lm-token",
+        "Type": "String",
+        "Value": {
+          "Ref": "LMToken"
+        }
+      }
+    },
+    "vaultMaxiParamState": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "the state of last execution. DO NOT CHANGE THIS VALUE",
+        "Name": "/defichain-maxi/state",
+        "Type": "String",
+        "Value": "start"
+      }
+    }
+  }
+}
