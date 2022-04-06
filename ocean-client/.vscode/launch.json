@@ -11,7 +11,7 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\src\\vault-maxi.ts",
+            "program": "${workspaceFolder}\\src\\app.ts",
             "args": ["if not 'run', event argument with checkSetup: true is used "],
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": ["${workspaceFolder}/out/**/*.js"],
