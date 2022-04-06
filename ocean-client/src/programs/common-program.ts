@@ -204,13 +204,7 @@ export class CommonProgram {
                     }
                     resolve(txId)
                 }).catch((e) => {
-                    if (e.error.message !== "Missing inputs") {
-                        if (intervalID !== undefined) {
-                            clearInterval(intervalID)
-                        }
-                        console.log("failed to send tx, retry won't help (" + e.error.message + ")")
-                        error(e)
-                    } else if (start >= waitTime * 3) {
+                    if (start >= waitTime * 3) {
                         if (intervalID !== undefined) {
                             clearInterval(intervalID)
                         }
