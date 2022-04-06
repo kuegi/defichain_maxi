@@ -1,7 +1,8 @@
 {
     "private": true,
     "scripts": {
-        "build": "node build.js"
+        "build": "node build.js",
+        "build-app": "node build-app.js"
     },
     "dependencies": {
         "@defichain/jellyfish-network": "2.25.1",
@@ -12,8 +13,8 @@
         "@defichain/whale-api-client": "0.26.3",
         "@defichain/whale-api-wallet": "0.26.3",
         "aws-sdk": "2.1084.0",
+        "cross-fetch": "3.1.5",
         "deterministic-zip": "github:troyready/deterministic-zip#patch-1",
-        "node-fetch": "3.2.1",
         "typescript": "4.6.2"
     },
     "devDependencies": {
