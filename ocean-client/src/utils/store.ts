@@ -67,4 +67,5 @@ export class StoredSettings {
     moveToAddress: string = ""
     poolInformation: PoolStateInformation = {pool : '', blockHeight: 0, tx: '', txId: ''}
     switchPoolInBlocks: number | undefined
+    failsafe: number | undefined
 }

@@ -36,6 +36,7 @@ export class CheckedValues {
     moveToTreshold: number | undefined
     moveToAddress: string | undefined
     switchPoolInBlocks: number | undefined
+    failsafe: number | undefined
 
     constructMessage(): string {
         return ""
@@ -48,6 +49,7 @@ export class CheckedValues {
             + (this.moveToAddress ? ("moveToAddress " + this.moveToAddress) : "no moveToAdress set") + "\n"
             + (this.moveToTreshold ? ("moveToTreshold " + this.moveToTreshold) : "no Treshold set") + "\n"
             + (this.switchPoolInBlocks ? ("switchPoolInBlocks " + this.switchPoolInBlocks) : "no Blocks to Switch Pool set") + "\n"
+            + (this.failsafe ? ("failsafe-Modus is " + this.failsafe) : "no failsafe-Modus set") + "\n"
     }
 }
 
@@ -70,6 +72,21 @@ export class VaultMaxiProgram extends CommonProgram {
             transaction == VaultMaxiProgramTransaction.TakeLoan
     }
 
+    async checklmToken(telegram: Telegram) : Promise<boolean> {
+        if(!this.settings.failsafe || this.settings.failsafe <= 0){
+            return false
+        }
+        const balances = await this.getTokenBalances()
+        balances.forEach(element => {
+            if(element.isLPS) {
+                let newToken = element.symbol.replace("-DUSD", "")
+                if(this.settings.LMToken !== newToken) {
+                    this.changeToken(newToken,telegram)
+                }
+            }
+        })
+        return true
+    }
 
     async doValidationChecks(telegram: Telegram): Promise<boolean> {
         if (!super.doValidationChecks(telegram)) {
@@ -172,6 +189,7 @@ export class VaultMaxiProgram extends CommonProgram {
         values.moveToAddress = this.settings.moveToAddress
         values.moveToTreshold = this.settings.moveToTreshold
         values.switchPoolInBlocks = this.settings.switchPoolInBlocks
+        values.failsafe = this.settings.failsafe
 
         const message = values.constructMessage()
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
@@ -180,13 +198,13 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log("using telegram for notification: " + telegram.token + " chatId: " + telegram.chatId)
         await telegram.send(message)
         await telegram.log("log channel active")
-        await this.testing()
+        await this.testing(telegram)
         return true
     }
 
-    async testing(): Promise<boolean> {
+    async testing(telegram: Telegram): Promise<boolean> {
         console.log("Testing")
-        
+        await this.checklmToken(telegram)
 
         return true
     }
@@ -202,7 +220,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(this.settings.maxCollateralRatio)) {
                     const result = await this.increaseExposure(vault, telegram)
                 }
-                return false
+                return true
             }
             await this.removeExposure(vault,telegram)
             await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.SwitchPool)

@@ -64,6 +64,7 @@ export class StoreAWS implements IStore{
         let MoveToAddress = StoreKey.MoveToAddress.replace("-maxi","-maxi" + storePostfix)
         let MoveToTreshold = StoreKey.MoveToTreshold.replace("-maxi", "-maxi" + storePostfix)
         let SwitchPoolInBlocks = StoreKey.SwitchPoolInBlocks.replace("-maxi", "-maxi" + storePostfix)
+        let Failsafe = StoreKey.Failsafe.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
             StoreKey.TelegramNotificationChatId,
@@ -79,7 +80,8 @@ export class StoreAWS implements IStore{
             ReinvestThreshold,
             MoveToAddress,
             MoveToTreshold,
-            SwitchPoolInBlocks
+            SwitchPoolInBlocks,
+            Failsafe
         ]
 
         //store only allows to get 10 parameters per request
@@ -107,6 +109,12 @@ export class StoreAWS implements IStore{
             ]
         }).promise()).Parameters ?? [])
 
+        parameters = parameters.concat((await this.ssm.getParameters({
+            Names: [
+                Failsafe
+            ]
+        }).promise()).Parameters ?? [])
+
         let decryptedSeed
         try {
             decryptedSeed = await this.ssm.getParameter({
@@ -131,6 +139,7 @@ export class StoreAWS implements IStore{
         this.settings.moveToAddress = this.getValue(MoveToAddress, parameters)
         this.settings.moveToTreshold = this.getNumberValue(MoveToTreshold, parameters)
         this.settings.switchPoolInBlocks = this.getNumberValue(SwitchPoolInBlocks, parameters)
+        this.settings.failsafe = this.getNumberValue(Failsafe, parameters)
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
@@ -167,5 +176,6 @@ enum StoreKey {
     State = '/defichain-maxi/state',
     MoveToTreshold = '/defichain-maxi/settings/move-to-treshold',
     MoveToAddress = '/defichain-maxi/settings/move-to-address',
-    SwitchPoolInBlocks = '/defichain-maxi/setting/switch-pool-in-blocks'
+    SwitchPoolInBlocks = '/defichain-maxi/setting/switch-pool-in-blocks',
+    Failsafe = '/defichain-maxi/setting/failsafe'
 }

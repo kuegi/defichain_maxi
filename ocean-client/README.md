@@ -27,6 +27,9 @@ This fork is designed to send the rewards to another address. There you need two
 This fork can pick best APR dStock every X blocks
 - /defichain-maxi/setting/switch-pool-in-blocks = set intervall for switch in blocks
 
+Failsafe-Modus: take LPS token to LMToken, used for APR change on other aws region
+- /defichain-maxi/setting/failsafe set it to 1
+
 # Build & preparing for upload
 We recommend running it as a lambda on AWS. with reasonable settings (trigger every 10 minutes) you will even stay within the free tier of AWS.
 
@@ -50,6 +53,7 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/settings/move-to-treshold
 /defichain-maxi/settings/move-to-address
 /defichain-maxi/setting/switch-pool-in-blocks
+/defichain-maxi/setting/failsafe
 ```
 saved as a SecureString:
 ```

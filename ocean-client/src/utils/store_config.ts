@@ -75,6 +75,7 @@ export class StoreConfig implements IStore {
         this.settings.moveToAddress = this.config.moveToAddress;
         this.settings.moveToTreshold = this.config.moveToTreshold;
         this.settings.switchPoolInBlocks = this.config.switchPoolInBlocks;
+        this.settings.failsafe = this.config.failsafe;
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile));
         this.settings.poolInformation = PoolStateConverter.fromValue(this.GetFirstLine(this.poolStatefile));
         let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, " ");
@@ -98,4 +99,5 @@ class ConfigFile {
     moveToTreshold: number | undefined
     moveToAddress: string = ""
     switchPoolInBlocks: number | undefined
+    failsafe: number | undefined
 }
