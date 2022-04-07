@@ -66,12 +66,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             let vault: LoanVaultActive = await program.getVault() as LoanVaultActive //already checked before if all is fine
 
             if (vault.state == LoanVaultState.FROZEN) {
-                // TODO: activate this once FCR is active
-                //await program.removeExposure(vault, telegram,true)
+                await program.removeExposure(vault, telegram,true)
                 const message = "vault is frozen. trying again later "
                 await telegram.send(message)
                 console.warn(message)
-                return false
+                return { statusCode: 200 }
             }
 
             //TODO: move that block to function in programm
