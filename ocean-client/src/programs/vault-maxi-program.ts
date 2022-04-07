@@ -20,7 +20,8 @@ export enum VaultMaxiProgramTransaction {
     AddLiquidity = "addliquidity",
     Reinvest = "reinvest",
     Withdraw = "withdraw",
-    SwitchPool = "switchpool"
+    SwitchPool = "switchpool",
+    NoSwitch = "no-switch"
 }
 
 export class CheckedValues {
@@ -220,6 +221,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(this.settings.maxCollateralRatio)) {
                     const result = await this.increaseExposure(vault, telegram)
                 }
+                await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.NoSwitch)
                 return true
             }
             await this.removeExposure(vault,telegram)
