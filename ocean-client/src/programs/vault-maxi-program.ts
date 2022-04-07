@@ -176,6 +176,20 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log("using telegram for notification: " + telegram.token + " chatId: " + telegram.chatId)
         await telegram.send(message)
         await telegram.log("log channel active")
+        await this.testing()
+        return true
+    }
+
+    async testing(): Promise<boolean> {
+        console.log("Testing")
+        let list = await this.getStockPools()
+        if(list) {
+            list = await this.sortStockPoolsByAPR(list)
+            let newPool = await this.getPool(list[0].symbol)
+            console.log("Liste: \n" + newPool?.name)
+        }
+
+       
 
         return true
     }
@@ -520,6 +534,15 @@ export class VaultMaxiProgram extends CommonProgram {
             tx: transaction,
             txId: txId,
             blockHeight: await this.getBlockHeight()
+        })
+    }
+
+    async updateToPoolState(pool: string, transaction: VaultMaxiProgramTransaction, txId: string = ""): Promise<void> {
+        return await this.store.updateToPoolState({
+            pool: pool,
+            blockHeight: await this.getBlockHeight(),
+            tx: transaction,
+            txId: txId
         })
     }
 

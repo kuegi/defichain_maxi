@@ -85,6 +85,23 @@ export class CommonProgram {
         })
     }
 
+    async getStockPools(): Promise<PoolPairData[] | undefined> {
+        const respose = await this.client.poolpairs.list(1000)
+
+        return respose.filter(element => {
+            return element.tokenB.symbol === "DUSD" && element.status === true && element.tradeEnabled === true
+        })
+    }
+
+    async sortStockPoolsByAPR(list : PoolPairData[]): Promise<PoolPairData[]> {
+        return list.sort((a,b) => {
+            if(a.apr?.total && b.apr?.total)
+                 return b.apr?.total - a.apr?.total
+            else
+                return 0
+        })
+    }
+
     async getFixedIntervalPrice(token: string): Promise<ActivePrice> {
         let response = await this.client.prices.getFeedActive(token, "USD", 10)
         return response[0]

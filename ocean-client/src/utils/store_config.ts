@@ -1,6 +1,7 @@
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 import fs from 'fs'
+import { PoolStateInformation } from './pool-state-converter';
 
 // handle Parameter in local config on Linux and Windows
 export class StoreConfig implements IStore {
@@ -24,6 +25,9 @@ export class StoreConfig implements IStore {
         this.config = this.GetConfig();
         if (!fs.existsSync(this.config.seedfile))
             throw new Error(`seedfile ${this.config.seedfile} not exists!`)
+    }
+    updateToPoolState(information: PoolStateInformation): Promise<void> {
+        throw new Error('Method not implemented.');
     }
 
     private GetConfig(): ConfigFile {
@@ -61,6 +65,7 @@ export class StoreConfig implements IStore {
         this.settings.reinvestThreshold = this.config.reinvestThreshold;
         this.settings.moveToAddress = this.config.moveToAddress;
         this.settings.moveToTreshold = this.config.moveToTreshold;
+        this.settings.switchPoolInBlocks = this.config.switchPoolInBlocks;
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile));
         let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, " ");
         this.settings.seed = seedList?.trim().split(' ') ?? [];
@@ -82,4 +87,5 @@ class ConfigFile {
     reinvestThreshold: number | undefined = 0
     moveToTreshold: number | undefined
     moveToAddress: string = ""
+    switchPoolInBlocks: number | undefined
 }

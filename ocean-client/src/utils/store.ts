@@ -1,4 +1,5 @@
 import { ProgramState } from '../programs/common-program'
+import { PoolStateInformation } from './pool-state-converter';
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { StoreAWS } from './store_aws'
 import { StoreConfig } from './store_config'
@@ -6,6 +7,7 @@ import { StoreConfig } from './store_config'
 export interface IStore {
     readonly settings: StoredSettings;
     updateToState(information: ProgramStateInformation): Promise<void>;
+    updateToPoolState(information: PoolStateInformation): Promise<void>;
     fetchSettings(): Promise<StoredSettings>;
 }
 
@@ -32,6 +34,10 @@ export class Store {
         await this.storeprovider.updateToState(information)
     }
 
+    async updateToPoolState(information: PoolStateInformation): Promise<void> {
+        await this.storeprovider.updateToPoolState(information)
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
         return await this.storeprovider.fetchSettings()
     }
@@ -54,4 +60,6 @@ export class StoredSettings {
     stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
     moveToTreshold: number | undefined
     moveToAddress: string = ""
+    poolInformation: PoolStateInformation = {pool : '', blockHeight: 0, tx: '', txId: ''}
+    switchPoolInBlocks: number | undefined
 }
