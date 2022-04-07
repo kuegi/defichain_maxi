@@ -226,6 +226,7 @@ export class VaultMaxiProgram extends CommonProgram {
             await this.removeExposure(vault,telegram)
             await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.SwitchPool)
             await this.changeToken(newLMToken, telegram)
+            vault = await this.getVault() as LoanVaultActive 
             await this.increaseExposure(vault,telegram)
             await this.cleanUp(vault,telegram)
 
