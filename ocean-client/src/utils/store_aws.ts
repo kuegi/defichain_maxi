@@ -14,7 +14,7 @@ export class StoreAWS implements IStore{
     }
     
     async updateToPoolState(information: PoolStateInformation): Promise<void> {
-        const key = StoreKey.State.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const key = StoreKey.PoolState.replace("-maxi", "-maxi" + this.settings.paramPostFix)
         const state = {
             Name: key,
             Value: PoolStateConverter.toValue(information),
@@ -61,6 +61,7 @@ export class StoreAWS implements IStore{
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
+        let PoolStateKey = StoreKey.PoolState.replace("-maxi", "maxi" + storePostfix)
         let MoveToAddress = StoreKey.MoveToAddress.replace("-maxi","-maxi" + storePostfix)
         let MoveToTreshold = StoreKey.MoveToTreshold.replace("-maxi", "-maxi" + storePostfix)
         let SwitchPoolInBlocks = StoreKey.SwitchPoolInBlocks.replace("-maxi", "-maxi" + storePostfix)
@@ -77,6 +78,7 @@ export class StoreAWS implements IStore{
             MaxCollateralRatioKey,
             LMTokenKey,
             StateKey,
+            PoolStateKey,
             ReinvestThreshold,
             MoveToAddress,
             MoveToTreshold,
@@ -111,7 +113,8 @@ export class StoreAWS implements IStore{
 
         parameters = parameters.concat((await this.ssm.getParameters({
             Names: [
-                Failsafe
+                Failsafe,
+                PoolStateKey
             ]
         }).promise()).Parameters ?? [])
 
@@ -136,6 +139,7 @@ export class StoreAWS implements IStore{
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+        this.settings.poolInformation = PoolStateConverter.fromValue(this.getValue(PoolStateKey, parameters))
         this.settings.moveToAddress = this.getValue(MoveToAddress, parameters)
         this.settings.moveToTreshold = this.getNumberValue(MoveToTreshold, parameters)
         this.settings.switchPoolInBlocks = this.getNumberValue(SwitchPoolInBlocks, parameters)
@@ -174,8 +178,10 @@ enum StoreKey {
     LMToken = '/defichain-maxi/settings/lm-token',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
+    PoolState = '/defichain-maxi/poolstate',
     MoveToTreshold = '/defichain-maxi/settings/move-to-treshold',
     MoveToAddress = '/defichain-maxi/settings/move-to-address',
     SwitchPoolInBlocks = '/defichain-maxi/setting/switch-pool-in-blocks',
     Failsafe = '/defichain-maxi/setting/failsafe'
+    
 }
