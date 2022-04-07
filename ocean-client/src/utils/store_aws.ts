@@ -1,5 +1,5 @@
 import SSM from 'aws-sdk/clients/ssm'
-import { PoolStateInformation } from './pool-state-converter'
+import { PoolStateConverter, PoolStateInformation } from './pool-state-converter'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 
@@ -12,8 +12,16 @@ export class StoreAWS implements IStore{
         this.ssm = new SSM()
         this.settings = new StoredSettings()
     }
-    updateToPoolState(information: PoolStateInformation): Promise<void> {
-        throw new Error('Method not implemented.')
+    
+    async updateToPoolState(information: PoolStateInformation): Promise<void> {
+        const key = StoreKey.State.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const state = {
+            Name: key,
+            Value: PoolStateConverter.toValue(information),
+            Overwrite: true,
+            Type: 'String'
+        }
+        await this.ssm.putParameter(state).promise()
     }
 
     async updateToState(information: ProgramStateInformation): Promise<void> {
