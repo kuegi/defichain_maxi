@@ -172,7 +172,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     console.error(message)
                 }
                 else if(await program.checkPoolSwitch() === true){
-                    result = await program.switchPool(vault, telegram)
+                    result = await program.switchPool(vault, usedCollateralRatio, telegram)
                     exposureChanged = true
                 } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
                     result = await program.increaseExposure(vault, telegram)

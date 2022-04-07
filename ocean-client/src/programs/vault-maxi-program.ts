@@ -187,12 +187,11 @@ export class VaultMaxiProgram extends CommonProgram {
     async testing(): Promise<boolean> {
         console.log("Testing")
         
-        const result = await this.switchPool(await this.getVault() as LoanVaultActive ,new Telegram(this.settings, "[ " + this.settings.LMToken + this.settings.paramPostFix + "]"))
 
         return true
     }
 
-    async switchPool(vault: LoanVaultActive, telegram: Telegram): Promise<boolean> {
+    async switchPool(vault: LoanVaultActive,usedCollateralRatio: BigNumber, telegram: Telegram): Promise<boolean> {
         console.log("Pool: " + this.settings.LMToken)
         let poolList = await this.getStockPools()
         if(Array.isArray(poolList)) {
@@ -200,14 +199,18 @@ export class VaultMaxiProgram extends CommonProgram {
             let newLMToken = sortedList[0].tokenA.symbol
             if(newLMToken === this.settings.LMToken) {
                 console.log("PoolSwitch: already best APR pool")
+                if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(this.settings.maxCollateralRatio)) {
+                    const result = await this.increaseExposure(vault, telegram)
+                }
                 return false
             }
             await this.removeExposure(vault,telegram)
-            console.log("New Token: " + newLMToken)
             await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.SwitchPool)
             await this.changeToken(newLMToken, telegram)
+            await this.increaseExposure(vault,telegram)
+            await this.cleanUp(vault,telegram)
 
-            return await this.increaseExposure(vault,telegram)
+            return true 
         }
         return false
     }

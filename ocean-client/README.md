@@ -24,6 +24,9 @@ This fork is designed to send the rewards to another address. There you need two
 - /defichain-maxi/settings/move-to-treshold = treshold DFI amount. IF amount > treshold DFI will moved
 - /defichain-maxi/settings/move-to-address = DFI address of the receiver
 
+This fork can pick best APR dStock every X blocks
+- /defichain-maxi/setting/switch-pool-in-blocks = set intervall for switch in blocks
+
 # Build & preparing for upload
 We recommend running it as a lambda on AWS. with reasonable settings (trigger every 10 minutes) you will even stay within the free tier of AWS.
 
@@ -46,6 +49,7 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/state
 /defichain-maxi/settings/move-to-treshold
 /defichain-maxi/settings/move-to-address
+/defichain-maxi/setting/switch-pool-in-blocks
 ```
 saved as a SecureString:
 ```
