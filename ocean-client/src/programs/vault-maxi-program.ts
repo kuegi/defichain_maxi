@@ -221,7 +221,6 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(this.settings.maxCollateralRatio)) {
                     const result = await this.increaseExposure(vault, telegram)
                 }
-                await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.NoSwitch)
                 return true
             }
             await this.removeExposure(vault,telegram)
