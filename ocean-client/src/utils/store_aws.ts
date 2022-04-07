@@ -181,7 +181,7 @@ enum StoreKey {
     PoolState = '/defichain-maxi/poolstate',
     MoveToTreshold = '/defichain-maxi/settings/move-to-treshold',
     MoveToAddress = '/defichain-maxi/settings/move-to-address',
-    SwitchPoolInBlocks = '/defichain-maxi/setting/switch-pool-in-blocks',
-    Failsafe = '/defichain-maxi/setting/failsafe'
+    SwitchPoolInBlocks = '/defichain-maxi/settings/switch-pool-in-blocks',
+    Failsafe = '/defichain-maxi/settings/failsafe'
     
 }
