@@ -1,7 +1,7 @@
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 import fs from 'fs'
-import { PoolStateInformation } from './pool-state-converter';
+import { PoolStateConverter, PoolStateInformation } from './pool-state-converter';
 
 // handle Parameter in local config on Linux and Windows
 export class StoreConfig implements IStore {
@@ -10,6 +10,7 @@ export class StoreConfig implements IStore {
     private config: ConfigFile;
     private configpath: string;
     private statefile: string;
+    private poolStatefile: string;
 
     constructor() {
         this.settings = new StoredSettings();
@@ -22,12 +23,10 @@ export class StoreConfig implements IStore {
         // create dir if not exist
         if (!fs.existsSync(this.configpath)) fs.mkdirSync(this.configpath);
         this.statefile = this.configpath + `/state${this.settings.paramPostFix}.txt`;
+        this.poolStatefile = this.configpath + `/poolstate${this.settings.paramPostFix}.txt`;
         this.config = this.GetConfig();
         if (!fs.existsSync(this.config.seedfile))
             throw new Error(`seedfile ${this.config.seedfile} not exists!`)
-    }
-    updateToPoolState(information: PoolStateInformation): Promise<void> {
-        throw new Error('Method not implemented.');
     }
 
     private GetConfig(): ConfigFile {
@@ -42,6 +41,10 @@ export class StoreConfig implements IStore {
 
     async updateToState(information: ProgramStateInformation): Promise<void> {
         fs.writeFileSync(this.statefile, ProgramStateConverter.toValue(information))
+    }
+
+    async updateToPoolState(information: PoolStateInformation): Promise<void> {
+        fs.writeFileSync(this.poolStatefile, PoolStateConverter.toValue(information))
     }
 
     // Get first line of text file. Or empty string on error.
