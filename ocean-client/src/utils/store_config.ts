@@ -47,6 +47,12 @@ export class StoreConfig implements IStore {
         fs.writeFileSync(this.poolStatefile, PoolStateConverter.toValue(information))
     }
 
+    async updateLMToken(information: string): Promise<void> {
+        var configfile = this.configpath + `/settings${this.settings.paramPostFix}.json`;
+        this.config.LMToken = information
+        fs.writeFileSync(configfile,JSON.stringify(this.config, null, 2));
+    }
+
     // Get first line of text file. Or empty string on error.
     private GetFirstLine(file: string): string {
         if (!fs.existsSync(file)) return "";
@@ -70,6 +76,7 @@ export class StoreConfig implements IStore {
         this.settings.moveToTreshold = this.config.moveToTreshold;
         this.settings.switchPoolInBlocks = this.config.switchPoolInBlocks;
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile));
+        this.settings.poolInformation = PoolStateConverter.fromValue(this.GetFirstLine(this.poolStatefile));
         let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, " ");
         this.settings.seed = seedList?.trim().split(' ') ?? [];
         return this.settings;

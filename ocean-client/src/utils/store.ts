@@ -8,6 +8,7 @@ export interface IStore {
     readonly settings: StoredSettings;
     updateToState(information: ProgramStateInformation): Promise<void>;
     updateToPoolState(information: PoolStateInformation): Promise<void>;
+    updateLMToken(information: string): Promise<void>;
     fetchSettings(): Promise<StoredSettings>;
 }
 
@@ -36,6 +37,10 @@ export class Store {
 
     async updateToPoolState(information: PoolStateInformation): Promise<void> {
         await this.storeprovider.updateToPoolState(information)
+    }
+
+    async updateLMToken(information: string): Promise<void> {
+        await this.storeprovider.updateLMToken(information)
     }
 
     async fetchSettings(): Promise<StoredSettings> {

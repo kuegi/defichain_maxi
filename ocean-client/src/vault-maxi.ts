@@ -163,12 +163,17 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             if(exposureChanged){
                 vault= await program.getVault() as LoanVaultActive 
             }
+            // Check for Poolswitch TODO
             if(context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {// enough time left -> continue
                 const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, nextCollateralRatio(vault))
                 if (+vault.collateralValue < 10) {
                     const message = "less than 10 dollar in the vault. can't work like that"
                     await telegram.send(message)
                     console.error(message)
+                }
+                else if(await program.checkPoolSwitch() === true){
+                    result = await program.switchPool(vault, telegram)
+                    exposureChanged = true
                 } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
                     result = await program.increaseExposure(vault, telegram)
                     exposureChanged = true

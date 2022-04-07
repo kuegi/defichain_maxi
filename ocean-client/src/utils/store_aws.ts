@@ -35,6 +35,17 @@ export class StoreAWS implements IStore{
         await this.ssm.putParameter(state).promise()
     }
 
+    async updateLMToken(information: string): Promise<void> {
+        const key = StoreKey.LMToken.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const LMToken = {
+            Name: key,
+            Value: information,
+            Overwrite: true,
+            Type: 'String'
+        }
+        await this.ssm.putParameter(LMToken).promise()
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
         // first check environment
 
