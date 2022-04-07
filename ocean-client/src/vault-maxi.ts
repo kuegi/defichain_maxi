@@ -158,7 +158,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                         vault = await program.getVault() as LoanVaultActive
                     }
                 }
-        }
+            }
             console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after reinvest")
             if(exposureChanged){
                 vault= await program.getVault() as LoanVaultActive 
@@ -174,6 +174,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 else if(await program.checkPoolSwitch() === true){
                     result = await program.switchPool(vault, usedCollateralRatio, telegram)
                     exposureChanged = true
+                    vault = await program.getVault() as LoanVaultActive
                 } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
                     result = await program.increaseExposure(vault, telegram)
                     exposureChanged = true

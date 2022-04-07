@@ -222,15 +222,16 @@ export class VaultMaxiProgram extends CommonProgram {
                     const result = await this.increaseExposure(vault, telegram)
                 }
                 return true
+            } else {
+                await this.removeExposure(vault,telegram)
+                await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.SwitchPool)
+                await this.changeToken(newLMToken, telegram)
+                vault = await this.getVault() as LoanVaultActive 
+                await this.increaseExposure(vault,telegram)
+                await this.cleanUp(vault,telegram)
+    
+                return true 
             }
-            await this.removeExposure(vault,telegram)
-            await this.updateToPoolState(newLMToken,VaultMaxiProgramTransaction.SwitchPool)
-            await this.changeToken(newLMToken, telegram)
-            vault = await this.getVault() as LoanVaultActive 
-            await this.increaseExposure(vault,telegram)
-            await this.cleanUp(vault,telegram)
-
-            return true 
         }
         return false
     }
