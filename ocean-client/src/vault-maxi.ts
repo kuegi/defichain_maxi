@@ -23,7 +23,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v1.01-m"
+const VERSION = "v1.1-m"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
@@ -71,7 +71,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 const message = "vault is frozen. trying again later "
                 await telegram.send(message)
                 console.warn(message)
-                return false
+                return { statusCode: 200 }
             }
 
             //TODO: move that block to function in programm
