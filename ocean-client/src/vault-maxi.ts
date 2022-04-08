@@ -172,10 +172,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     console.error(message)
                 }
                 else if(await program.checkPoolSwitch() === true){
-                    result = await program.switchPool(vault, usedCollateralRatio, telegram)
-                    exposureChanged = true
+                    exposureChanged = await program.switchPool(vault, telegram)
                     vault = await program.getVault() as LoanVaultActive
-                } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
+                    result = true
+                } 
+                if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
                     result = await program.increaseExposure(vault, telegram)
                     exposureChanged = true
                 }
