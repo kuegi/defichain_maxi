@@ -52,8 +52,8 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/state
 /defichain-maxi/settings/move-to-treshold
 /defichain-maxi/settings/move-to-address
-/defichain-maxi/setting/switch-pool-in-blocks
-/defichain-maxi/setting/failsafe
+/defichain-maxi/settings/switch-pool-in-blocks
+/defichain-maxi/settings/failsafe
 ```
 saved as a SecureString:
 ```
