@@ -242,6 +242,7 @@ export class VaultMaxiProgram extends CommonProgram {
         await this.updateLMTokenStore(token)
         console.log("new Token: " + this.settings.LMToken + "\n" + "lmPair " + this.lmPair)
         await telegram.send("Change LMToken from " + oldLMToken + " to " + this.settings.LMToken)
+        //TODO change Token for telegramm Bot
         return true
     }
 
@@ -580,10 +581,11 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async checkPoolSwitch(): Promise<boolean> {
+        console.log("Last switch Block: " + this.settings.poolInformation.blockHeight + " Switch: " + this.settings.switchPoolInBlocks)
         if(!this.settings.switchPoolInBlocks || this.settings.switchPoolInBlocks === -1) {
             return false
         }
-        else if(this.store.settings.poolInformation.blockHeight + this.settings.switchPoolInBlocks <= await this.getBlockHeight()) {
+        else if(this.settings.poolInformation.blockHeight + this.settings.switchPoolInBlocks <= await this.getBlockHeight()) {
             return true
         }
         return false
