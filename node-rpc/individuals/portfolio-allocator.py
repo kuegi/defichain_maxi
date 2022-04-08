@@ -67,6 +67,6 @@ for data in command_data:
     if should_execute:
         logger.info(f"{utils.rpc('getblockcount')} initiating swap "
                 f"{data['amountFrom']}@DFI to {data['tokenTo']} on {data['to']}")
-        utils.rpc("compositeswap", [data])
+        utils.rpc("compositeswap", [data, utils.get_tx_input(source_address)])
     else:
         print(data)
