@@ -3,7 +3,7 @@ import { isNullOrEmpty } from "./helpers"
 import { StoredSettings } from "./store"
 
 export class Telegram {
-    private readonly prefix: string = "[VaultMaxi]"
+    private  prefix: string = "[VaultMaxi]"
     readonly chatId: string = ""
     readonly token: string = ""
     readonly logChatId: string = ""
@@ -30,6 +30,10 @@ export class Telegram {
             return
         }
         return this.internalSend(message, this.logChatId, this.logToken)
+    }
+
+    async changePrefix(prefix: string): Promise<void> {
+        this.prefix = prefix
     }
 
     async internalSend(message: string, chatId: string, token: string): Promise<unknown> {

@@ -74,7 +74,7 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async checklmToken(telegram: Telegram) : Promise<boolean> {
-        if(!this.settings.failsafe || this.settings.failsafe <= 0){
+        if((!this.settings.failsafe || this.settings.failsafe <= 0) && (!this.settings.switchPoolInBlocks || this.settings.switchPoolInBlocks <= 0)){
             return false
         }
         const balances = await this.getTokenBalances()
@@ -119,6 +119,12 @@ export class VaultMaxiProgram extends CommonProgram {
         if (this.settings.maxCollateralRatio > 0 && this.settings.minCollateralRatio > this.settings.maxCollateralRatio - 2) {
             const message = "Min collateral must be more than 2 below max collateral. Please change your settings. "
                 + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
+        if(this.settings.failsafe! > 0 && this.settings.switchPoolInBlocks! > 0) {
+            const message = "not allowed to set both failsafe and switchPoolInBlocks > 0"
             await telegram.send(message)
             console.error(message)
             return false
