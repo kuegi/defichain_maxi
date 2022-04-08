@@ -61,7 +61,7 @@ export class StoreAWS implements IStore{
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
-        let PoolStateKey = StoreKey.PoolState.replace("-maxi", "maxi" + storePostfix)
+        let PoolStateKey = StoreKey.PoolState.replace("-maxi", "-maxi" + storePostfix)
         let MoveToAddress = StoreKey.MoveToAddress.replace("-maxi","-maxi" + storePostfix)
         let MoveToTreshold = StoreKey.MoveToTreshold.replace("-maxi", "-maxi" + storePostfix)
         let SwitchPoolInBlocks = StoreKey.SwitchPoolInBlocks.replace("-maxi", "-maxi" + storePostfix)
