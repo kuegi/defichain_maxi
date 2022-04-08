@@ -83,6 +83,8 @@ export class VaultMaxiProgram extends CommonProgram {
                 let newToken = element.symbol.replace("-DUSD", "")
                 if(this.settings.LMToken !== newToken) {
                     this.changeToken(newToken,telegram)
+                } else {
+                    console.log("no LMToken change needed")
                 }
             }
         })
