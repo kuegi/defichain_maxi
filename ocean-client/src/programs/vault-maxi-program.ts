@@ -233,6 +233,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 await this.changeToken(newLMToken, telegram)
                 vault = await this.getVault() as LoanVaultActive 
                 await this.increaseExposure(vault,telegram)
+                vault = await this.getVault() as LoanVaultActive
                 await this.cleanUp(vault,telegram)
     
                 return true 
@@ -587,7 +588,7 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async checkPoolSwitch(): Promise<boolean> {
-        console.log("Last switch Block: " + this.settings.poolInformation.blockHeight + " Switch: " + this.settings.switchPoolInBlocks)
+        // console.log("Last switch Block: " + this.settings.poolInformation.blockHeight + " Switch: " + this.settings.switchPoolInBlocks)
         if(!this.settings.switchPoolInBlocks || this.settings.switchPoolInBlocks === -1) {
             return false
         }
