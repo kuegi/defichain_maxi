@@ -181,6 +181,16 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     exposureChanged = true
                 }
             }
+            if(exposureChanged === false) {
+                result = await program.cleanUp(vault, telegram)
+                if (!result) {
+                    console.error("Error in cleaning up")
+                    await telegram.send("There was an error in cleaning. please check yourself!")
+                } else {
+                    console.log("cleanup done")
+                    await telegram.log("Successfully cleaned up")
+                }
+            }
         }
 
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
