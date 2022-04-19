@@ -126,6 +126,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
         let exposureChanged = false
         let moveTo = false
+        let cleanup = false
         //first check for removeExposure, then decreaseExposure
         // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
         // no reinvest (or reinvest done and still time left) -> check for increase exposure
@@ -143,27 +144,13 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             result = true
             exposureChanged = await program.checkAndDoReinvest(vault, telegram)
             if(!exposureChanged) {
-                moveTo = await program.moveTo(telegram)
-                if(moveTo) {
-                    console.log("need to clean up")
-                    vault = await program.getVault() as LoanVaultActive
-                    result = await program.cleanUp(vault, telegram)
-                    if (!result) {
-                        console.error("Error in cleaning up")
-                        await telegram.send("There was an error in cleaning after withdraw DFI. please check yourself!")
-                    } else {
-                        console.log("cleanup done")
-                        await telegram.log("Successfully cleaned up after withdraw DFI")
-                        exposureChanged = true
-                        vault = await program.getVault() as LoanVaultActive
-                    }
-                }
+                exposureChanged = await program.moveTo(telegram)
             }
             console.log("got "+(context.getRemainingTimeInMillis()/1000).toFixed(1)+" sec left after reinvest")
             if(exposureChanged){
-                vault= await program.getVault() as LoanVaultActive 
+                vault= await program.getVault() as LoanVaultActive
+                cleanup = true 
             }
-            // Check for Poolswitch TODO
             if(context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {// enough time left -> continue
                 const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, nextCollateralRatio(vault))
                 if (+vault.collateralValue < 10) {
@@ -181,7 +168,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     exposureChanged = true
                 }
             }
-            if(exposureChanged === false) {
+            if(cleanup) {
                 result = await program.cleanUp(vault, telegram)
                 if (!result) {
                     console.error("Error in cleaning up")
