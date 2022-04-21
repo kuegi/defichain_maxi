@@ -78,6 +78,10 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
         const balances = await this.getTokenBalances()
+        if(balances.has(this.lmPair))
+        {
+            return false
+        }
         balances.forEach(element => {
             if(element.isLPS) {
                 let newToken = element.symbol.replace("-DUSD", "")
@@ -337,6 +341,10 @@ export class VaultMaxiProgram extends CommonProgram {
         let usedTokens= BigNumber.min(lpTokens.amount,maxTokenFromDUSD,maxTokenFromStock)
         if(usedTokens.div(0.95).gt(lpTokens.amount)) { // usedtokens > lpTokens * 0.95 
             usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
+        } else if(!this.settings.switchPoolInBlocks && this.settings.switchPoolInBlocks! > 0)
+        {
+            usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
+            console.log("use 100% LM-Pair for removing exposure")
         }
         if(usedTokens.lte(0)) {
             console.info("can't withdraw 0 from pool, no tokens left or no loans left")

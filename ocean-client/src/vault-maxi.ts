@@ -23,7 +23,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v1.1-m"
+const VERSION = "v1.2-m"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
