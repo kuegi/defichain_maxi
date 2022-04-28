@@ -28,7 +28,7 @@ This fork can pick best APR dStock every X blocks
 - /defichain-maxi/setting/switch-pool-in-blocks = set intervall for switch in blocks, if < 0 is deactivated
 
 Failsafe-Modus: take LPS token(please do only have one LPS) to LMToken, used for APR change on other aws region
-- /defichain-maxi/setting/failsafe set it to 1
+- /defichain-maxi/settings/failsafe set it to 1
 
 # Build & preparing for upload
 We recommend running it as a lambda on AWS. with reasonable settings (trigger every 10 minutes) you will even stay within the free tier of AWS.

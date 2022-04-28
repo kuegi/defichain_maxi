@@ -341,7 +341,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let usedTokens= BigNumber.min(lpTokens.amount,maxTokenFromDUSD,maxTokenFromStock)
         if(usedTokens.div(0.95).gt(lpTokens.amount)) { // usedtokens > lpTokens * 0.95 
             usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
-        } else if(!this.settings.switchPoolInBlocks && this.settings.switchPoolInBlocks! > 0)
+        } else
         {
             usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
             console.log("use 100% LM-Pair for removing exposure")
