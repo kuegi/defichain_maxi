@@ -135,7 +135,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
                 const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
                 if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
-                    const message = "vault ratio not safe but either no lpTokens or no loans in vault. Did you change the LMToken? Your vault is NOT safe! "
+                    const message = "vault ratio not safe but either no lpTokens or no loans in vault.\nDid you change the LMToken? Your vault is NOT safe! "
                     await telegram.send(message)
                     console.warn(message)
                     return true//can still run
@@ -146,7 +146,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
                 const neededLPtokens = neededStock.div(stock_per_token)
                 if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan.amount) || neededStock.gt(tokenLoan.amount)) {
-                    const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it. Did you change the LMToken? Your vault is NOT safe! "
+                    const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n"
                         + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
                         + neededDusd.toFixed(1) + " vs " + (+dusdLoan.amount).toFixed(1) + " " + dusdLoan.symbol + "\n"
                         + neededStock.toFixed(4) + " vs " + (+tokenLoan.amount).toFixed(4) + " " + tokenLoan.symbol + "\n"
@@ -171,14 +171,15 @@ export class VaultMaxiProgram extends CommonProgram {
         const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
         let usedStock = stock_per_token.multipliedBy(lpTokens.amount)
         let usedDusd= usedStock.multipliedBy(pool!.priceRatio.ba)
-        if(usedStock.lt(tokenLoan.amount)) {
+        if(usedStock.gt(tokenLoan.amount)) {
             usedStock= new BigNumber(tokenLoan.amount)
             usedDusd= usedStock.multipliedBy(pool!.priceRatio.ba)
         }
-        if(usedDusd.lt(dusdLoan.amount)) {
+        if(usedDusd.gt(dusdLoan.amount)) {
             usedDusd= new BigNumber(dusdLoan.amount)
             usedStock= usedDusd.multipliedBy(pool!.priceRatio.ab)
         }
+        console.log("could pay back up to "+usedDusd+" DUSD and "+usedStock+" "+this.settings.LMToken)
         return new BigNumber(vault.collateralValue).dividedBy(new BigNumber(vault.loanValue).minus(usedDusd.multipliedBy(2))).multipliedBy(100)
     }
 
