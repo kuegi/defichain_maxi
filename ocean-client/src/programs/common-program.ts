@@ -27,20 +27,20 @@ export class CommonProgram {
     private readonly client: WhaleApiClient
     private readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
-    private script : Script | undefined
-    
-    pendingTx : string|undefined
+    private script: Script | undefined
+
+    pendingTx: string | undefined
 
     constructor(store: Store, walletSetup: WalletSetup) {
         this.settings = store.settings
         this.store = store
         this.client = walletSetup.client
-        this.walletSetup= walletSetup
+        this.walletSetup = walletSetup
     }
 
     async init(): Promise<boolean> {
-        this.account= await this.walletSetup.getAccount(this.settings.address)
-        this.script= await this.account?.getScript()
+        this.account = await this.walletSetup.getAccount(this.settings.address)
+        this.script = await this.account?.getScript()
         return true
     }
 
@@ -131,7 +131,7 @@ export class CommonProgram {
             from: this.script!,
             tokenAmounts: amounts
         },
-        this.script!)
+            this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
@@ -141,7 +141,7 @@ export class CommonProgram {
             to: this.script!,
             tokenAmounts: amounts
         },
-        this.script!)
+            this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
@@ -199,8 +199,8 @@ export class CommonProgram {
                 this.client.rawtx.send({ hex: hex }).then((txId) => {
                     if (intervalID !== undefined) {
                         clearInterval(intervalID)
-                    }                    
-                    this.pendingTx= ctx.txId
+                    }
+                    this.pendingTx = ctx.txId
                     resolve(txId)
                 }).catch((e) => {
                     if (start >= waitTime * 3) {
@@ -225,10 +225,10 @@ export class CommonProgram {
         return ctx
     }
 
-    async waitForTx(txId: string, startBlock: number= 0): Promise<boolean> {
+    async waitForTx(txId: string, startBlock: number = 0): Promise<boolean> {
         // wait max 10 blocks (otherwise the tx won't get in anymore)
-        if(startBlock == 0){
-            startBlock= await this.getBlockHeight()
+        if (startBlock == 0) {
+            startBlock = await this.getBlockHeight()
         }
         const initialTime = 15000
         let start = initialTime
@@ -250,7 +250,7 @@ export class CommonProgram {
                     }
                     //also check blockcount
                     this.getBlockHeight().then(block => {
-                        if(block > startBlock + 10) {
+                        if (block > startBlock + 10) {
                             console.error("waited 10 blocks for tx. possible a conflict with other UTXOs")
                             if (intervalID !== undefined) {
                                 clearInterval(intervalID)
