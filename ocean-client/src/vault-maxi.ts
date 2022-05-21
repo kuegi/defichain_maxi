@@ -65,14 +65,6 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             let result = true
             let vault: LoanVaultActive = await program.getVault() as LoanVaultActive //already checked before if all is fine
 
-            if (vault.state == LoanVaultState.FROZEN) {
-                await program.removeExposure(vault, telegram,true)
-                const message = "vault is frozen. trying again later "
-                await telegram.send(message)
-                console.warn(message)
-                return { statusCode: 200 }
-            }
-
             //TODO: move that block to function in programm
             // 2022-03-08 Krysh: Something went wrong on last execution, we need to clean up, whatever was done
             if (settings.stateInformation.state !== ProgramState.Idle) {
@@ -118,6 +110,14 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 }
             }
 
+            if (vault.state == LoanVaultState.FROZEN) {
+                await program.removeExposure(vault, telegram,true)
+                const message = "vault is frozen. trying again later "
+                await telegram.send(message)
+                console.warn(message)
+                return { statusCode: 200 }
+            }
+
             const oldRatio = +vault.collateralRatio
             const nextRatio = nextCollateralRatio(vault)
             const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
@@ -160,16 +160,20 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
             console.log("wrote state")
+            const safetyLevel= await program.calcSafetyLevel(vault)
+            let message = "executed script "
             if (exposureChanged) {
-                await telegram.log("executed script " + (result ? "successfully" : "with problems")
+                message += (result ? "successfully" : "with problems")
                     + ". vault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
                     + vault.collateralRatio + " (next " + nextCollateralRatio(vault) +
-                    "). target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
+                    ")."
             } else {
-                await telegram.log("executed script without changes. vault ratio " + oldRatio + " next " + nextRatio
-                    + ". target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio)
+                message += "without changes. vault ratio " + oldRatio + " next " + nextRatio + "."
             }
-            console.log("script done")
+            message += " target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
+                    + " current safetylevel: "+safetyLevel.toFixed(0)
+            await telegram.log(message)
+            console.log("script done, safety level: "+safetyLevel.toFixed(0))
             return { statusCode: result ? 200 : 500 }
         } catch (e) {
             console.error("Error in script")

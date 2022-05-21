@@ -88,13 +88,6 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
-        if (this.settings.maxCollateralRatio > 0 && this.settings.minCollateralRatio > this.settings.maxCollateralRatio - 2) {
-            const message = "Min collateral must be more than 2 below max collateral. Please change your settings. "
-                + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
-            await telegram.send(message)
-            console.error(message)
-            return false
-        }
         const pool = await this.getPool(this.lmPair)
         if (!pool) {
             const message = "No pool found for this token. tried: " + this.lmPair
@@ -103,7 +96,28 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
 
-        // showstoppers checked, now check for warnings
+        // showstoppers checked, now check for warnings or automatic adaptions
+
+        if (+vaultcheck.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
+            const message = "minCollateralRatio is too low. "
+                + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
+                + ". loanscheme minimum is " + vaultcheck.loanScheme.minColRatio
+                + " will use " + (vaultcheck.loanScheme.minColRatio + 1) + " as minimum"
+            await telegram.send(message)
+            console.warn(message)
+            this.settings.minCollateralRatio = +vaultcheck.loanScheme.minColRatio + 1
+        }
+        const minRange = 2
+        if (this.settings.maxCollateralRatio > 0 && this.settings.minCollateralRatio > this.settings.maxCollateralRatio - minRange) {
+            const message = "Min collateral must be more than " + minRange + " below max collateral. Please change your settings. "
+                + "thresholds " + this.settings.minCollateralRatio + " - " + this.settings.maxCollateralRatio
+                + " will use " + this.settings.minCollateralRatio + " - " + (this.settings.minCollateralRatio + minRange)
+            await telegram.send(message)
+            console.warn(message)
+            this.settings.maxCollateralRatio = this.settings.minCollateralRatio + minRange
+        }
+
+
         const vault = vaultcheck as LoanVaultActive
         if (vault.state != LoanVaultState.FROZEN) {
             //coll ratio checks only done if not frozen (otherwise the ratio might be off)
@@ -144,6 +158,30 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         return true
     }
+
+    async calcSafetyLevel(vault:LoanVaultActive): Promise<BigNumber> {
+        const pool = await this.getPool(this.lmPair)
+        const balances = await this.getTokenBalances()
+        const lpTokens = balances.get(this.lmPair)
+        const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
+        const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
+        if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
+            return new BigNumber(0)
+        }
+        const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
+        let usedStock = stock_per_token.multipliedBy(lpTokens.amount)
+        let usedDusd= usedStock.multipliedBy(pool!.priceRatio.ba)
+        if(usedStock.lt(tokenLoan.amount)) {
+            usedStock= new BigNumber(tokenLoan.amount)
+            usedDusd= usedStock.multipliedBy(pool!.priceRatio.ba)
+        }
+        if(usedDusd.lt(dusdLoan.amount)) {
+            usedDusd= new BigNumber(dusdLoan.amount)
+            usedStock= usedDusd.multipliedBy(pool!.priceRatio.ab)
+        }
+        return new BigNumber(vault.collateralValue).dividedBy(new BigNumber(vault.loanValue).minus(usedDusd.multipliedBy(2))).multipliedBy(100)
+    }
+
 
     async doAndReportCheck(telegram: Telegram): Promise<boolean> {
         if (!this.doValidationChecks(telegram)) {
