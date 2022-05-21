@@ -18,7 +18,6 @@
 * [X] add environment variable for log-id (to add to the telegram prefix to distinguish different bots in different regions)
 * [X] make desktop bech32 adresses possible
 * [X] add min/max value to log message
-* [ ] add environmentVariable to deactivate motivation-log
 * [X] improve log on ocean-timeout
 * [X] allow increase directly after reinvest (no wait for next trigger)
 * [X] run script directly after clean up (timeout shouldn't be an issue, not to waist time for actions)
@@ -26,4 +25,10 @@
 * [X] remove all exposure on maxCollateralRatio < 0
 * [X] retry send tx also on other ocean error. cause might be due to inconsistency in ocean
 * [X] run lambda in loop to retry on timeout error
-* [ ] remove all exposure when vault is frozen
+* [X] remove all exposure when vault is frozen
+
+* [ ] fallback values in case of wrong userinput (ranges)
+* [ ] reduce ocean calls (also less frequent check in waitForTx)
+* [ ] always safe waitingTx in state (also in case of error)
+* [ ] add current safety value to status log
+* [ ] do errorhandling (aka cleanup) also during halted vaults.
