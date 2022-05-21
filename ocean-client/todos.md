@@ -28,7 +28,7 @@
 * [X] remove all exposure when vault is frozen
 
 * [X] fallback values in case of wrong userinput (ranges)
-* [ ] reduce ocean calls (also less frequent check in waitForTx)
+* [X] reduce ocean calls (also less frequent check in waitForTx)
 * [X] always safe waitingTx in state (also in case of error)
 * [X] add current safety value to status log
 * [X] do errorhandling (aka cleanup) also during halted vaults.

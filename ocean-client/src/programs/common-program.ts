@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, DeFiTransactionConstants, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
+import { CTransactionSegWit, DeFiTransactionConstants, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
@@ -27,7 +27,8 @@ export class CommonProgram {
     private readonly client: WhaleApiClient
     private readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
-
+    private script : Script | undefined
+    
     pendingTx : string|undefined
 
     constructor(store: Store, walletSetup: WalletSetup) {
@@ -39,6 +40,7 @@ export class CommonProgram {
 
     async init(): Promise<boolean> {
         this.account= await this.walletSetup.getAccount(this.settings.address)
+        this.script= await this.account?.getScript()
         return true
     }
 
@@ -102,71 +104,65 @@ export class CommonProgram {
     }
 
     async removeLiquidity(poolId: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const script = await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().liqPool.removeLiquidity({
-            script: script,
+            script: this.script!,
             tokenId: poolId,
             amount: amount
         }
-            , script)
+            , this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
     async addLiquidity(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const script = await this.account!.getScript()
         let txn = await this.account!.withTransactionBuilder().liqPool.addLiquidity({
             from: [{
-                script: script,
+                script: this.script!,
                 balances: amounts
             }],
-            shareAddress: script
+            shareAddress: this.script!
         }
-            , script)
+            , this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
     async paybackLoans(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const script = await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().loans.paybackLoan({
             vaultId: this.settings.vault,
-            from: script,
+            from: this.script!,
             tokenAmounts: amounts
         },
-            script)
+        this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
     async takeLoans(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const script = await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().loans.takeLoan({
             vaultId: this.settings.vault,
-            to: script,
+            to: this.script!,
             tokenAmounts: amounts
         },
-            script)
+        this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
     async depositToVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const script = await this.account!.getScript()
         const txn = await this.account!.withTransactionBuilder().loans.depositToVault({
             vaultId: this.settings.vault,
-            from: script,
+            from: this.script!,
             tokenAmount: {
                 token: token,
                 amount: amount
             }
-        }, script)
+        }, this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
 
     async utxoToOwnAccount(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const script = await this.account!.getScript()
-        const balances: ScriptBalances[] = [{ script: script, balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
+        const balances: ScriptBalances[] = [{ script: this.script!, balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
         const txn = await this.account!.withTransactionBuilder().account.utxosToAccount({
             to: balances
-        }, script)
+        }, this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
 
@@ -234,7 +230,7 @@ export class CommonProgram {
         if(startBlock == 0){
             startBlock= await this.getBlockHeight()
         }
-        const initialTime = 5000
+        const initialTime = 15000
         let start = initialTime
         return await new Promise((resolve) => {
             let intervalID: NodeJS.Timeout
@@ -267,9 +263,9 @@ export class CommonProgram {
             setTimeout(() => {
                 callTransaction()
                 intervalID = setInterval(() => {
-                    start += 5000
+                    start += 15000
                     callTransaction()
-                }, 5000)
+                }, 15000)
             }, initialTime)
         })
     }
