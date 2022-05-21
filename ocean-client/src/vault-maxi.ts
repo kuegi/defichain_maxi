@@ -4,7 +4,7 @@ import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-
 import { Store } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
-import { ProgramState } from './programs/common-program'
+import { CommonProgram, ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
 import { delay, isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
@@ -46,9 +46,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         }
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
         const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + VERSION + logId + "]")
+        let commonProgram : CommonProgram|undefined
         try {
-
             const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
+            commonProgram= program
             await program.init()
 
             if (event) {
@@ -192,7 +193,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             await store.updateToState({
                 state: ProgramState.Error,
                 tx: "",
-                txId: "",
+                txId: commonProgram?.pendingTx ?? "",
                 blockHeight: 0
             })
             await delay(10000) // cooldown and not to spam telegram

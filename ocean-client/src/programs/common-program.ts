@@ -28,6 +28,8 @@ export class CommonProgram {
     private readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
 
+    pendingTx : string|undefined
+
     constructor(store: Store, walletSetup: WalletSetup) {
         this.settings = store.settings
         this.store = store
@@ -201,7 +203,8 @@ export class CommonProgram {
                 this.client.rawtx.send({ hex: hex }).then((txId) => {
                     if (intervalID !== undefined) {
                         clearInterval(intervalID)
-                    }
+                    }                    
+                    this.pendingTx= ctx.txId
                     resolve(txId)
                 }).catch((e) => {
                     if (start >= waitTime * 3) {
