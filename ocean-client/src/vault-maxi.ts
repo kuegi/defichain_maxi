@@ -23,7 +23,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v1.0"
+const VERSION = "v1.1alpha"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
@@ -165,14 +165,14 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             let message = "executed script "
             if (exposureChanged) {
                 message += (result ? "successfully" : "with problems")
-                    + ". vault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
+                    + ".\nvault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
                     + vault.collateralRatio + " (next " + nextCollateralRatio(vault) +
                     ")."
             } else {
-                message += "without changes. vault ratio " + oldRatio + " next " + nextRatio + "."
+                message += "without changes.\nvault ratio " + oldRatio + " next " + nextRatio + "."
             }
-            message += " target range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
-                    + " current safetylevel: "+safetyLevel.toFixed(0)
+            message += "\ntarget range " + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
+                    + "\ncurrent safetylevel: "+safetyLevel.toFixed(0)+"%"
             await telegram.log(message)
             console.log("script done, safety level: "+safetyLevel.toFixed(0))
             return { statusCode: result ? 200 : 500 }
