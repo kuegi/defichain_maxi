@@ -67,11 +67,11 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
 
-    async doMaxiChecks(telegram: Telegram, 
-        vaultcheck : LoanVaultActive | LoanVaultLiquidated,
-        pool : PoolPairData | undefined,
-        balances : Map<string,AddressToken>
-        ): Promise<boolean> {
+    async doMaxiChecks(telegram: Telegram,
+        vaultcheck: LoanVaultActive | LoanVaultLiquidated,
+        pool: PoolPairData | undefined,
+        balances: Map<string, AddressToken>
+    ): Promise<boolean> {
         if (!super.doValidationChecks(telegram)) {
             return false
         }
@@ -128,7 +128,7 @@ export class VaultMaxiProgram extends CommonProgram {
         if (vault.state != LoanVaultState.FROZEN) {
             //coll ratio checks only done if not frozen (otherwise the ratio might be off)
             //if frozen: its handled outside anyway
-            
+
             const safetyOverride = process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE ? +(process.env.VAULTMAXI_VAULT_SAFETY_OVERRIDE) : undefined
             const safeCollRatio = safetyOverride ?? +vault.loanScheme.minColRatio * 2
             if (safetyOverride) {
@@ -164,9 +164,9 @@ export class VaultMaxiProgram extends CommonProgram {
         return true
     }
 
-    async calcSafetyLevel(vault:LoanVaultActive,
-        pool : PoolPairData,
-        balances : Map<string,AddressToken>): Promise<BigNumber> {
+    async calcSafetyLevel(vault: LoanVaultActive,
+        pool: PoolPairData,
+        balances: Map<string, AddressToken>): Promise<BigNumber> {
         const lpTokens = balances.get(this.lmPair)
         const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
         const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
@@ -175,14 +175,14 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
         let usedStock = stock_per_token.multipliedBy(lpTokens.amount)
-        let usedDusd= usedStock.multipliedBy(pool!.priceRatio.ba)
-        if(usedStock.gt(tokenLoan.amount)) {
-            usedStock= new BigNumber(tokenLoan.amount)
-            usedDusd= usedStock.multipliedBy(pool!.priceRatio.ba)
+        let usedDusd = usedStock.multipliedBy(pool!.priceRatio.ba)
+        if (usedStock.gt(tokenLoan.amount)) {
+            usedStock = new BigNumber(tokenLoan.amount)
+            usedDusd = usedStock.multipliedBy(pool!.priceRatio.ba)
         }
-        if(usedDusd.gt(dusdLoan.amount)) {
-            usedDusd= new BigNumber(dusdLoan.amount)
-            usedStock= usedDusd.multipliedBy(pool!.priceRatio.ab)
+        if (usedDusd.gt(dusdLoan.amount)) {
+            usedDusd = new BigNumber(dusdLoan.amount)
+            usedStock = usedDusd.multipliedBy(pool!.priceRatio.ab)
         }
         console.log("could pay back up to " + usedDusd + " DUSD and " + usedStock + " " + this.settings.LMToken)
         return new BigNumber(vault.collateralValue)
@@ -220,7 +220,7 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async decreaseExposure(vault: LoanVaultActive,
-        pool : PoolPairData, telegram: Telegram): Promise<boolean> {
+        pool: PoolPairData, telegram: Telegram): Promise<boolean> {
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
         const neededrepay = BigNumber.max(
                     new BigNumber(vault.loanValue).minus( new BigNumber(vault.collateralValue).dividedBy(this.targetCollateral)),
@@ -288,32 +288,32 @@ export class VaultMaxiProgram extends CommonProgram {
         return false
     }
 
-    
+
     async removeExposure(vault: LoanVaultActive,
-        pool : PoolPairData,
-        balances : Map<string,AddressToken>, 
+        pool: PoolPairData,
+        balances: Map<string, AddressToken>,
         telegram: Telegram, silentOnNothingToDo: boolean = false): Promise<boolean> {
         const lpTokens = balances.get(this.lmPair)
         const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.settings.LMToken)
         const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
         const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
         const dusd_per_token = new BigNumber(pool!.tokenB.reserve).div(pool!.totalLiquidity.token)
-        if(!tokenLoan || !dusdLoan || !lpTokens ) {
+        if (!tokenLoan || !dusdLoan || !lpTokens) {
             console.info("can't withdraw from pool, no tokens left or no loans left")
-            if(!silentOnNothingToDo) {
+            if (!silentOnNothingToDo) {
                 await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
             }
             return false
         }
-        const maxTokenFromStock= new BigNumber(tokenLoan!.amount).div(stock_per_token)
+        const maxTokenFromStock = new BigNumber(tokenLoan!.amount).div(stock_per_token)
         const maxTokenFromDUSD = new BigNumber(dusdLoan!.amount).div(dusd_per_token)
-        let usedTokens= BigNumber.min(lpTokens.amount,maxTokenFromDUSD,maxTokenFromStock)
-        if(usedTokens.div(0.95).gt(lpTokens.amount)) { // usedtokens > lpTokens * 0.95 
+        let usedTokens = BigNumber.min(lpTokens.amount, maxTokenFromDUSD, maxTokenFromStock)
+        if (usedTokens.div(0.95).gt(lpTokens.amount)) { // usedtokens > lpTokens * 0.95 
             usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
         }
-        if(usedTokens.lte(0)) {
+        if (usedTokens.lte(0)) {
             console.info("can't withdraw 0 from pool, no tokens left or no loans left")
-            if(!silentOnNothingToDo) {
+            if (!silentOnNothingToDo) {
                 await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left")
             }
             return false
@@ -376,14 +376,14 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async increaseExposure(vault: LoanVaultActive,
-        pool : PoolPairData,
-        balances : Map<string,AddressToken>, telegram: Telegram): Promise<boolean> {
+        pool: PoolPairData,
+        balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
         console.log("increasing exposure ")
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
         const additionalLoan = BigNumber.min(
-                new BigNumber(vault.collateralValue).div(this.targetCollateral).minus(vault.loanValue),
-                new BigNumber(nextCollateralValue(vault)).div(this.targetCollateral).minus(nextLoanValue(vault)))
-        let neededStock =  additionalLoan.div(BigNumber.sum(oracle.active!.amount,pool.priceRatio.ba))
+            new BigNumber(vault.collateralValue).div(this.targetCollateral).minus(vault.loanValue),
+            new BigNumber(nextCollateralValue(vault)).div(this.targetCollateral).minus(nextLoanValue(vault)))
+        let neededStock = additionalLoan.div(BigNumber.sum(oracle.active!.amount, pool.priceRatio.ba))
         let neededDUSD = neededStock.multipliedBy(pool.priceRatio.ba)
 
         console.log("increasing by " + additionalLoan + " USD, taking loan " + neededStock + "@" + this.settings.LMToken
@@ -436,7 +436,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
         const rewardDiff = loanDiff * pool.apr.total
-        if(rewardDiff < 100) {
+        if (rewardDiff < 100) {
             return //just a testvault, no need to motivate anyone
         }
         let rewardMessage: string
@@ -459,7 +459,7 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
 
-    async checkAndDoReinvest(vault: LoanVaultActive, pool: PoolPairData, balances : Map<String,AddressToken>, telegram: Telegram): Promise<boolean> {
+    async checkAndDoReinvest(vault: LoanVaultActive, pool: PoolPairData, balances: Map<String, AddressToken>, telegram: Telegram): Promise<boolean> {
         if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
             return false
         }
@@ -499,7 +499,7 @@ export class VaultMaxiProgram extends CommonProgram {
         return false
     }
 
-    async cleanUp(vault: LoanVaultActive, balances : Map<string,AddressToken>, telegram: Telegram): Promise<boolean> {
+    async cleanUp(vault: LoanVaultActive, balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
         let wantedTokens: AddressToken[] = []
         vault.loanAmounts.forEach(loan => {
             let token = balances.get(loan.symbol)
@@ -507,7 +507,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 wantedTokens.push(token)
             }
         })
-        if(wantedTokens.length == 0) {
+        if (wantedTokens.length == 0) {
             console.log("No tokens to pay back. nothing to clean up")
             return true // not an error
         } else {
