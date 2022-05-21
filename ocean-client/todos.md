@@ -27,8 +27,8 @@
 * [X] run lambda in loop to retry on timeout error
 * [X] remove all exposure when vault is frozen
 
-* [ ] fallback values in case of wrong userinput (ranges)
+* [X] fallback values in case of wrong userinput (ranges)
 * [ ] reduce ocean calls (also less frequent check in waitForTx)
 * [ ] always safe waitingTx in state (also in case of error)
-* [ ] add current safety value to status log
+* [X] add current safety value to status log
 * [ ] do errorhandling (aka cleanup) also during halted vaults.
