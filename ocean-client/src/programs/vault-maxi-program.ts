@@ -45,7 +45,7 @@ export class CheckedValues {
 
 export class VaultMaxiProgram extends CommonProgram {
 
-    private readonly targetCollateral: number
+    private targetCollateral: number
     private readonly lmPair: string
     private readonly keepWalletClean: boolean
 
@@ -60,6 +60,10 @@ export class VaultMaxiProgram extends CommonProgram {
     static shouldCleanUpBasedOn(transaction: VaultMaxiProgramTransaction): boolean {
         return transaction == VaultMaxiProgramTransaction.RemoveLiquidity ||
             transaction == VaultMaxiProgramTransaction.TakeLoan
+    }
+
+    targetRatio(): number {
+        return this.targetCollateral
     }
 
 
@@ -115,6 +119,7 @@ export class VaultMaxiProgram extends CommonProgram {
             console.warn(message)
             this.settings.maxCollateralRatio = this.settings.minCollateralRatio + minRange
         }
+        this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
 
 
         const vault = vaultcheck as LoanVaultActive
@@ -219,6 +224,12 @@ export class VaultMaxiProgram extends CommonProgram {
         const neededrepay = BigNumber.max(
                     new BigNumber(vault.loanValue).minus( new BigNumber(vault.collateralValue).dividedBy(this.targetCollateral)),
                     nextLoanValue(vault).minus(nextCollateralValue(vault).div(this.targetCollateral)))
+        if(neededrepay.lte(0)) {
+            console.error("negative repay, whats happening? loans:"+ vault.loanValue+ "/"+ nextLoanValue(vault)
+            +" cols:"+ vault.collateralValue+"/"+nextCollateralValue(vault)+" target:"+this.targetCollateral)
+            await telegram.send("ERROR: invalid reduce calculation. please check")
+            return false
+        }
         const neededStock = neededrepay.dividedBy(BigNumber.sum(oracle.active!.amount,pool!.priceRatio.ba))
         const wantedusd = neededStock.multipliedBy(pool!.priceRatio.ba)
         const lptokens: BigNumber = new BigNumber((await this.getTokenBalance(this.lmPair))?.amount ?? "0")
