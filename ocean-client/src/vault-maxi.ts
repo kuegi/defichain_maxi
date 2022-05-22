@@ -123,7 +123,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const nextRatio = nextCollateralRatio(vault)
             const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
             console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
-                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " token " + settings.LMToken)
+                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " ("+program.targetRatio()+") token " + settings.LMToken)
             let exposureChanged = false
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
