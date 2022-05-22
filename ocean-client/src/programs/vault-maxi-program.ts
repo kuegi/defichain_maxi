@@ -179,8 +179,10 @@ export class VaultMaxiProgram extends CommonProgram {
             usedDusd= new BigNumber(dusdLoan.amount)
             usedStock= usedDusd.multipliedBy(pool!.priceRatio.ab)
         }
-        console.log("could pay back up to "+usedDusd+" DUSD and "+usedStock+" "+this.settings.LMToken)
-        return new BigNumber(vault.collateralValue).dividedBy(new BigNumber(vault.loanValue).minus(usedDusd.multipliedBy(2))).multipliedBy(100)
+        console.log("could pay back up to " + usedDusd + " DUSD and " + usedStock + " " + this.settings.LMToken)
+        return new BigNumber(vault.collateralValue)
+            .dividedBy(new BigNumber(vault.loanValue).minus(usedDusd).minus(usedStock.multipliedBy(tokenLoan.activePrice.active.amount)))
+            .multipliedBy(100)
     }
 
 
