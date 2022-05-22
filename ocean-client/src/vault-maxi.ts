@@ -196,7 +196,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 txId: commonProgram?.pendingTx ?? "",
                 blockHeight: 0
             })
-            await delay(10000) // cooldown and not to spam telegram
+            await delay(30000) // cooldown and not to spam telegram
         }
     }
     return { statusCode: 500 } //means we came out of error loop due to not enough time left
