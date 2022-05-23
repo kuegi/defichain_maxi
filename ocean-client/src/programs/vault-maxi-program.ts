@@ -380,6 +380,11 @@ export class VaultMaxiProgram extends CommonProgram {
         balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
         console.log("increasing exposure ")
         const oracle: ActivePrice = await this.getFixedIntervalPrice(this.settings.LMToken)
+        if(!oracle.isLive || +(oracle.active?.amount ?? "-1") <= 0) {
+            console.warn("No active price for token. can't increase exposure")
+            await telegram.send("Could not increase exposure, token has currently no active price")
+            return false
+        }
         const additionalLoan = BigNumber.min(
             new BigNumber(vault.collateralValue).div(this.targetCollateral).minus(vault.loanValue),
             new BigNumber(nextCollateralValue(vault)).div(this.targetCollateral).minus(nextLoanValue(vault)))

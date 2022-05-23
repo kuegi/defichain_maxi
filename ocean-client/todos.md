@@ -32,3 +32,5 @@
 * [X] always safe waitingTx in state (also in case of error)
 * [X] add current safety value to status log
 * [X] do errorhandling (aka cleanup) also during halted vaults.
+
+* [X] check handling of vault getting started on halted token (no valid active price)
