@@ -45,7 +45,7 @@ export class CheckedValues {
 
 export class VaultMaxiProgram extends CommonProgram {
 
-    private readonly targetCollateral: number
+    private targetCollateral: number
     readonly lmPair: string
     private readonly keepWalletClean: boolean
 
