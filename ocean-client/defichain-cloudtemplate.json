@@ -125,7 +125,7 @@
       "Type": "String",
       "Default": "QQQ",
       "MinLength": "2",
-      "AllowedPattern" : "[A-Z]*",
+      "AllowedPattern" : "[A-Z.]*",
       "Description": "The dToken used for Liquidity Mining f.e. QQQ"
     },
     "MinReinvest": {
