@@ -104,6 +104,11 @@ Enabled: keeps your address clean by using commissions (dust) to payback loans a
 
 Disabled: will not touch commissions (dust), only what is needed by default calculations
 
+### VAULTMAXI_OCEAN_URL
+value: string
+
+If provided, this overrides the url to be used as the ocean endpoint. default is "https://ocean.defichain.com" , but you could use custom providers like mydefichain: "http://ocean.mydefichain.com:3000"
+
 ### VAULTMAXI_VAULT_SAFETY_OVERRIDE
 value: number
 possible values: `loanScheme.minColRatio < x < loanSchemen.minColRatio * 2`
