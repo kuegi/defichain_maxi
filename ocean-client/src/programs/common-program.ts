@@ -24,8 +24,8 @@ export enum ProgramState {
 export class CommonProgram {
     protected readonly settings: StoredSettings
     protected readonly store: Store
-    private readonly client: WhaleApiClient
-    private readonly walletSetup: WalletSetup
+    protected readonly client: WhaleApiClient
+    protected readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
     private script: Script | undefined
 

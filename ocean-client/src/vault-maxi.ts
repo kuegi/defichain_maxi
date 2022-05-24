@@ -48,7 +48,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + VERSION + logId + "]")
         let commonProgram: CommonProgram | undefined
         try {
-            const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings))
+            const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings, process.env.VAULTMAXI_OCEAN_URL))
             commonProgram = program
             await program.init()
 
@@ -205,7 +205,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 txId: commonProgram?.pendingTx ?? "",
                 blockHeight: 0
             })
-            await delay(30000) // cooldown and not to spam telegram
+            await delay(60000) // cooldown and not to spam telegram
         }
     }
     return { statusCode: 500 } //means we came out of error loop due to not enough time left

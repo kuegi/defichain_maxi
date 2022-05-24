@@ -210,6 +210,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
         const message = values.constructMessage()
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
+            + "\nusing ocean at: "+ this.walletSetup.url
         console.log(message)
         console.log("using telegram for log: " + telegram.logToken + " chatId: " + telegram.logChatId)
         console.log("using telegram for notification: " + telegram.token + " chatId: " + telegram.chatId)
