@@ -157,6 +157,19 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
+    
+    async withdrawFromVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const txn = await this.account!.withTransactionBuilder().loans.withdrawFromVault({
+            vaultId: this.settings.vault,
+            to: this.script!,
+            tokenAmount: {
+                token: token,
+                amount: amount
+            }
+        }, this.script!)
+        return this.sendWithPrevout(txn, prevout)
+    }
+
 
     async utxoToOwnAccount(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const balances: ScriptBalances[] = [{ script: this.script!, balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
