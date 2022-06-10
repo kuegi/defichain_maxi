@@ -3,6 +3,7 @@ import { Telegram } from "../utils/telegram"
 export enum Commands {
     Help = '/help',
     CheckMaxi = '/checkMaxi',
+    Skip = "/skip",
 }
 
 export abstract class Command {
