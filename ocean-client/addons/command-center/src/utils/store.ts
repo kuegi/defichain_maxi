@@ -20,6 +20,16 @@ export class Store {
         await this.ssm.putParameter(messageId).promise()
     }
 
+    async updateSkip(): Promise<unknown> {
+        const skip = {
+            Name: StoreKey.Skip,
+            Value: "true",
+            Overwrite: true,
+            Type: 'String'
+        }
+        return this.ssm.putParameter(skip).promise()
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
 
         //store only allows to get 10 parameters per request
@@ -54,6 +64,10 @@ export class Store {
 }
 
 enum StoreKey {
+    // defichain-maxi related keys
+    Skip = '/defichain-maxi/skip',
+
+    // command center related keys
     TelegramNotificationChatId = '/defichain-maxi/command-center/telegram/chat-id',
     TelegramNotificationToken = '/defichain-maxi/command-center/telegram/token',
     LastExecutedMessageId = '/defichain-maxi/command-center/last-executed-message-id',
