@@ -29,7 +29,10 @@ export class CheckedValues {
 
     minCollateralRatio: number = 0
     maxCollateralRatio: number = -1
-    LMToken: string | undefined
+    assetA: string | undefined
+    assetB: string | undefined
+    isSingleMint: boolean = false
+    mainCollateralAsset: string = "DFI"
     reinvest: number | undefined
 
     constructMessage(): string {
@@ -38,7 +41,9 @@ export class CheckedValues {
             + (this.vault ? ("monitoring vault " + this.vault) : "no vault found") + "\n"
             + (this.address ? ("from address " + this.address) : "no valid address") + "\n"
             + "Set collateral ratio range " + this.minCollateralRatio + "-" + this.maxCollateralRatio + "\n"
-            + (this.LMToken ? ("Set dToken " + this.LMToken) : "no pool found for token ") + "\n"
+            + (this.assetA ? ("using pool " + this.assetA + "-" + this.assetB) : "no pool found for token ") + "\n"
+            + (this.assetA && this.isSingleMint? ("minting only "+ this.assetA) : "minting both assets")+"\n"
+            + "main collateral asset is "+ this.mainCollateralAsset+"\n"
             + ((this.reinvest && this.reinvest > 0) ? ("Will reinvest above " + this.reinvest + " DFI") : "Will not reinvest")
     }
 }
@@ -47,12 +52,20 @@ export class VaultMaxiProgram extends CommonProgram {
 
     private targetCollateral: number
     readonly lmPair: string
+    readonly assetA: string
+    readonly assetB: string
+    private mainCollateralAsset: string
+    private isSingleMint: boolean
     private readonly keepWalletClean: boolean
 
     constructor(store: Store, walletSetup: WalletSetup) {
         super(store, walletSetup);
 
-        this.lmPair = this.settings.LMToken + "-DUSD"
+        this.lmPair = this.settings.LMPair;
+        [this.assetA, this.assetB] = this.lmPair.split("-")
+        this.mainCollateralAsset = this.settings.mainCollateralAsset
+        this.isSingleMint = this.mainCollateralAsset == "DUSD" || this.lmPair == "DUSD-DFI"
+
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
         this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== "false" ?? true
     }
@@ -94,6 +107,12 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error(message)
             return false
         }
+        if(this.assetB == "DUSD" || this.lmPair == "DUSD-DFI") {
+            const message = "vaultMaxi only works on dStock-DUSD pools or DUSD-DFI not on " + this.lmPair
+            await telegram.send(message)
+            console.error(message)
+            return false
+        }
         if (!pool) {
             const message = "No pool found for this token. tried: " + this.lmPair
             await telegram.send(message)
@@ -112,6 +131,7 @@ export class VaultMaxiProgram extends CommonProgram {
             console.warn(message)
             this.settings.minCollateralRatio = +vaultcheck.loanScheme.minColRatio + 1
         }
+
         const minRange = 2
         if (this.settings.maxCollateralRatio > 0 && this.settings.minCollateralRatio > this.settings.maxCollateralRatio - minRange) {
             const message = "Min collateral must be more than " + minRange + " below max collateral. Please change your settings. "
@@ -123,6 +143,20 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
 
+        if(this.mainCollateralAsset != "DUSD" && this.mainCollateralAsset != "DFI") {
+            const message = "can't use this main collateral: "+this.mainCollateralAsset+". falling back to DFI"
+            await telegram.send(message)
+            console.warn(message)
+            this.mainCollateralAsset= "DFI"
+        }
+        if(this.mainCollateralAsset != "DFI" && this.assetB != this.mainCollateralAsset) {
+            const message = "can't work with this combination of mainCollateralAsset "+this.mainCollateralAsset+" and lmPair "+this.lmPair
+            await telegram.send(message)
+            console.warn(message)
+            this.mainCollateralAsset = "DFI"
+        }
+        
+        this.isSingleMint = this.mainCollateralAsset == "DUSD" || this.lmPair == "DUSD-DFI"
 
         const vault = vaultcheck as LoanVaultActive
         if (vault.state != LoanVaultState.FROZEN) {
