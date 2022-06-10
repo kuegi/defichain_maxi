@@ -2,7 +2,8 @@
     "private": true,
     "scripts": {
         "build": "node build.js",
-        "build-app": "node build-app.js"
+        "build-app": "node build-app.js",
+        "build-addon": "node build-addon.js"
     },
     "dependencies": {
         "@defichain/jellyfish-network": "2.50.0",
