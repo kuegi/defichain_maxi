@@ -1,4 +1,5 @@
 import { Command, Commands } from "./command";
+import { Lambda } from "aws-sdk";
 
 export class CheckMaxi extends Command {
     name(): string {
@@ -10,6 +11,15 @@ export class CheckMaxi extends Command {
     }
 
     doExecution(): Promise<unknown> {
-        throw new Error("Method not implemented.");
+        let lambda = new Lambda()
+
+        let params = {
+            FunctionName: "defichain-vault-maxi",
+            InvocationType: "Event",
+            LogType: "None",
+            Payload: '{"checkSetup":true}'
+        }
+
+        return lambda.invoke(params).promise()
     }
 }

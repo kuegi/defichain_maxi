@@ -9,7 +9,7 @@ export class Help extends Command {
     description(): string {
         let checkMaxi = new CheckMaxi(this.telegram)
 
-        return "\nWelcome to your Command Center.\nHere is a list of available commands\n"
+        return "\n\nWelcome to your Command Center.\nHere is a list of available commands\n"
         + "\n/help\ndisplays all available commands with a short description\n"
         + "\n" + checkMaxi.name() + "\n" + checkMaxi.description()
     }
