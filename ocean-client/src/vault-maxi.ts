@@ -85,7 +85,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
                 // 2022-03-09 Krysh: input of kuegi
                 // if we are on state waiting for last transaction,  we should wait for txId
-                if (information.state === ProgramState.WaitingForTransaction) {
+                if (information.state === ProgramState.WaitingForTransaction || information.txId.length > 0) {
                     console.log("waiting for tx from previous run")
                     const result = await program.waitForTx(information.txId, information.blockHeight)
                     vault = await program.getVault() as LoanVaultActive
