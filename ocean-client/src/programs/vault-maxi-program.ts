@@ -475,36 +475,46 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     private async paybackTokenBalances(loanTokens: AddressToken[], collateralTokens: AddressToken[], telegram: Telegram, prevout: Prevout | undefined = undefined): Promise<boolean> {
-        let paybackTokens: TokenBalance[] = []
-        loanTokens.forEach(addressToken => {
-            paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
-        })
-        let changed = false
-        console.log(" paying back tokens " + loanTokens.map(token => " " + token.amount + "@" + token.symbol))
-        if (paybackTokens.length > 0) {
+        
+        let waitingTx = undefined
+        if (loanTokens.length > 0) {
+            console.log(" paying back tokens " + loanTokens.map(token => " " + token.amount + "@" + token.symbol))
+            let paybackTokens: TokenBalance[] = []
+            loanTokens.forEach(addressToken => {
+                paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
+            })
             const paybackTx = await this.paybackLoans(paybackTokens, prevout)
-
+            waitingTx= paybackTx
+            prevout= this.prevOutFromTx(paybackTx)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, paybackTx.txId)
             
-            const success = await this.waitForTx(paybackTx.txId)
+        } else {
+            await telegram.send("ERROR: no tokens to pay back")
+            console.error("no tokens to pay back")
+        }
+        if(collateralTokens.length > 0) {
+            console.log(" depositing tokens " + collateralTokens.map(token => " " + token.amount + "@" + token.symbol))
+            for(const collToken of collateralTokens) {
+                const depositTx= await this.depositToVault(+collToken.id,new BigNumber(collToken.amount),prevout)
+                waitingTx= depositTx
+                prevout= this.prevOutFromTx(depositTx)
+                await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
+            }
+        }
+        
+        if (waitingTx != undefined) {
+            const success = await this.waitForTx(waitingTx.txId)
             if (!success) {
                 await telegram.send("ERROR: paying back tokens")
                 console.error("paying back tokens failed")
                 return false
             } else {
                 console.log("done")
+                return true
             }
-            changed= true
         } else {
-            await telegram.send("ERROR: no tokens to pay back")
-            console.error("no tokens to pay back")
+            return false
         }
-        if(collateralTokens.length > 0) {
-            
-            //TODO: deposit collateralTokens with prevout
-            changed= true
-        }
-        return changed
     }
 
     async increaseExposure(vault: LoanVaultActive,
@@ -709,23 +719,29 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     async cleanUp(vault: LoanVaultActive, balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
-        if(this.mainCollateralAsset == "DUSD") {
-            //TODO: check for DUSD to deposit in case of main collateral
-        }
         let wantedTokens: AddressToken[] = []
+        let mainAssetAsLoan= false
         vault.loanAmounts.forEach(loan => {
+            if(loan.symbol == this.mainCollateralAsset) {
+                mainAssetAsLoan= true
+            }
             let token = balances.get(loan.symbol)
             if (token) {
                 wantedTokens.push(token)
             }
         })
-        if (wantedTokens.length == 0) {
+        let collTokens:AddressToken[] = []
+        if(this.isSingleMint && !mainAssetAsLoan) { //if there is a loan of the main asset, first pay back the loan
+            let token= balances.get(this.mainCollateralAsset)
+            if(token) {
+                collTokens.push(token)
+            }
+        }
+        if (wantedTokens.length == 0 && collTokens.length == 0) {
             console.log("No tokens to pay back. nothing to clean up")
-            //if deposit happening -> waitForTX here
             return true // not an error
         } else {
-            //use prevout from deposit if there
-            return await this.paybackTokenBalances(wantedTokens, telegram)
+            return await this.paybackTokenBalances(wantedTokens, collTokens, telegram)
         }
     }
 
