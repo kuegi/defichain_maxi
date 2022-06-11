@@ -75,6 +75,10 @@ export class VaultMaxiProgram extends CommonProgram {
         return this.targetCollateral
     }
 
+    isSingle(): boolean {
+        return this.isSingleMint
+    }
+
 
     async doMaxiChecks(telegram: Telegram,
         vaultcheck: LoanVaultActive | LoanVaultLiquidated,
@@ -420,7 +424,7 @@ export class VaultMaxiProgram extends CommonProgram {
         const assetBLoan = vault.loanAmounts.find(loan => loan.symbol == this.assetB)
         const assetAPerToken = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
         const assetBPerToken = new BigNumber(pool!.tokenB.reserve).div(pool!.totalLiquidity.token)
-        if ((!assetALoan && (!this.isSingleMint || !assetBLoan)) || !lpTokens) {
+        if ((!assetALoan || (!this.isSingleMint && !assetBLoan)) || !lpTokens) { 
             console.info("can't withdraw from pool, no tokens left or no loans left")
             if (!silentOnNothingToDo) {
                 await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
@@ -429,7 +433,9 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         const maxTokenFromAssetA = new BigNumber(assetALoan!.amount).div(assetAPerToken)
         const maxTokenFromAssetB = new BigNumber(assetBLoan?.amount ?? "0").div(assetBPerToken)
-        let usedTokens = BigNumber.min(lpTokens.amount, maxTokenFromAssetA, this.isSingleMint ? maxTokenFromAssetA : maxTokenFromAssetB)
+        let usedTokens = BigNumber.min(lpTokens.amount, 
+                                        maxTokenFromAssetA, 
+                                        this.isSingleMint ? maxTokenFromAssetA : maxTokenFromAssetB) //singleMint-> no "restriction" from assetB, can deposit as much as I want
         if (usedTokens.div(0.95).gt(lpTokens.amount)) { // usedtokens > lpTokens * 0.95 
             usedTokens = new BigNumber(lpTokens.amount) //don't leave dust in the LM
         }
@@ -441,7 +447,10 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
 
-        console.log("removing as much exposure as possible: " + usedTokens.toFixed(5) + "tokens. max from USD: " + maxTokenFromDUSD.toFixed(5) + ", max from dToken: " + maxTokenFromStock.toFixed(5) + " max LPtoken available: " + lpTokens.amount)
+        console.log("removing as much exposure as possible: " + usedTokens.toFixed(5) 
+        + "tokens. max from "+this.assetB+": " + maxTokenFromAssetB.toFixed(5) 
+        + ", max from "+this.assetA+": " + maxTokenFromAssetA.toFixed(5)
+        + " max LPtoken available: " + lpTokens.amount)
         const removeTx = await this.removeLiquidity(+pool!.id, usedTokens)
 
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
@@ -455,7 +464,7 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
 
         let token = tokens.get(this.assetB)
-        if (token) {//reducing exposure: keep wallet clean
+        if (token) {//removing exposure: keep wallet clean
             if (this.isSingleMint) {
                 collateralTokens.push(token)
             } else {
@@ -463,7 +472,7 @@ export class VaultMaxiProgram extends CommonProgram {
             }
         }
         token = tokens.get(this.assetA)
-        if (token) { //reducing exposure: keep wallet clean
+        if (token) { //removing exposure: keep wallet clean
             paybackTokens.push(token)
         }
 

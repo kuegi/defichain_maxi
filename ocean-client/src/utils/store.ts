@@ -1,5 +1,5 @@
 import { ProgramState } from '../programs/common-program'
-import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
+import { ProgramStateInformation } from './program-state-converter'
 import { StoreAWS } from './store_aws'
 import { StoreConfig } from './store_config'
 

@@ -37,6 +37,8 @@ export class StoreAWS implements IStore{
         let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
+        let LMPairKey = StoreKey.LMPair.replace("-maxi", "-maxi" + storePostfix)
+        let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
@@ -93,7 +95,12 @@ export class StoreAWS implements IStore{
         this.settings.vault = this.getValue(DeFiVaultKey, parameters)
         this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
-        this.settings.LMToken = this.getValue(LMTokenKey, parameters)
+        let lmPair = this.getOptionalValue(LMPairKey, parameters)
+        if(lmPair == undefined) {
+            lmPair = this.getValue(LMTokenKey, parameters)+"-DUSD"
+        }
+        this.settings.LMPair= lmPair
+        this.settings.mainCollateralAsset= this.getOptionalValue(MainCollAssetKey,parameters) ?? "DFI"
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
 
@@ -104,6 +111,10 @@ export class StoreAWS implements IStore{
 
     private getValue(key: string, parameters: SSM.ParameterList): string {
         return parameters?.find(element => element.Name === key)?.Value as string
+    }
+
+    private getOptionalValue(key: string, parameters: SSM.ParameterList): string | undefined {
+        return parameters?.find(element => element.Name === key)?.Value 
     }
 
     private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {
@@ -128,6 +139,8 @@ enum StoreKey {
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
+    LMPair = '/defichain-maxi/settings/lm-pair',
+    MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
 }
