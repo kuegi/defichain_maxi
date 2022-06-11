@@ -41,20 +41,6 @@ export class StoreAWS implements IStore{
         let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
 
-        let keys = [
-            StoreKey.TelegramNotificationChatId,
-            StoreKey.TelegramNotificationToken,
-            StoreKey.TelegramLogsChatId,
-            StoreKey.TelegramLogsToken,
-            DeFiAddressKey,
-            DeFiVaultKey,
-            MinCollateralRatioKey,
-            MaxCollateralRatioKey,
-            LMTokenKey,
-            StateKey,
-            ReinvestThreshold,
-        ]
-
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
             Names: [
@@ -72,6 +58,8 @@ export class StoreAWS implements IStore{
                 MinCollateralRatioKey,
                 MaxCollateralRatioKey,
                 LMTokenKey,
+                LMPairKey,
+                MainCollAssetKey,
                 StateKey,
                 ReinvestThreshold,
             ]

@@ -732,7 +732,38 @@ export class VaultMaxiProgram extends CommonProgram {
                     return true
                 }
             } else {
-                //TODO: swap to DUSD and deposit (can't do all at once, cause need to wait for finished swap)
+                let mainTokenId = 15 //default DUSD
+                vault.collateralAmounts.forEach(coll => {
+                    if(coll.symbol == this.mainCollateralAsset) {
+                        mainTokenId = +coll.id
+                    }
+                })
+                console.log("swaping " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + ") DFI to "+this.mainCollateralAsset)
+                const swap = await this.swap(amountToUse,0,mainTokenId,prevout)
+                await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
+                if (! await this.waitForTx(swap.txId)) {
+                    await telegram.send("ERROR: swapping reinvestment failed")
+                    console.error("swapping reinvestment failed")
+                    return false
+                } else {                    
+                    const tokens = await this.getTokenBalances()
+                    const token= tokens.get(this.mainCollateralAsset)
+                    let amountToUse= new BigNumber(token!.amount)
+                    console.log("depositing " + amountToUse.toFixed(4) + "@"+ this.mainCollateralAsset+" to vault ")
+                    const tx = await this.depositToVault(+token!.id, amountToUse)
+                    await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
+                    if (! await this.waitForTx(tx.txId)) {
+                        await telegram.send("ERROR: depositing reinvestment failed")
+                        console.error("depositing failed")
+                        return false
+                    } else {
+                        await telegram.send("reinvested " + amountToUse.toFixed(4) + "@"+this.mainCollateralAsset
+                        +" ("+ amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs)")
+                        console.log("done ")
+                        await this.sendMotivationalLog(vault, pool, telegram)
+                        return true
+                    }
+                }
             }
         }
 

@@ -179,6 +179,18 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
+    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const txn = await this.account!.withTransactionBuilder().dex.poolSwap({ 
+            fromScript: this.script!,
+            fromTokenId: fromTokenId,
+            fromAmount: amount,
+            toScript: this.script!,
+            toTokenId: toTokenId,
+            maxPrice: new BigNumber(999999999)
+        }, this.script!)
+        return this.sendWithPrevout(txn, prevout)
+    }
+
 
     async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransactionSegWit> {
         if (prevout) {
@@ -188,7 +200,7 @@ export class CommonProgram {
                 vout: txn.vout,
                 lockTime: 0x00000000
             }
-            const fee = calculateFeeP2WPKH(new BigNumber(await this.client.fee.estimate(10)), customTx)
+            const fee = calculateFeeP2WPKH(new BigNumber(await this.client.fee.estimate(20)), customTx)
             customTx.vout[1].value = prevout.value.minus(fee)
             let signed = await this.account?.signTx(customTx, [prevout])
             if (!signed) {
