@@ -170,32 +170,55 @@ export class VaultMaxiProgram extends CommonProgram {
             }
             if (+vault.collateralRatio > 0 && +vault.collateralRatio < safeCollRatio) {
                 //check if we could provide safety
-                if (!this.isSingleMint) {
-                    const lpTokens = balances.get(this.lmPair)
-                    const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.assetA)
-                    const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
-                    if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
-                        const message = "vault ratio not safe but either no lpTokens or no loans in vault.\nDid you change the LMToken? Your vault is NOT safe! "
-                        await telegram.send(message)
-                        console.warn(message)
-                        return true//can still run
-                    }
+                const lpTokens = balances.get(this.lmPair)
+                const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.assetA)
+                const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
+                if (!lpTokens || !tokenLoan || (!this.isSingleMint && !dusdLoan)) {
+                    const message = "vault ratio not safe but either no lpTokens or no loans in vault.\nDid you change the LMToken? Your vault is NOT safe! "
+                    await telegram.send(message)
+                    console.warn(message)
+                    return true//can still run
+                }
+                if (!this.isSingleMint) {                    
                     const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
                     const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount, pool!.priceRatio.ba))
                     const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
                     const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
                     const neededLPtokens = neededStock.div(stock_per_token)
-                    if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan.amount) || neededStock.gt(tokenLoan.amount)) {
+                    if (neededLPtokens.gt(lpTokens.amount) || neededDusd.gt(dusdLoan!.amount) || neededStock.gt(tokenLoan.amount)) {
                         const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n"
                             + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
-                            + neededDusd.toFixed(1) + " vs " + (+dusdLoan.amount).toFixed(1) + " " + dusdLoan.symbol + "\n"
+                            + neededDusd.toFixed(1) + " vs " + (+dusdLoan!.amount).toFixed(1) + " " + dusdLoan!.symbol + "\n"
                             + neededStock.toFixed(4) + " vs " + (+tokenLoan.amount).toFixed(4) + " " + tokenLoan.symbol + "\n"
                         await telegram.send(message)
                         console.warn(message)
                         return true //can still run
                     }
                 } else {
-                    //TODO: implement singleMint version
+                    let oracleA = new BigNumber(1)
+                    if (tokenLoan.activePrice) {
+                        oracleA = new BigNumber(tokenLoan.activePrice.active?.amount ?? "0")
+                    }
+                    let oracleB = new BigNumber(0.99) //case DUSD
+                    vault.collateralAmounts.forEach(coll => {
+                        if (coll.symbol == this.assetB && coll.activePrice?.active != undefined) {
+                            oracleB = new BigNumber(coll.activePrice?.active?.amount ?? "0")
+                        }
+                    })
+                    const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
+                    const neededLPtokens = neededrepay.times(this.targetCollateral).times(pool.totalLiquidity.token)
+                        .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(this.targetCollateral),
+                            oracleB.times(pool.tokenB.reserve)))
+
+                    const neededAssetA = neededLPtokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
+                    if (neededLPtokens.gt(lpTokens.amount) || neededAssetA.gt(tokenLoan.amount)) {
+                        const message = "vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n"
+                            + neededLPtokens.toFixed(4) + " vs " + (+lpTokens.amount).toFixed(4) + " " + lpTokens.symbol + "\n"
+                            + neededAssetA.toFixed(4) + " vs " + (+tokenLoan.amount).toFixed(4) + " " + tokenLoan.symbol + "\n"
+                        await telegram.send(message)
+                        console.warn(message)
+                        return true //can still run
+                    }
                 }
             }
         }
@@ -205,32 +228,53 @@ export class VaultMaxiProgram extends CommonProgram {
     async calcSafetyLevel(vault: LoanVaultActive,
         pool: PoolPairData,
         balances: Map<string, AddressToken>): Promise<BigNumber> {
+        const lpTokens = balances.get(this.lmPair)
+        const assetALoan = vault.loanAmounts.find(loan => loan.symbol == this.assetA)
+        const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
+        if (!lpTokens || !assetALoan || (!this.isSingleMint && !dusdLoan)) {
+            return new BigNumber(0)
+        }
+        const assetAPerToken = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
+        let usedAssetA = assetAPerToken.multipliedBy(lpTokens.amount)
         if (!this.isSingleMint) {
-            const lpTokens = balances.get(this.lmPair)
-            const tokenLoan = vault.loanAmounts.find(loan => loan.symbol == this.assetA)
-            const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
-            if (!lpTokens || !tokenLoan || !tokenLoan.activePrice?.active || !dusdLoan) {
-                return new BigNumber(0)
+            const tokenOracle = assetALoan.activePrice?.active?.amount ?? "0"
+            let usedDusd = usedAssetA.multipliedBy(pool!.priceRatio.ba)
+            if (usedAssetA.gt(assetALoan.amount)) {
+                usedAssetA = new BigNumber(assetALoan.amount)
+                usedDusd = usedAssetA.multipliedBy(pool!.priceRatio.ba)
             }
-            const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
-            let usedStock = stock_per_token.multipliedBy(lpTokens.amount)
-            let usedDusd = usedStock.multipliedBy(pool!.priceRatio.ba)
-            if (usedStock.gt(tokenLoan.amount)) {
-                usedStock = new BigNumber(tokenLoan.amount)
-                usedDusd = usedStock.multipliedBy(pool!.priceRatio.ba)
+            if (usedDusd.gt(dusdLoan!.amount)) {
+                usedDusd = new BigNumber(dusdLoan!.amount)
+                usedAssetA = usedDusd.multipliedBy(pool!.priceRatio.ab)
             }
-            if (usedDusd.gt(dusdLoan.amount)) {
-                usedDusd = new BigNumber(dusdLoan.amount)
-                usedStock = usedDusd.multipliedBy(pool!.priceRatio.ab)
-            }
-            console.log("could pay back up to " + usedDusd + " DUSD and " + usedStock + " " + this.assetA)
+            console.log("could pay back up to " + usedDusd + " DUSD and " + usedAssetA + " " + this.assetA)
 
             return new BigNumber(vault.collateralValue)
-                .dividedBy(new BigNumber(vault.loanValue).minus(usedDusd).minus(usedStock.multipliedBy(tokenLoan.activePrice.active.amount)))
+                .dividedBy(new BigNumber(vault.loanValue).minus(usedDusd).minus(usedAssetA.multipliedBy(tokenOracle)))
                 .multipliedBy(100)
         } else {
-            //TODO: add calc for singlemint
-            return new BigNumber(0)
+            
+            let oracleA = new BigNumber(1)
+            if (this.assetA != "DUSD") {
+                const oracleA= new BigNumber(assetALoan.activePrice?.active?.amount ?? "0")
+            }
+            let oracleB = new BigNumber(0.99) //case DUSD
+            vault.collateralAmounts.forEach(coll => {
+                if (coll.symbol == this.assetB && coll.activePrice?.active != undefined) {
+                    oracleB = new BigNumber(coll.activePrice?.active?.amount ?? "0")
+                }
+            })            
+            let usedLpTokens= new BigNumber(lpTokens.amount)
+            if (usedAssetA.gt(assetALoan.amount)) {
+                usedAssetA = new BigNumber(assetALoan.amount)
+                usedLpTokens = usedAssetA.div(assetAPerToken)
+            }
+            console.log("could use up to " + usedLpTokens.toFixed(8) + " LP Tokens leading to payback of" + usedAssetA + " " + this.assetA)
+
+            const lpPerTL = usedLpTokens.dividedBy(pool.totalLiquidity.token)
+            const maxRatioNum= lpPerTL.times(pool.tokenB.reserve).times(oracleB).plus(vault.collateralValue)
+            const maxRatioDenom = new BigNumber(vault.loanValue).minus(lpPerTL.times(pool.tokenA.reserve).times(oracleA))
+            return maxRatioNum.div(maxRatioDenom)
         }
     }
 
