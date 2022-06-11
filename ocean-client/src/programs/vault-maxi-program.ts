@@ -256,7 +256,7 @@ export class VaultMaxiProgram extends CommonProgram {
             
             let oracleA = new BigNumber(1)
             if (this.assetA != "DUSD") {
-                const oracleA= new BigNumber(assetALoan.activePrice?.active?.amount ?? "0")
+                oracleA= new BigNumber(assetALoan.activePrice?.active?.amount ?? "0")
             }
             let oracleB = new BigNumber(0.99) //case DUSD
             vault.collateralAmounts.forEach(coll => {
@@ -269,12 +269,12 @@ export class VaultMaxiProgram extends CommonProgram {
                 usedAssetA = new BigNumber(assetALoan.amount)
                 usedLpTokens = usedAssetA.div(assetAPerToken)
             }
-            console.log("could use up to " + usedLpTokens.toFixed(8) + " LP Tokens leading to payback of" + usedAssetA + " " + this.assetA)
+            console.log("could use up to " + usedLpTokens.toFixed(8) + " LP Tokens leading to payback of " + usedAssetA.toFixed(4) + "@" + this.assetA)
 
             const lpPerTL = usedLpTokens.dividedBy(pool.totalLiquidity.token)
-            const maxRatioNum= lpPerTL.times(pool.tokenB.reserve).times(oracleB).plus(vault.collateralValue)
+            const maxRatioNum= BigNumber.sum(lpPerTL.times(pool.tokenB.reserve).times(oracleB),vault.collateralValue)
             const maxRatioDenom = new BigNumber(vault.loanValue).minus(lpPerTL.times(pool.tokenA.reserve).times(oracleA))
-            return maxRatioNum.div(maxRatioDenom)
+            return maxRatioNum.div(maxRatioDenom).multipliedBy(100)
         }
     }
 
