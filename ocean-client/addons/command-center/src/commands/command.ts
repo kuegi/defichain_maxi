@@ -4,6 +4,7 @@ export enum Commands {
     Help = '/help',
     CheckMaxi = '/checkMaxi',
     Skip = "/skip",
+    RemoveExposure = "/removeExposure"
 }
 
 export abstract class Command {

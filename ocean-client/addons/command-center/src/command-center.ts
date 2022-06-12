@@ -1,6 +1,7 @@
 import { CheckMaxi } from './commands/check-maxi'
 import { Command, Commands } from './commands/command'
 import { Help } from './commands/help'
+import { RemoveExposure } from './commands/remove-exposure'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
@@ -24,6 +25,11 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
                     let skip = new Skip(telegram)
                     skip.setStore(store)
                     command = skip
+                    break
+                case Commands.RemoveExposure:
+                    let removeExposure = new RemoveExposure(telegram)
+                    removeExposure.setStore(store)
+                    command = removeExposure
                     break
                 default:
                     console.log("ignore " + message.command)
