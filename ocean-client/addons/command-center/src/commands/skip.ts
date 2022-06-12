@@ -23,8 +23,9 @@ export class Skip extends Command {
             // Krysh: should never happen
             return new Promise(resolve => {})
         }
-        this.telegram.send("Will skip next execution")
 
-        return this.store.updateSkip()
+        return this.store.updateSkip().then(() => {
+            this.telegram.send("Your vault-maxi will skip next execution")
+        })
     }
 }

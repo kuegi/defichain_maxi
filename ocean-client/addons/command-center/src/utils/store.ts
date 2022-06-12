@@ -10,14 +10,14 @@ export class Store {
         this.settings = new StoredSettings()
     }
 
-    async updateExecutedMessageId(id: number): Promise<void> {
+    async updateExecutedMessageId(id: number): Promise<unknown> {
         const messageId = {
             Name: StoreKey.LastExecutedMessageId,
             Value: "" + id,
             Overwrite: true,
             Type: 'String'
         }
-        await this.ssm.putParameter(messageId).promise()
+        return this.ssm.putParameter(messageId).promise()
     }
 
     async updateSkip(): Promise<unknown> {
@@ -28,6 +28,15 @@ export class Store {
             Type: 'String'
         }
         return this.ssm.putParameter(skip).promise()
+    }
+
+    async removeExposure(): Promise<unknown> {
+        return this.updateMaxCollateralRatio("-1")
+    }
+
+    async updateRange(min: string, max: string): Promise<void> {
+        await this.updateMinCollateralRatio(min)
+        await this.updateMaxCollateralRatio(max)
     }
 
     async fetchSettings(): Promise<StoredSettings> {
@@ -48,6 +57,26 @@ export class Store {
         return this.settings
     }
 
+    private async updateMaxCollateralRatio(ratio: string): Promise<unknown> {
+        const maxCollateralRatio = {
+            Name: StoreKey.MaxCollateralRatio,
+            Value: ratio,
+            Overwrite: true,
+            Type: 'String'
+        }
+        return this.ssm.putParameter(maxCollateralRatio).promise()
+    }
+
+    private async updateMinCollateralRatio(ratio: string): Promise<unknown> {
+        const minCollateralRatio = {
+            Name: StoreKey.MinCollateralRatio,
+            Value: ratio,
+            Overwrite: true,
+            Type: 'String'
+        }
+        return this.ssm.putParameter(minCollateralRatio).promise()
+    }
+
     private getValue(key: string, parameters: SSM.ParameterList): string {
         return parameters?.find(element => element.Name === key)?.Value as string
     }
@@ -66,6 +95,10 @@ export class Store {
 enum StoreKey {
     // defichain-maxi related keys
     Skip = '/defichain-maxi/skip',
+    MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
+    MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
+    LMToken = '/defichain-maxi/settings/lm-token',
+    Reinvest = '/defichain-maxi/settings/reinvest',
 
     // command center related keys
     TelegramNotificationChatId = '/defichain-maxi/command-center/telegram/chat-id',
