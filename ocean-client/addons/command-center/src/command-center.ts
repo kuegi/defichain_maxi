@@ -16,20 +16,16 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
             let command: Command | undefined
             switch (message.command) {
                 case Commands.Help:
-                    command = new Help(telegram)
+                    command = new Help(telegram, store)
                     break
                 case Commands.CheckMaxi:
                     command = new CheckMaxi(telegram)
                     break
                 case Commands.Skip:
-                    let skip = new Skip(telegram)
-                    skip.setStore(store)
-                    command = skip
+                    command = new Skip(telegram, store)
                     break
                 case Commands.RemoveExposure:
-                    let removeExposure = new RemoveExposure(telegram)
-                    removeExposure.setStore(store)
-                    command = removeExposure
+                    command = new RemoveExposure(telegram, store)
                     break
                 default:
                     console.log("ignore " + message.command)
