@@ -1,14 +1,9 @@
 import { Store } from "../utils/store";
-import { Command, Commands } from "./command";
+import { Commands } from "./command";
+import { StoreCommand } from "./store-command";
 
 
-export class Skip extends Command {
-
-    private store: Store|undefined
-
-    setStore(store: Store) {
-        this.store = store
-    }
+export class Skip extends StoreCommand {
 
     name(): string {
         return Commands.Skip
@@ -18,14 +13,11 @@ export class Skip extends Command {
         return "skips one execution of your vault-maxi"
     }
 
-    doExecution(): Promise<unknown> {
-        if (this.store === undefined) {
-            // Krysh: should never happen
-            return new Promise(resolve => {})
-        }
+    successMessage(): string {
+        return "Your vault-maxi will skip next execution"
+    }
 
-        return this.store.updateSkip().then(() => {
-            this.telegram.send("Your vault-maxi will skip next execution")
-        })
+    doExecution(): Promise<unknown> {
+        return this.store.updateSkip()
     }
 }

@@ -1,13 +1,8 @@
 import { Store } from "../utils/store";
-import { Command, Commands } from "./command";
+import { Commands } from "./command";
+import { StoreCommand } from "./store-command";
 
-export class RemoveExposure extends Command {
-
-    private store: Store|undefined
-
-    setStore(store: Store) {
-        this.store = store
-    }
+export class RemoveExposure extends StoreCommand {
 
     name(): string {
         return Commands.RemoveExposure
@@ -17,15 +12,12 @@ export class RemoveExposure extends Command {
         return "sets max-collateral-ratio to -1, which will remove exposure available to your vault-maxi. Removes all LM tokens and pays back loans. Be cautious of impermanent loss, which will still be left and need to be taken care manually"
     }
 
+    successMessage(): string {
+        return "Your vault-maxis' max collateral ratio is set to -1"
+    }
+
     doExecution(): Promise<unknown> {
-        if (this.store === undefined) {
-            // Krysh: should never happen
-            return new Promise(resolve => {})
-        }
-        
-        return this.store.removeExposure().then(() => {
-            this.telegram.send("Your vault-maxis' max collateral ratio is set to -1")
-        })
+        return this.store.removeExposure()
     }
 
 }
