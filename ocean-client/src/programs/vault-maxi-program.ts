@@ -230,42 +230,33 @@ export class VaultMaxiProgram extends CommonProgram {
         balances: Map<string, AddressToken>): Promise<BigNumber> {
         const lpTokens = balances.get(this.lmPair)
         const assetALoan = vault.loanAmounts.find(loan => loan.symbol == this.assetA)
-        const dusdLoan = vault.loanAmounts.find(loan => loan.symbol == "DUSD")
-        if (!lpTokens || !assetALoan || (!this.isSingleMint && !dusdLoan)) {
+        const assetBLoan = vault.loanAmounts.find(loan => loan.symbol == this.assetB)
+        if (!lpTokens || !assetALoan || (!this.isSingleMint && !assetBLoan)) {
             return new BigNumber(0)
         }
         const assetAPerToken = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
         let usedAssetA = assetAPerToken.multipliedBy(lpTokens.amount)
+        let maxRatioNum: BigNumber
+        let maxRatioDenom: BigNumber
+            
         if (!this.isSingleMint) {
             const tokenOracle = assetALoan.activePrice?.active?.amount ?? "0"
-            let usedDusd = usedAssetA.multipliedBy(pool!.priceRatio.ba)
+            let usedAssetB = usedAssetA.multipliedBy(pool!.priceRatio.ba)
             if (usedAssetA.gt(assetALoan.amount)) {
                 usedAssetA = new BigNumber(assetALoan.amount)
-                usedDusd = usedAssetA.multipliedBy(pool!.priceRatio.ba)
+                usedAssetB = usedAssetA.multipliedBy(pool!.priceRatio.ba)
             }
-            if (usedDusd.gt(dusdLoan!.amount)) {
-                usedDusd = new BigNumber(dusdLoan!.amount)
-                usedAssetA = usedDusd.multipliedBy(pool!.priceRatio.ab)
+            if (usedAssetB.gt(assetBLoan!.amount)) {
+                usedAssetB = new BigNumber(assetBLoan!.amount)
+                usedAssetA = usedAssetB.multipliedBy(pool!.priceRatio.ab)
             }
-            console.log("could pay back up to " + usedDusd + " DUSD and " + usedAssetA + " " + this.assetA)
+            console.log("could pay back up to " + usedAssetB.toFixed(4) + "@"+this.assetB+" and " + usedAssetA.toFixed(4) + "@" + this.assetA)
 
-            const maxRatioDenom = new BigNumber(vault.loanValue).minus(usedDusd).minus(usedAssetA.multipliedBy(tokenOracle))
-            if(maxRatioDenom.lt(1)) {
-                return new BigNumber(99999)
-            }
-            return new BigNumber(vault.collateralValue).div(maxRatioDenom).multipliedBy(100)
-        } else {
-            
-            let oracleA = new BigNumber(1)
-            if (this.assetA != "DUSD") {
-                oracleA= new BigNumber(assetALoan.activePrice?.active?.amount ?? "0")
-            }
-            let oracleB = new BigNumber(0.99) //case DUSD
-            vault.collateralAmounts.forEach(coll => {
-                if (coll.symbol == this.assetB && coll.activePrice?.active != undefined) {
-                    oracleB = new BigNumber(coll.activePrice?.active?.amount ?? "0")
-                }
-            })            
+            maxRatioNum= new BigNumber(vault.collateralValue)
+            maxRatioDenom = new BigNumber(vault.loanValue).minus(usedAssetB).minus(usedAssetA.multipliedBy(tokenOracle))
+        } else {            
+            const oracleA = new BigNumber(assetALoan.activePrice?.active?.amount ?? "1") //fallback for DUSD
+            const oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") // fallback for DUSD                   
             let usedLpTokens= new BigNumber(lpTokens.amount)
             if (usedAssetA.gt(assetALoan.amount)) {
                 usedAssetA = new BigNumber(assetALoan.amount)
@@ -274,13 +265,13 @@ export class VaultMaxiProgram extends CommonProgram {
             console.log("could use up to " + usedLpTokens.toFixed(8) + " LP Tokens leading to payback of " + usedAssetA.toFixed(4) + "@" + this.assetA)
 
             const lpPerTL = usedLpTokens.dividedBy(pool.totalLiquidity.token)
-            const maxRatioNum= BigNumber.sum(lpPerTL.times(pool.tokenB.reserve).times(oracleB),vault.collateralValue)
-            const maxRatioDenom = new BigNumber(vault.loanValue).minus(lpPerTL.times(pool.tokenA.reserve).times(oracleA))
-            if(maxRatioDenom.lt(1)) {
-                return new BigNumber(99999)
-            }
-            return maxRatioNum.div(maxRatioDenom).multipliedBy(100)
+            maxRatioNum= BigNumber.sum(lpPerTL.times(pool.tokenB.reserve).times(oracleB),vault.collateralValue)
+            maxRatioDenom = new BigNumber(vault.loanValue).minus(lpPerTL.times(pool.tokenA.reserve).times(oracleA))
         }
+        if(maxRatioDenom.lt(1)) {
+            return new BigNumber(99999)
+        }
+        return maxRatioNum.div(maxRatioDenom).multipliedBy(100)
     }
 
 
@@ -326,8 +317,8 @@ export class VaultMaxiProgram extends CommonProgram {
         const neededrepay = BigNumber.max(
             new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).dividedBy(this.targetCollateral)),
             nextLoanValue(vault).minus(nextCollateralValue(vault).div(this.targetCollateral)))
-        if (neededrepay.lte(0)) {
-            console.error("negative repay, whats happening? loans:" + vault.loanValue + "/" + nextLoanValue(vault)
+        if (neededrepay.lte(0) || !pool) {
+            console.error("negative repay or no pool, whats happening? loans:" + vault.loanValue + "/" + nextLoanValue(vault)
                 + " cols:" + vault.collateralValue + "/" + nextCollateralValue(vault) + " target:" + this.targetCollateral)
             await telegram.send("ERROR: invalid reduce calculation. please check")
             return false
@@ -335,129 +326,84 @@ export class VaultMaxiProgram extends CommonProgram {
         let tokens = await this.getTokenBalances()
         let assetBLoan: BigNumber = new BigNumber(0)
         let assetALoan: BigNumber = new BigNumber(0)
+        let oracleA : BigNumber = new BigNumber(0)  
         vault.loanAmounts.forEach(loanamount => {
             if (loanamount.symbol == this.assetA) {
                 assetALoan = new BigNumber(loanamount.amount)
+                oracleA= new BigNumber(loanamount.activePrice?.active?.amount ?? "1") //fallback in case of DUSD (has no oracle)
             }
             if (loanamount.symbol == this.assetB) {
                 assetBLoan = new BigNumber(loanamount.amount)
             }
         })
         const lptokens: BigNumber = new BigNumber(tokens.get(this.lmPair)?.amount ?? "0")
-        if (!this.isSingleMint) {
-            const oracle: ActivePrice = await this.getFixedIntervalPrice(this.assetA)
-            
-            const neededStock = neededrepay.dividedBy(BigNumber.sum(oracle.active!.amount, pool!.priceRatio.ba))
-            const wantedusd = neededStock.multipliedBy(pool!.priceRatio.ba)
-           
-            console.log("reducing exposure by " + neededrepay.toFixed(4) + " USD: " + wantedusd.toFixed(2) + "@DUSD " + neededStock.toFixed(8) + "@" + this.assetA + " from " + lptokens.toFixed(8) + " existing LPTokens")
-            if (lptokens.lte(0) || assetBLoan.lte(0) || assetALoan.lte(0)) {
-                await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
-                console.error("can't withdraw from pool, no tokens left or no loans left")
-                return false
-            }
-            const stock_per_token = +pool!.tokenA.reserve / +pool!.totalLiquidity.token
-            const removeTokens = BigNumber.min(neededStock.div(stock_per_token), lptokens)
-            console.log(" would need " + neededStock.div(stock_per_token).toFixed(8) + " doing " + removeTokens.toFixed(8) + " ")
-            const removeTx = await this.removeLiquidity(+pool!.id, removeTokens)
-
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
-
-            if (! await this.waitForTx(removeTx.txId)) {
-                await telegram.send("ERROR: when removing liquidity")
-                console.error("removing liquidity failed")
-                return false
-            }
-            
-            let tokens = await this.getTokenBalances()
-            console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
-
-            let paybackTokens: AddressToken[] = []
-            let token = tokens.get("DUSD")
-            if (token) {
-                if (!this.keepWalletClean) {
-                    token.amount = "" + BigNumber.min(token.amount, wantedusd)
-                }
-                paybackTokens.push(token)
-            }
-            token = tokens.get(this.assetA)
-            if (token) {
-                if (!this.keepWalletClean) {
-                    token.amount = "" + BigNumber.min(token.amount, neededStock)
-                }
-                paybackTokens.push(token)
-            }
-
-            if (await this.paybackTokenBalances(paybackTokens, [], telegram)) {
-                await telegram.send("done reducing exposure")
-                return true
-            }
+        if (lptokens.lte(0) || assetALoan.lte(0) || (!this.isSingleMint && assetBLoan.lte(0))) {
+            await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
+            console.error("can't withdraw from pool, no tokens left or no loans left")
+            return false
+        }
+        let wantedTokens : BigNumber
+        if (!this.isSingleMint) {            
+            wantedTokens = neededrepay.times(pool!.totalLiquidity.token)
+                            .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve),
+                                                             pool.tokenB.reserve)) //would be oracleB* pool!.tokenB.reserve but oracleB is always 1 for DUSD as loan
         } else {
-            let oracleA = new BigNumber(1)
-            if (this.assetA != "DUSD") {
-                const oracle: ActivePrice = await this.getFixedIntervalPrice(this.assetA)
-                oracleA = new BigNumber(oracle.active?.amount ?? "0")
-            }
-            let oracleB = new BigNumber(0.99) //case DUSD
-            vault.collateralAmounts.forEach(coll => {
-                if (coll.symbol == this.assetB && coll.activePrice?.active != undefined) {
-                    oracleB = new BigNumber(coll.activePrice?.active?.amount ?? "0")
-                }
-            })
-
-            const wantedTokens = neededrepay.times(this.targetCollateral).times(pool.totalLiquidity.token)
-                            .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(this.targetCollateral),
+            let oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") //DUSD fallback
+              
+            wantedTokens = neededrepay.times(this.targetCollateral).times(pool.totalLiquidity.token)
+                            .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(this.targetCollateral), //additional "times" due to part collateral, part loan
                                                oracleB.times(pool.tokenB.reserve)))
-            const removeTokens = BigNumber.min(wantedTokens, lptokens)
+        }
+        
+        const removeTokens = BigNumber.min(wantedTokens, lptokens)
 
-            const expectedA = removeTokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
-            const expectedB = removeTokens.times(pool.tokenB.reserve).div(pool.totalLiquidity.token)
+        const expectedA = removeTokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
+        const expectedB = removeTokens.times(pool.tokenB.reserve).div(pool.totalLiquidity.token)
 
-            console.log("reducing exposure by " + neededrepay.toFixed(4) + " USD: " 
-                + expectedA.toFixed(4) + "@" + this.assetA + " " + expectedB.toFixed(4) + "@" + this.assetB 
-                + " from " + lptokens.toFixed(8) + " existing LPTokens")
-            if (lptokens.lte(0) || assetALoan.lte(0)) {
-                await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
-                console.error("can't withdraw from pool, no tokens left or no loans left")
-                return false
+        console.log("reducing exposure by " + neededrepay.toFixed(4) + " USD: " 
+            + expectedA.toFixed(4) + "@" + this.assetA + " " + expectedB.toFixed(4) + "@" + this.assetB 
+            + " from " + lptokens.toFixed(8) + " existing LPTokens")
+        
+        console.log(" would need " + wantedTokens.toFixed(8) + " doing " + removeTokens.toFixed(8) + " ")
+        const removeTx = await this.removeLiquidity(+pool.id, removeTokens)
+
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
+
+        if (! await this.waitForTx(removeTx.txId)) {
+            await telegram.send("ERROR: when removing liquidity")
+            console.error("removing liquidity failed")
+            return false
+        }
+
+        tokens = await this.getTokenBalances()
+        console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
+
+        let paybackTokens: AddressToken[] = []
+        let collateralTokens: AddressToken[] = []
+        
+        let token = tokens.get(this.assetA)
+        if (token) {
+            if (!this.keepWalletClean) {
+                token.amount = "" + BigNumber.min(token.amount, expectedA)
             }
-            console.log(" would need " + wantedTokens.toFixed(8) + " doing " + removeTokens.toFixed(8) + " ")
-            const removeTx = await this.removeLiquidity(+pool!.id, removeTokens)
+            paybackTokens.push(token)
+        }
 
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.RemoveLiquidity, removeTx.txId)
-
-            if (! await this.waitForTx(removeTx.txId)) {
-                await telegram.send("ERROR: when removing liquidity")
-                console.error("removing liquidity failed")
-                return false
+        token = tokens.get(this.assetB)
+        if (token) {
+            if (!this.keepWalletClean) {
+                token.amount = "" + BigNumber.min(token.amount, expectedB)
             }
-
-            let tokens = await this.getTokenBalances()
-            console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
-
-            let paybackTokens: AddressToken[] = []
-            let collateralTokens: AddressToken[] = []
-            let token = tokens.get(this.assetA)
-            if (token) {
-                if (!this.keepWalletClean) {
-                    token.amount = "" + BigNumber.min(token.amount, expectedA)
-                }
+            if(this.isSingleMint) {
+                collateralTokens.push(token)
+            } else {
                 paybackTokens.push(token)
             }
-
-            token = tokens.get(this.assetB)
-            if (token) {
-                if (!this.keepWalletClean) {
-                    token.amount = "" + BigNumber.min(token.amount, expectedB)
-                }
-                collateralTokens.push(token)
-            }
-
-            if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram)) {
-                await telegram.send("done reducing exposure")
-                return true
-            }
-
+        }
+        
+        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram)) {
+            await telegram.send("done reducing exposure")
+            return true
         }
         return false
     }
@@ -582,70 +528,38 @@ export class VaultMaxiProgram extends CommonProgram {
         balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
         console.log("increasing exposure ")
         
-        
         const additionalLoan = BigNumber.min(
             new BigNumber(vault.collateralValue).div(this.targetCollateral).minus(vault.loanValue),
             new BigNumber(nextCollateralValue(vault)).div(this.targetCollateral).minus(nextLoanValue(vault)))
        
-        if (!this.isSingleMint) {
-            const oracleA: ActivePrice = await this.getFixedIntervalPrice(this.assetA)
-            if (!oracleA.isLive || +(oracleA.active?.amount ?? "-1") <= 0) {
+        let oracleA: BigNumber
+        if(this.assetA == "DUSD"){
+            oracleA = new BigNumber(1)
+        } else {
+            const oracle = await this.getFixedIntervalPrice(this.assetA)
+            if (!oracle.isLive || +(oracle.active?.amount ?? "-1") <= 0) {
                 console.warn("No active price for token. can't increase exposure")
                 await telegram.send("Could not increase exposure, token has currently no active price")
                 return false
             }
-             let neededStock = additionalLoan.div(BigNumber.sum(oracleA.active!.amount, pool.priceRatio.ba))
-            let neededDUSD = neededStock.multipliedBy(pool.priceRatio.ba)
-
-            console.log("increasing by " + additionalLoan + " USD, taking loan " + neededStock + "@" + this.assetA
-                + " " + neededDUSD + "@DUSD ")
-            const takeLoanTx = await this.takeLoans([
-                { token: +pool.tokenA.id, amount: neededStock },
-                { token: +pool.tokenB.id, amount: neededDUSD }
-            ])
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
-            let addTx: CTransactionSegWit
-            let usedDUSD = neededDUSD
-            if (this.keepWalletClean) {
-                //use full balance to increase exposure: existing balance + expected from loan
-                usedDUSD = usedDUSD.plus(balances.get("DUSD")?.amount ?? "0")
-                neededStock = neededStock.plus(balances.get(this.assetA)?.amount ?? "0") //upper limit for usedStocks
-            }
-
-            let usedStock = usedDUSD.multipliedBy(pool.priceRatio.ab)
-            if (usedStock.gt(neededStock)) { //not enough stocks to fill it -> use full stocks and reduce DUSD
-                usedStock = neededStock
-                usedDUSD = usedStock.multipliedBy(pool.priceRatio.ba)
-            }
-
-            console.log(" adding liquidity in same block " + usedStock.toFixed(8) + "@" + this.assetA + " " + usedDUSD.toFixed(8) + "@DUSD ")
-            addTx = await this.addLiquidity([
-                { token: +pool.tokenA.id, amount: usedStock },
-                { token: +pool.tokenB.id, amount: usedDUSD },
-            ], this.prevOutFromTx(takeLoanTx))
-
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
-            if (! await this.waitForTx(addTx.txId)) {
-                await telegram.send("ERROR: adding liquidity")
-                console.error("adding liquidity failed")
-                return false
-            } else {
-                await telegram.send("done increasing exposure")
-                console.log("done ")
-                return true
-            }
+            oracleA= new BigNumber(oracle.active?.amount ?? "0")
+        }
+        let wantedAssetA : BigNumber
+        let wantedAssetB : BigNumber
+        let prevout
+        let loanArray
+        if (!this.isSingleMint) {
+            wantedAssetA = additionalLoan.div(BigNumber.sum(oracleA, pool.priceRatio.ba))
+            wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
+            console.log("increasing by " + additionalLoan + " USD, taking loan " 
+                + wantedAssetA.toFixed(4) + "@" + this.assetA
+                + ", "+ wantedAssetB.toFixed(4) + "@"+ this.assetB)
+        
+            loanArray= [
+                { token: +pool.tokenA.id, amount: wantedAssetA },
+                { token: +pool.tokenB.id, amount: wantedAssetB }
+            ]
         } else {
-           
-            let oracleA = new BigNumber(1)
-            if (this.assetA != "DUSD") {
-                const oracle: ActivePrice = await this.getFixedIntervalPrice(this.assetA)
-                if (!oracle.isLive || +(oracle.active?.amount ?? "-1") <= 0) {
-                    console.warn("No active price for token. can't increase exposure")
-                    await telegram.send("Could not increase exposure, token has currently no active price")
-                    return false
-                }
-                oracleA = new BigNumber(oracle.active?.amount ?? "0")
-            }
             let oracleB = new BigNumber(0.99) //case DUSD
             let assetBInColl= "0"
             vault.collateralAmounts.forEach(coll => {
@@ -657,10 +571,11 @@ export class VaultMaxiProgram extends CommonProgram {
                 }
             })
 
-            let wantedAssetA = additionalLoan.times(this.targetCollateral)
-                        .div(BigNumber.sum(oracleA.times(this.targetCollateral),oracleB.times(pool.priceRatio.ba)))
-            let wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
-            console.log("increasing by " + additionalLoan + " USD, taking loan " + wantedAssetA.toFixed(4) + "@" + this.assetA
+            wantedAssetA = additionalLoan.div(BigNumber.sum(oracleA,
+                                                   oracleB.times(pool.priceRatio.ba).div(this.targetCollateral)))
+            wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
+            console.log("increasing by " + additionalLoan + " USD, taking loan "
+                + wantedAssetA.toFixed(4) + "@" + this.assetA
                 + ", withdrawing " + wantedAssetB.toFixed(4) + "@"+ this.assetB)
             
             if(!wantedAssetB.lt(assetBInColl)) {
@@ -668,46 +583,45 @@ export class VaultMaxiProgram extends CommonProgram {
                 await telegram.send("Could not increase exposure, not enough "+this.assetB+" in collateral to use: "+wantedAssetB.toFixed(4)+" vs. "+ assetBInColl)
                 return false
             }
-
-            const takeLoanTx = await this.takeLoans([
-                { token: +pool.tokenA.id, amount: wantedAssetA }
-            ])
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
-            //withdraw collateral right away
-            const withdrawTx = await this.withdrawFromVault(+pool.tokenB.id, wantedAssetB , this.prevOutFromTx(takeLoanTx))
+            const withdrawTx = await this.withdrawFromVault(+pool.tokenB.id, wantedAssetB)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, withdrawTx.txId)
-            
-            if (this.keepWalletClean) {
-                //use full balance to increase exposure: existing balance + expected from loan
-                wantedAssetB = wantedAssetB.plus(balances.get(this.assetB)?.amount ?? "0")
-                wantedAssetA = wantedAssetA.plus(balances.get(this.assetA)?.amount ?? "0") //upper limit for usedStocks
-            }
-
-            let usedAssetB = wantedAssetB
-            let usedAssetA = usedAssetB.multipliedBy(pool.priceRatio.ab)
-            if (usedAssetA.gt(wantedAssetA)) { //not enough stocks to fill it -> use full stocks and reduce DUSD
-                usedAssetA = wantedAssetA
-                usedAssetB = usedAssetA.multipliedBy(pool.priceRatio.ba)
-            }
-
-            console.log(" adding liquidity in same block " + usedAssetA.toFixed(8) + "@" + this.assetA + " " + usedAssetB.toFixed(8) + "@"+this.assetB)
-            const addTx = await this.addLiquidity([
-                { token: +pool.tokenA.id, amount: usedAssetA },
-                { token: +pool.tokenB.id, amount: usedAssetB },
-            ], this.prevOutFromTx(withdrawTx))
-
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
-            if (! await this.waitForTx(addTx.txId)) {
-                await telegram.send("ERROR: adding liquidity")
-                console.error("adding liquidity failed")
-                return false
-            } else {
-                await telegram.send("done increasing exposure")
-                console.log("done ")
-                return true
-            }
+            prevout= this.prevOutFromTx(withdrawTx)
+            loanArray= [
+                { token: +pool.tokenA.id, amount: wantedAssetA }
+            ]
         }
-        return false
+        const takeLoanTx = await this.takeLoans(loanArray,prevout)
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
+        if (this.keepWalletClean) {
+            //use full balance to increase exposure: existing balance + expected from loan
+            wantedAssetB = wantedAssetB.plus(balances.get(this.assetB)?.amount ?? "0")
+            wantedAssetA = wantedAssetA.plus(balances.get(this.assetA)?.amount ?? "0") //upper limit for usedStocks
+        }
+
+        let usedAssetB = wantedAssetB
+        let usedAssetA = usedAssetB.multipliedBy(pool.priceRatio.ab)
+        if (usedAssetA.gt(wantedAssetA)) { //not enough stocks to fill it -> use full stocks and reduce DUSD
+            usedAssetA = wantedAssetA
+            usedAssetB = usedAssetA.multipliedBy(pool.priceRatio.ba)
+        }
+        
+        console.log(" adding liquidity in same block " + usedAssetA.toFixed(8) + "@" + this.assetA + " " + usedAssetB.toFixed(8) + "@"+this.assetB)
+            
+        let addTx = await this.addLiquidity([
+            { token: +pool.tokenA.id, amount: usedAssetA },
+            { token: +pool.tokenB.id, amount: usedAssetB },
+        ], this.prevOutFromTx(takeLoanTx))
+
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
+        if (! await this.waitForTx(addTx.txId)) {
+            await telegram.send("ERROR: adding liquidity")
+            console.error("adding liquidity failed")
+            return false
+        } else {
+            await telegram.send("done increasing exposure")
+            console.log("done ")
+            return true
+        }
     }
 
     async sendMotivationalLog(vault: LoanVaultActive, pool: PoolPairData, telegram: Telegram): Promise<void> {
