@@ -33,6 +33,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         console.log("starting with " + context.getRemainingTimeInMillis() + "ms available")
         let store = new Store()
         let settings = await store.fetchSettings()
+        
         console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
 
         if (event) {
@@ -52,6 +53,14 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         }
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
         const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + VERSION + logId + "]")
+        if(settings.shouldSkipNext) {
+            //inform EVERYONE to not miss it in case of an error.
+            const message= "skipped one execution as requested"
+            console.log(message)
+            await telegram.send(message)
+            await telegram.log(message) 
+            return { statusCode: 200 }
+        }
         let commonProgram: CommonProgram | undefined
         try {
             const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings, process.env.VAULTMAXI_OCEAN_URL))

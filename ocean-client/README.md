@@ -43,7 +43,8 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/settings/lm-pair
 /defichain-maxi/settings/main-collateral-asset
 /defichain-maxi/settings/reinvest
-/defichain-maxi/state
+/defichain-maxi/state (written by the bot itself)
+/defichain-maxi/skip (set to "true" to skip the next execution)
 ```
 saved as a SecureString:
 ```

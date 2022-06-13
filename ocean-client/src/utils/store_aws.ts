@@ -40,6 +40,7 @@ export class StoreAWS implements IStore {
         let LMPairKey = StoreKey.LMPair.replace("-maxi", "-maxi" + storePostfix)
         let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
+        let SkipKey = StoreKey.Skip.replace("-maxi", "-maxi" + storePostfix)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -62,6 +63,7 @@ export class StoreAWS implements IStore {
                 MainCollAssetKey,
                 StateKey,
                 ReinvestThreshold,
+                SkipKey,
             ]
         }).promise()).Parameters ?? [])
 
@@ -91,6 +93,16 @@ export class StoreAWS implements IStore {
         this.settings.mainCollateralAsset = this.getOptionalValue(MainCollAssetKey, parameters) ?? "DFI"
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+        this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false" ) === "true"
+        if(this.settings.shouldSkipNext) {
+            //reset to false, so no double skip ever
+            this.ssm.putParameter({
+                Name: SkipKey,
+                Value: "false",
+                Overwrite: true,
+                Type: 'String'
+            }).send()
+        }
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
@@ -131,4 +143,5 @@ enum StoreKey {
     MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
+    Skip = '/defichain-maxi/skip',
 }
