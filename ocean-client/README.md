@@ -40,7 +40,8 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/wallet/vault
 /defichain-maxi/settings/min-collateral-ratio
 /defichain-maxi/settings/max-collateral-ratio
-/defichain-maxi/settings/lm-token
+/defichain-maxi/settings/lm-pair
+/defichain-maxi/settings/main-collateral-asset
 /defichain-maxi/settings/reinvest
 /defichain-maxi/state
 ```

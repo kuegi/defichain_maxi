@@ -14,6 +14,8 @@ class SettingsOverride {
     minCollateralRatio: number | undefined
     maxCollateralRatio: number | undefined
     LMToken: string | undefined
+    LMPair: string | undefined
+    mainCollateralAsset: string | undefined
 }
 
 class maxiEvent {
@@ -23,7 +25,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v1.1"
+const VERSION = "v2.0alpha"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
@@ -41,7 +43,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 if (event.overrideSettings.minCollateralRatio)
                     settings.minCollateralRatio = event.overrideSettings.minCollateralRatio
                 if (event.overrideSettings.LMToken)
-                    settings.LMToken = event.overrideSettings.LMToken
+                    settings.LMPair = event.overrideSettings.LMToken + "-DUSD"
+                if (event.overrideSettings.LMPair)
+                    settings.LMPair = event.overrideSettings.LMPair
+                if (event.overrideSettings.mainCollateralAsset)
+                    settings.mainCollateralAsset = event.overrideSettings.mainCollateralAsset
             }
         }
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
@@ -79,7 +85,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
                 // 2022-03-09 Krysh: input of kuegi
                 // if we are on state waiting for last transaction,  we should wait for txId
-                if (information.state === ProgramState.WaitingForTransaction) {
+                if (information.state === ProgramState.WaitingForTransaction || information.txId.length > 0) {
                     console.log("waiting for tx from previous run")
                     const result = await program.waitForTx(information.txId, information.blockHeight)
                     vault = await program.getVault() as LoanVaultActive
@@ -129,7 +135,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const nextRatio = nextCollateralRatio(vault)
             const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
             console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
-                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio + " ("+(program.targetRatio()*100)+") token " + settings.LMToken)
+                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
+                + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
+                + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
             let exposureChanged = false
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)

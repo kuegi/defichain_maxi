@@ -1,5 +1,5 @@
 import { ProgramState } from '../programs/common-program'
-import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
+import { ProgramStateInformation } from './program-state-converter'
 import { StoreAWS } from './store_aws'
 import { StoreConfig } from './store_config'
 
@@ -49,7 +49,8 @@ export class StoredSettings {
     seed: string[] = []
     minCollateralRatio: number = 200
     maxCollateralRatio: number = 250
-    LMToken: string = "GLD"
+    LMPair: string = "GLD-DUSD"
+    mainCollateralAsset: string = "DFI"
     reinvestThreshold: number | undefined
     stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
 }
