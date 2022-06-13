@@ -58,11 +58,11 @@ export class StoreConfig implements IStore {
         this.settings.minCollateralRatio = this.config.minCollateralRatio;
         this.settings.maxCollateralRatio = this.config.maxCollateralRatio;
         let lmPair = this.config.LMPair
-        if(lmPair == undefined) {
-            lmPair = this.config.LMToken+"-DUSD"
+        if (lmPair == undefined) {
+            lmPair = this.config.LMToken + "-DUSD"
         }
-        this.settings.LMPair= lmPair
-        this.settings.mainCollateralAsset= this.config.mainCollateralAsset
+        this.settings.LMPair = lmPair
+        this.settings.mainCollateralAsset = this.config.mainCollateralAsset
         this.settings.reinvestThreshold = this.config.reinvestThreshold;
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile));
         let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, " ");
@@ -83,6 +83,6 @@ class ConfigFile {
     maxCollateralRatio: number = 250
     LMToken: string = "GLD"
     LMPair: string | undefined
-    mainCollateralAsset : string = "DFI"
+    mainCollateralAsset: string = "DFI"
     reinvestThreshold: number | undefined = 0
 }

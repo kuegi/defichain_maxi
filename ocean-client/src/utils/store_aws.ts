@@ -3,7 +3,7 @@ import { ProgramStateConverter, ProgramStateInformation } from './program-state-
 import { IStore, StoredSettings } from './store'
 
 // handle AWS Paramter
-export class StoreAWS implements IStore{
+export class StoreAWS implements IStore {
     private ssm: SSM
     readonly settings: StoredSettings
 
@@ -71,9 +71,9 @@ export class StoreAWS implements IStore{
                 Name: seedkey,
                 WithDecryption: true
             }).promise()
-        } catch(e) {
+        } catch (e) {
             console.error("Seed Parameter not found!")
-            decryptedSeed= undefined
+            decryptedSeed = undefined
         }
         this.settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
         this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
@@ -84,11 +84,11 @@ export class StoreAWS implements IStore{
         this.settings.minCollateralRatio = this.getNumberValue(MinCollateralRatioKey, parameters) ?? this.settings.minCollateralRatio
         this.settings.maxCollateralRatio = this.getNumberValue(MaxCollateralRatioKey, parameters) ?? this.settings.maxCollateralRatio
         let lmPair = this.getOptionalValue(LMPairKey, parameters)
-        if(lmPair == undefined) {
-            lmPair = this.getValue(LMTokenKey, parameters)+"-DUSD"
+        if (lmPair == undefined) {
+            lmPair = this.getValue(LMTokenKey, parameters) + "-DUSD"
         }
-        this.settings.LMPair= lmPair
-        this.settings.mainCollateralAsset= this.getOptionalValue(MainCollAssetKey,parameters) ?? "DFI"
+        this.settings.LMPair = lmPair
+        this.settings.mainCollateralAsset = this.getOptionalValue(MainCollAssetKey, parameters) ?? "DFI"
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
 
@@ -102,7 +102,7 @@ export class StoreAWS implements IStore{
     }
 
     private getOptionalValue(key: string, parameters: SSM.ParameterList): string | undefined {
-        return parameters?.find(element => element.Name === key)?.Value 
+        return parameters?.find(element => element.Name === key)?.Value
     }
 
     private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {

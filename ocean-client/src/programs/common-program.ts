@@ -157,7 +157,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    
+
     async withdrawFromVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const txn = await this.account!.withTransactionBuilder().loans.withdrawFromVault({
             vaultId: this.settings.vault,
@@ -180,7 +180,7 @@ export class CommonProgram {
     }
 
     async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
-        const txn = await this.account!.withTransactionBuilder().dex.poolSwap({ 
+        const txn = await this.account!.withTransactionBuilder().dex.poolSwap({
             fromScript: this.script!,
             fromTokenId: fromTokenId,
             fromAmount: amount,

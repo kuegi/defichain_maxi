@@ -43,7 +43,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 if (event.overrideSettings.minCollateralRatio)
                     settings.minCollateralRatio = event.overrideSettings.minCollateralRatio
                 if (event.overrideSettings.LMToken)
-                    settings.LMPair = event.overrideSettings.LMToken+"-DUSD"
+                    settings.LMPair = event.overrideSettings.LMToken + "-DUSD"
                 if (event.overrideSettings.LMPair)
                     settings.LMPair = event.overrideSettings.LMPair
                 if (event.overrideSettings.mainCollateralAsset)
@@ -135,9 +135,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const nextRatio = nextCollateralRatio(vault)
             const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
             console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
-                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio 
-                + " ("+(program.targetRatio()*100)+") pair " + settings.LMPair 
-                + ", "+ (program.isSingle()?("minting only "+program.assetA):"minting both"))
+                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
+                + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
+                + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
             let exposureChanged = false
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
