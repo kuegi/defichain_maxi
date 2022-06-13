@@ -38,6 +38,7 @@ export class StoreAWS implements IStore{
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
+        let SkipKey = StoreKey.Skip.replace("-maxi", "-maxi" + storePostfix)
 
         let keys = [
             StoreKey.TelegramNotificationChatId,
@@ -72,6 +73,7 @@ export class StoreAWS implements IStore{
                 LMTokenKey,
                 StateKey,
                 ReinvestThreshold,
+                SkipKey,
             ]
         }).promise()).Parameters ?? [])
 
@@ -96,6 +98,16 @@ export class StoreAWS implements IStore{
         this.settings.LMToken = this.getValue(LMTokenKey, parameters)
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+        this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false" ) === "true"
+        if(this.settings.shouldSkipNext) {
+            //reset to false, so no double skip ever
+            this.ssm.putParameter({
+                Name: SkipKey,
+                Value: "false",
+                Overwrite: true,
+                Type: 'String'
+            }).send()
+        }
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
@@ -130,4 +142,5 @@ enum StoreKey {
     LMToken = '/defichain-maxi/settings/lm-token',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
+    Skip = '/defichain-maxi/skip',
 }

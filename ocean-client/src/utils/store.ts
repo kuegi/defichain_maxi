@@ -52,4 +52,5 @@ export class StoredSettings {
     LMToken: string = "GLD"
     reinvestThreshold: number | undefined
     stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
+    shouldSkipNext: boolean = false
 }

@@ -34,3 +34,5 @@
 * [X] do errorhandling (aka cleanup) also during halted vaults.
 
 * [X] check handling of vault getting started on halted token (no valid active price)
+
+* [X] add "skip" parameter to skip one execution (used by add ons)
