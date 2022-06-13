@@ -35,4 +35,5 @@
 
 * [X] check handling of vault getting started on halted token (no valid active price)
 
+* [X] single mint version
 * [X] add "skip" parameter to skip one execution (used by add ons)
