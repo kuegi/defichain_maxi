@@ -68,7 +68,7 @@ value: string
 
 will be shown in the prefix of every telegram message. Meant to easily distinguish log messages of different bots
 
-### VAULTMAXI_STORE_POSTIX
+### VAULTMAXI_STORE_POSTFIX
 value: string
 
 Extends name of following ParameterStore parameters with your value:
