@@ -207,6 +207,7 @@ export class CommonProgram {
                 throw new Error("can't sign custom transaction")
             }
             txn = signed
+            console.log("sending with prevout: "+prevout.txid+":"+prevout.vout)
         }
         return this.send(txn, prevout ? 2000 : 0) //initial wait time when depending on other tx
     }
