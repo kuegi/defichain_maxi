@@ -37,6 +37,16 @@ export class Store {
         await this.updateMaxCollateralRatio(max)
     }
 
+    async updateReinvest(value: string): Promise<unknown> {
+        const reinvest = {
+            Name: this.extendKey(StoreKey.Reinvest),
+            Value: value,
+            Overwrite: true,
+            Type: 'String'
+        }
+        return this.ssm.putParameter(reinvest).promise()
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
 
         let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramNotificationChatId)

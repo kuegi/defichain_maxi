@@ -17,3 +17,10 @@ export function functionNameWithPostfix(): string {
     let postfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ""
     return "defichain-vault-maxi" + postfix
 }
+
+export function isNumber(value: string|undefined): boolean {
+    if (value === undefined) {
+        return false
+    }
+    return !isNaN(Number(value))
+}
