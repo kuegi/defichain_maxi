@@ -1,3 +1,5 @@
+import { isNumber } from "../utils/helpers";
+import { CheckMaxi } from "./check-maxi";
 import { Commands } from "./command";
 import { StoreParameterCommand } from "./store-parameter-command";
 
@@ -24,8 +26,8 @@ export class SetRange extends StoreParameterCommand {
     }
 
     validate(): boolean {
-        return this.isNumber(this.minCollateralRatio) &&
-                this.isNumber(this.maxCollateralRatio) &&
+        return isNumber(this.minCollateralRatio) &&
+                isNumber(this.maxCollateralRatio) &&
                 this.safetyChecks(this.minCollateralRatio, this.maxCollateralRatio)
     }
 
@@ -38,15 +40,17 @@ export class SetRange extends StoreParameterCommand {
     }
 
     description(): string {
-        return "sets given range as min-collateral-ratio and max-collateral-ratio\nPLEASE execute " + Commands.CheckMaxi + " after changing range to ensure everything is still configured correctly.\nexample: " + this.usageMessage
+        return "sets given range as min-collateral-ratio and max-collateral-ratio. After changing range it will automatically execute " + Commands.CheckMaxi + " to check if configuration is still valid.\nexample: " + this.usageMessage
     }
 
-    doExecution(): Promise<unknown> {
+    async doExecution(): Promise<unknown> {
         if (this.minCollateralRatio === undefined || this.maxCollateralRatio === undefined) {
             // Krysh: will never be executed, as validation should fail
             return new Promise<void>(resolve => {})
         }
-        return this.store.updateRange(this.minCollateralRatio, this.maxCollateralRatio)
+        await this.store.updateRange(this.minCollateralRatio, this.maxCollateralRatio)
+        let checkMaxi = new CheckMaxi(this.telegram)
+        return checkMaxi.execute()
     }
 
     private safetyChecks(min: string|undefined, max: string|undefined): boolean {
@@ -59,10 +63,4 @@ export class SetRange extends StoreParameterCommand {
         return minValue + minRange <= maxValue
     }
 
-    private isNumber(value: string|undefined): boolean {
-        if (value === undefined) {
-            return false
-        }
-        return !isNaN(Number(value))
-    }
 }
