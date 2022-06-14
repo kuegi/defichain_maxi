@@ -19,7 +19,8 @@
           "Parameters": [
             "MinCollateralRatio",
             "MaxCollateralRatio",
-            "LMToken",
+            "LMPair",
+            "MainCollateralAsset",
             "MinReinvest"
           ]
         },
@@ -57,8 +58,11 @@
         "MaxCollateralRatio": {
           "default": "Maximum Collateral Ratio"
         },
-        "LMToken": {
-          "default": "LM Token"
+        "LMPair": {
+          "default": "LM Pair"
+        },
+        "MainCollateralAsset": {
+          "default": "Main Collateral Asset"
         },
         "MinReinvest": {
           "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
@@ -121,12 +125,19 @@
       "Default": "210",
       "Description": "If vault goes above this, the script will increase LM exposure"
     },
-    "LMToken": {
+    "LMPair": {
       "Type": "String",
-      "Default": "QQQ",
-      "MinLength": "1",
-      "AllowedPattern" : "[A-Z.]*",
-      "Description": "The dToken used for Liquidity Mining f.e. QQQ"
+      "Default": "DUSD-DFI",
+      "MinLength": "6",
+      "AllowedPattern" : "[A-Z.]+-DUSD|DUSD-DFI",
+      "Description": "The pair to be used for Liquidity Mining f.e. QQQ-DUSD"
+    },
+    "MainCollateralAsset": {
+      "Type": "String",
+      "Default": "DFI",
+      "MinLength": "3",
+      "AllowedPattern" : "DFI|DUSD",
+      "Description": "Your main collateral asset. Can be DUSD or DFI"
     },
     "MinReinvest": {
       "Type": "Number",
@@ -312,7 +323,10 @@
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*-collateral-ratio"
                     },
                     {
-                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/lm-token"
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/lm-pair"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/main-collateral-asset"
                     }
                   ]
                 },
@@ -506,7 +520,7 @@
         },
         "Code": {
           "S3Bucket": {"Fn::Sub": "defichain-maxi-public-${AWS::Region}"},
-          "S3Key": "vault-maxi-1-1.zip"
+          "S3Key": "vault-maxi-2-0.zip"
         },
         "Runtime": "nodejs14.x",
         "Timeout": 890
@@ -625,15 +639,27 @@
         }
       }
     },
-    "vaultMaxiParamLMToken": {
+    "vaultMaxiParamLMPair": {
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
-        "Description": "the dToken to use for LM",
-        "Name": "/defichain-maxi/settings/lm-token",
+        "Description": "the pair to use for LM",
+        "Name": "/defichain-maxi/settings/lm-pair",
         "Type": "String",
         "Value": {
-          "Ref": "LMToken"
+          "Ref": "LMPair"
+        }
+      }
+    },
+    "vaultMaxiMainCollateralAsset": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Your main collateral Asset",
+        "Name": "/defichain-maxi/settings/main-collateral-asset",
+        "Type": "String",
+        "Value": {
+          "Ref": "MainCollateralAsset"
         }
       }
     },
