@@ -30,6 +30,7 @@ const VERSION = "v2.0beta"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
+    let ocean= process.env.VAULTMAXI_OCEAN_URL
     while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
         console.log("starting with " + context.getRemainingTimeInMillis() + "ms available")
         let store = new Store()
@@ -68,7 +69,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         }
         let commonProgram: CommonProgram | undefined
         try {
-            const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings, process.env.VAULTMAXI_OCEAN_URL))
+            const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings, ocean))
             commonProgram = program
             await program.init()
 
@@ -219,6 +220,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 await telegram.send(message)
             } else {
                 await telegram.log(message)
+            }
+            if(ocean != undefined) {
+                console.info("falling back to default ocean")
+                ocean= undefined
             }
             //program might not be there, so directly the store with no access to ocean
             await store.updateToState({

@@ -109,7 +109,7 @@ Disabled: will not touch commissions (dust), only what is needed by default calc
 ### VAULTMAXI_OCEAN_URL
 value: string
 
-If provided, this overrides the url to be used as the ocean endpoint. default is "https://ocean.defichain.com" , but you could use custom providers like mydefichain: "http://ocean.mydefichain.com:3000"
+If provided, this overrides the url to be used as the ocean endpoint. default is "https://ocean.defichain.com" , but you could use custom providers like mydefichain: "https://ocean.mydefichain.com"
 
 ### VAULTMAXI_VAULT_SAFETY_OVERRIDE
 value: number
