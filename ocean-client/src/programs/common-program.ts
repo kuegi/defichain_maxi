@@ -235,7 +235,7 @@ export class CommonProgram {
                         console.log("failed to send tx even after after multiple retries (" + e.error.message + ")")
                         error(e)
                     } else {
-                        console.log("error sending tx (" + e.error.message + "). retrying after 5 seconds")
+                        console.log("error sending tx (" + e.error.message + "). retrying after "+(waitTime/1000).toFixed(0)+" seconds")
                     }
                 })
             }
