@@ -3,6 +3,7 @@ import { Commands } from "./command";
 import { Execute } from "./execute";
 import { RemoveExposure } from "./remove-exposure";
 import { SetRange } from "./set-range";
+import { SetReinvest } from "./set-reinvest";
 import { Skip } from "./skip";
 import { StoreCommand } from "./store-command";
 
@@ -18,6 +19,7 @@ export class Help extends StoreCommand {
         let skip = new Skip(this.telegram, this.store)
         let removeExposure = new RemoveExposure(this.telegram)
         let setRange = new SetRange(this.telegram, this.store, [])
+        let setReinvest = new SetReinvest(this.telegram, this.store, [])
 
         return "\n\nWelcome to your Command Center.\nHere is a list of available commands\n"
         + "\n/help\ndisplays all available commands with a short description\n"
@@ -25,7 +27,8 @@ export class Help extends StoreCommand {
         + "\n" + execute.name() + "\n" + execute.description() + "\n"
         + "\n" + skip.name() + "\n" + skip.description() + "\n"
         + "\n" + removeExposure.name() + "\n" + removeExposure.description() + "\n"
-        + "\n" + setRange.name() + "\n" + setRange.description()
+        + "\n" + setRange.name() + "\n" + setRange.description() + "\n"
+        + "\n" + setReinvest.name() + "\n" + setReinvest.description()
     }
 
     successMessage(): string | undefined {

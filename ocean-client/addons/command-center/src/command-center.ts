@@ -4,6 +4,7 @@ import { Execute } from './commands/execute'
 import { Help } from './commands/help'
 import { RemoveExposure } from './commands/remove-exposure'
 import { SetRange } from './commands/set-range'
+import { SetReinvest } from './commands/set-reinvest'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
@@ -36,6 +37,9 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
                 break
             case Commands.SetRange:
                 command = new SetRange(telegram, store, commandData)
+                break
+            case Commands.SetReinvest:
+                command = new SetReinvest(telegram, store, commandData)
                 break
             default:
                 console.log("ignore " + message.command)
