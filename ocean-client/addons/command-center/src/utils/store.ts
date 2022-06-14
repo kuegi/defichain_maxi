@@ -32,10 +32,6 @@ export class Store {
         return this.ssm.putParameter(skip).promise()
     }
 
-    async removeExposure(): Promise<unknown> {
-        return this.updateMaxCollateralRatio("-1")
-    }
-
     async updateRange(min: string, max: string): Promise<void> {
         await this.updateMinCollateralRatio(min)
         await this.updateMaxCollateralRatio(max)
@@ -47,6 +43,7 @@ export class Store {
         let TelegramNotificationTokenKey = this.extendKey(StoreKey.TelegramNotificationToken)
         let TelegramUserName = this.extendKey(StoreKey.TelegramUserName)
         let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
+        let StateKey = this.extendKey(StoreKey.State)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -55,6 +52,7 @@ export class Store {
                 TelegramNotificationTokenKey,
                 TelegramUserName,
                 LastExecutedMessageIdKey,
+                StateKey,
             ]
         }).promise()).Parameters ?? []
 
@@ -62,6 +60,7 @@ export class Store {
         this.settings.token = this.getValue(TelegramNotificationTokenKey, parameters)
         this.settings.username = this.getValue(TelegramUserName, parameters)
         this.settings.lastExecutedMessageId = this.getNumberValue(LastExecutedMessageIdKey, parameters)
+        this.settings.state = this.getValue(StateKey, parameters)
 
         return this.settings
     }
@@ -108,6 +107,7 @@ export class Store {
 enum StoreKey {
     // defichain-maxi related keys
     Skip = '/defichain-maxi/skip',
+    State = '/defichain-maxi/state',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
@@ -125,4 +125,5 @@ export class StoredSettings {
     token: string = ""
     lastExecutedMessageId: number|undefined
     username: string = ""
+    state: string = ""
 }
