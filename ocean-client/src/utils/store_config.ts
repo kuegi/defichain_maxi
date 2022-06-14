@@ -36,6 +36,10 @@ export class StoreConfig implements IStore {
         return result;
     }
 
+    async skipNext(): Promise<void> {
+        console.error("skipNext not implemented on config version")
+    }
+
     async updateToState(information: ProgramStateInformation): Promise<void> {
         fs.writeFileSync(this.statefile, ProgramStateConverter.toValue(information))
     }

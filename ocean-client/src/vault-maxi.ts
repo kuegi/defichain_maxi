@@ -16,6 +16,7 @@ class SettingsOverride {
     LMToken: string | undefined
     LMPair: string | undefined
     mainCollateralAsset: string | undefined
+    ignoreSkip: boolean = false
 }
 
 class maxiEvent {
@@ -49,6 +50,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     settings.LMPair = event.overrideSettings.LMPair
                 if (event.overrideSettings.mainCollateralAsset)
                     settings.mainCollateralAsset = event.overrideSettings.mainCollateralAsset
+                if(event.overrideSettings.ignoreSkip && settings.shouldSkipNext) {
+                    settings.shouldSkipNext= false
+                    await store.writeSkipNext()
+                }
             }
         }
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
