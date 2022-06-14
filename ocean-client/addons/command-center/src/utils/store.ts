@@ -45,6 +45,7 @@ export class Store {
 
         let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramNotificationChatId)
         let TelegramNotificationTokenKey = this.extendKey(StoreKey.TelegramNotificationToken)
+        let TelegramUserName = this.extendKey(StoreKey.TelegramUserName)
         let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
 
         //store only allows to get 10 parameters per request
@@ -52,12 +53,14 @@ export class Store {
             Names: [
                 TelegramNotificationChatIdKey,
                 TelegramNotificationTokenKey,
+                TelegramUserName,
                 LastExecutedMessageIdKey,
             ]
         }).promise()).Parameters ?? []
 
         this.settings.chatId = this.getValue(TelegramNotificationChatIdKey, parameters)
         this.settings.token = this.getValue(TelegramNotificationTokenKey, parameters)
+        this.settings.username = this.getValue(TelegramUserName, parameters)
         this.settings.lastExecutedMessageId = this.getNumberValue(LastExecutedMessageIdKey, parameters)
 
         return this.settings
@@ -113,6 +116,7 @@ enum StoreKey {
     // command center related keys
     TelegramNotificationChatId = '/defichain-maxi/command-center/telegram/chat-id',
     TelegramNotificationToken = '/defichain-maxi/command-center/telegram/token',
+    TelegramUserName = '/defichain-maxi/command-center/telegram/username',
     LastExecutedMessageId = '/defichain-maxi/command-center/last-executed-message-id',
 }
 
@@ -120,4 +124,5 @@ export class StoredSettings {
     chatId: string = ""
     token: string = ""
     lastExecutedMessageId: number|undefined
+    username: string = ""
 }
