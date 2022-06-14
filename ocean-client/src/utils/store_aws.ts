@@ -23,6 +23,17 @@ export class StoreAWS implements IStore {
         await this.ssm.putParameter(state).promise()
     }
 
+    async skipNext(): Promise<void> {
+        const key = StoreKey.Skip.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        this.ssm.putParameter({
+            Name: key,
+            Value: "true",
+            Overwrite: true,
+            Type: 'String'
+        }).send()
+
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
         // first check environment
 

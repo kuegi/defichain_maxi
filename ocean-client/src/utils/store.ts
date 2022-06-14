@@ -7,6 +7,7 @@ export interface IStore {
     readonly settings: StoredSettings;
     updateToState(information: ProgramStateInformation): Promise<void>;
     fetchSettings(): Promise<StoredSettings>;
+    skipNext(): Promise<void>;
 }
 
 export class Store {
@@ -34,6 +35,11 @@ export class Store {
 
     async fetchSettings(): Promise<StoredSettings> {
         return await this.storeprovider.fetchSettings()
+    }
+
+    async writeSkipNext(): Promise<void> {
+        await this.storeprovider.skipNext()
+
     }
 
 }
