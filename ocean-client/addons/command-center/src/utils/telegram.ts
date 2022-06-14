@@ -69,7 +69,7 @@ export class Telegram {
             }
             return {
                 id: notification.message.message_id,
-                command: notification.message.text,
+                command: notification.message.text.trim(),
                 username: notification.message.from.username,
                 is_bot: notification.message.from.is_bot,
                 chat_id: "" + notification.message.chat.id,
