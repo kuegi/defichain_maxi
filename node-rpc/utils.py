@@ -17,6 +17,7 @@ NODE_PASSWORD = "hunter12"
 
 TELEGRAM_TOKEN = None
 TELEGRAM_CHANNEL = None
+TELEGRAM_LOG_CHANNEL = None
 
 LOGGER = None
 logId = None
@@ -30,6 +31,25 @@ def smart_format(number, target_digit=5):
     log = min(math.log10(number), target_digit)
     return ("%0." + str(int(target_digit - log)) + "f") % number
 
+
+class dotdict(dict):
+    """dot.notation access to dictionary attributes"""
+
+    def __getattr__(self, attr):
+        return self.get(attr)
+
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
+def load_settings_from_args():
+    settingsPath = sys.argv[1] if len(sys.argv) > 1 else "settings.json"
+
+    print("Importing settings from %s" % settingsPath)
+    with open(settingsPath) as f:
+        settings = json.load(f)
+
+    return dotdict(settings)
 
 
 # ================================ Logging =========================================
@@ -62,8 +82,19 @@ def setup_logger(name="kuegi_defi", log_level=logging.INFO,
 def send_telegram(message):
     if TELEGRAM_TOKEN is not None and TELEGRAM_CHANNEL is not None:
         if logId is not None:
-            message = str(logId) + ": " + message
+            message = logId + ": " + message
         url = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN + '/sendMessage?chat_id=' + TELEGRAM_CHANNEL + '&text=' + message
+
+        result = requests.get(url).json()
+        if not result["ok"] and LOGGER is not None:
+            LOGGER.warning("error sending telegram messages " + str(result))
+
+
+def send_telegram_log(message):
+    if TELEGRAM_TOKEN is not None and TELEGRAM_LOG_CHANNEL is not None:
+        if logId is not None:
+            message = logId + ": " + message
+        url = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN + '/sendMessage?chat_id=' + TELEGRAM_LOG_CHANNEL + '&text=' + message
 
         result = requests.get(url).json()
         if not result["ok"] and LOGGER is not None:
@@ -126,18 +157,25 @@ class ChainData:
             return 1
 
 
-def calc_maxPrice_Amount(exchange_data, token, dfiAmount):
+def calc_maxPrice_Amount(exchange_data, token, dfiAmount, target_premium=1.5, minTolerance=0.01):
     premium = exchange_data.premium_for_token(token)
-    v = exchange_data.dataByPair[token + "-DUSD"]
-    maxPrice = floor(exchange_data.dfioracle() / (1.5 * v.oracle_price), 8)
-    amount = floor(dfiAmount * maxPrice, 7)  # to prevent floating problems on max positionsize
+    poolpair = token + "-DUSD"
+    v = exchange_data.dataByPair[poolpair]
+    if v.oracle_price <= 0:
+        return [0, 1, 1, 0]
+    maxPrice = floor(exchange_data.dfioracle() / (target_premium * v.oracle_price), 8)
     bestPrice = exchange_data.dfiData.dex_price / v.dex_price
+    maxSwap = maxSwapForPriceChange(poolpair, token, max(minTolerance,
+                                                         maxPrice / bestPrice - 1) * 0.75)  # buffer 75% of max change, against price problem
+    amount = floor(max(0, min(maxSwap, dfiAmount * maxPrice)), 7)  # to prevent floating problems on max positionsize
     return [premium, maxPrice, bestPrice, amount]
 
 
 def updateData(data):
     pools = rpc('listpoolpairs')
     for pool in pools.values():
+        poolByPair[pool['symbol']] = pool
+        poolByIdPair[pool['idTokenA'] + "-" + pool["idTokenB"]] = pool
         if pool['symbol'] == 'DUSD-DFI':
             data.dfiData.dex_price = pool['reserveA/reserveB']  # DFI-DUSD price is flipped to the others!
         elif pool['symbol'] in data.dataByPair.keys():
@@ -161,29 +199,99 @@ def updateData(data):
 
     prices = rpc('listprices')
     for price in prices:
-        if price['currency'] == 'USD' and price['ok']:
+        if price['currency'] == 'USD':
             pair = price['token'] + "-DUSD"
+            if price['ok'] and "price" in price:
+                usedPrice = price['price']
+            else:
+                usedPrice = 0
             if price['token'] == "DFI":
-                data.dfiData.live_oracle_price = price['price']
+                data.dfiData.live_oracle_price = usedPrice
             elif pair in data.dataByPair.keys():
-                data.dataByPair[pair].live_oracle_price = price['price']
+                data.dataByPair[pair].live_oracle_price = usedPrice
+
+
+poolByPair = {}
+poolByIdPair = {}
+
+
+def updatePoolData():
+    pools = rpc('listpoolpairs')
+    for pool in pools.values():
+        poolByPair[pool['symbol']] = pool
+        poolByIdPair[pool['idTokenA'] + "-" + pool["idTokenB"]] = pool
+
+
+def getReservesFromPool(poolPair, tokenIn):
+    if poolPair in poolByPair:
+        pool = poolByPair[poolPair]
+        forward = poolPair.startswith(tokenIn + "-")
+        poolF = pool["reserveA"]
+        poolT = pool["reserveB"]
+        if not forward:
+            poolF, poolT = poolT, poolF
+        return [poolF, poolT]
+    return [None, None]
+
+
+def estimatedNewPrice(poolPair, tokenIn, amountIn):
+    [poolF, poolT] = getReservesFromPool(poolPair, tokenIn)
+    if poolF is not None:
+        return ((poolF + amountIn) * (poolF + amountIn)) / (poolF * poolT)
+    return None
+
+
+def estimatedPoolChange(poolPair, tokenIn, amountIn):
+    [poolF, poolT] = getReservesFromPool(poolPair, tokenIn)
+    if poolF is not None:
+        # new price / currentPrice ->
+        return ((poolF + amountIn) * (poolF + amountIn)) / (poolF * poolF) - 1
+    return 0
+
+
+def estimatedSwappedAmount(poolPair, tokenIn, amountIn):
+    return amountIn / estimatedExecution(poolPair, tokenIn, amountIn)
+
+
+def maxSwapForPriceChange(poolPair, tokenIn, priceChange):
+    """
+    :param poolPair:
+    :param tokenIn:
+    :param priceChange: relative increase 0.1 for 10% increase
+    :return:
+    """
+    if priceChange <= 0:
+        return 0
+    [poolF, poolT] = getReservesFromPool(poolPair, tokenIn)
+    if poolF is not None:
+        return poolF * (math.sqrt(1 + priceChange) - 1)
+    return 0
+
+
+def estimatedExecution(poolPair, tokenIn, amount):
+    [poolF, poolT] = getReservesFromPool(poolPair, tokenIn)
+    if poolF is not None:
+        return (poolF + amount) / poolT
+    return 0
+
 
 # ===================================== RPC Stuff ===================================
-
 
 def blockcount():
     return rpc("getblockcount")
 
-def get_tx_input(address, minamount=0.001, count= 1):
+
+def get_tx_input(address, minamount=0.001, count=1):
     # get a random utxo (helps preventing problems when multiple scripts use the same address)
     unspent = rpc("listunspent", [1, 9999999, [address], False, {"minimumAmount": round(minamount, 8)}])
     if len(unspent) == 0:
         return []
-    unspent_sample= random.sample(unspent,min(len(unspent),count))
-    result= []
+    unspent_sample = random.sample(unspent, min(len(unspent), count))
+    result = []
     for tx in unspent_sample:
         result.append({'txid': tx["txid"], "vout": tx["vout"], "amount": tx["amount"]})
     return result
+
 
 def is_tx_confirmed(txId):
     if txId is None:
@@ -192,6 +300,7 @@ def is_tx_confirmed(txId):
     if tx:
         return "blockhash" in tx
     return False
+
 
 def rpc(method, params=None, silentErrors=False):
     if params is None:
@@ -220,19 +329,21 @@ def waitForTx(txId, loopSleep=1.0, timeoutBlocks=30):
     lastBlock = height + timeoutBlocks
     tx = rpc('gettransaction', [txId])
     while tx is not None and ("blockhash" not in tx) and (timeoutBlocks <= 0 or height <= lastBlock):
-        print(f"\r{height} waiting for tx", end="")
+        print(f"\r{height} waiting for tx {txId}", end="")
         sleep(loopSleep)
         tx = rpc('gettransaction', [txId])
         height = rpc('getblockcount')
     return tx is not None and (timeoutBlocks <= 0 or height <= lastBlock)
 
-def waitBlocks(numberOfBlocks, loopSleep= 1.0):
+
+def waitBlocks(numberOfBlocks, loopSleep=1.0):
     height = rpc('getblockcount')
     lastBlock = height + numberOfBlocks
     while height < lastBlock:
         print(f"\r{height} waiting ", end="")
         sleep(loopSleep)
         height = rpc('getblockcount')
+
 
 def get_account(address):
     balances = {}
