@@ -402,7 +402,8 @@ export class VaultMaxiProgram extends CommonProgram {
             }
         }
 
-        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram)) {
+        //not instant, but sometimes weird error. race condition? -> use explicit prevout now
+        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram,this.prevOutFromTx(removeTx))) {
             await telegram.send("done reducing exposure")
             return true
         }
@@ -445,7 +446,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
 
         console.log("removing as much exposure as possible: " + usedTokens.toFixed(5)
-            + "tokens. max from " + this.assetB + ": " + maxTokenFromAssetB.toFixed(5)
+            + " tokens. max from " + this.assetB + ": " + maxTokenFromAssetB.toFixed(5)
             + ", max from " + this.assetA + ": " + maxTokenFromAssetA.toFixed(5)
             + " max LPtoken available: " + lpTokens.amount)
         const removeTx = await this.removeLiquidity(+pool!.id, usedTokens)
@@ -473,7 +474,8 @@ export class VaultMaxiProgram extends CommonProgram {
             paybackTokens.push(token)
         }
 
-        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram)) {
+        //not instant, but sometimes weird error. race condition? -> use explicit prevout now
+        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram,this.prevOutFromTx(removeTx))) {
             await telegram.send("done removing exposure")
             return true
         }
@@ -488,23 +490,24 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
         let waitingTx = undefined
+        let used_prevout= prevout
         if (loanTokens.length > 0) {
             console.log(" paying back tokens " + loanTokens.map(token => " " + token.amount + "@" + token.symbol))
             let paybackTokens: TokenBalance[] = []
             loanTokens.forEach(addressToken => {
                 paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
             })
-            const paybackTx = await this.paybackLoans(paybackTokens, prevout)
+            const paybackTx = await this.paybackLoans(paybackTokens, used_prevout)
             waitingTx = paybackTx
-            prevout = this.prevOutFromTx(paybackTx)
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, paybackTx.txId)
+            used_prevout = this.prevOutFromTx(waitingTx)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
         }
         if (collateralTokens.length > 0) {
             console.log(" depositing tokens " + collateralTokens.map(token => " " + token.amount + "@" + token.symbol))
             for (const collToken of collateralTokens) {
-                const depositTx = await this.depositToVault(+collToken.id, new BigNumber(collToken.amount), prevout)
+                const depositTx = await this.depositToVault(+collToken.id, new BigNumber(collToken.amount), used_prevout)
                 waitingTx = depositTx
-                prevout = this.prevOutFromTx(depositTx)
+                used_prevout = this.prevOutFromTx(waitingTx)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
             }
         }
