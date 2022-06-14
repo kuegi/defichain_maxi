@@ -26,7 +26,7 @@ export class StoreAWS implements IStore {
     async fetchSettings(): Promise<StoredSettings> {
         // first check environment
 
-        let storePostfix = process.env.VAULTMAXI_STORE_POSTIX ?? ""
+        let storePostfix = process.env.VAULTMAXI_STORE_POSTFIX ?? (process.env.VAULTMAXI_STORE_POSTIX ?? "")
 
         this.settings.paramPostFix = storePostfix
         let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
