@@ -207,7 +207,6 @@ export class CommonProgram {
                 throw new Error("can't sign custom transaction")
             }
             txn = signed
-            console.log("sending with prevout: "+prevout.txid+":"+prevout.vout)
         }
         return this.send(txn, prevout ? 2000 : 0) //initial wait time when depending on other tx
     }
@@ -216,9 +215,9 @@ export class CommonProgram {
         const ctx = new CTransactionSegWit(txn)
         const hex: string = ctx.toHex()
 
-        console.log("Sending txId: " + ctx.txId)
+        console.log("Sending txId: " + ctx.txId+ " with input: "+ctx.vin[0].txid+":"+ctx.vin[0].index)
         let start = initialWaitTime
-        const waitTime = 5000
+        const waitTime = 10000
         const txId: string = await new Promise((resolve, error) => {
             let intervalID: NodeJS.Timeout
             const sendTransaction = (): void => {
@@ -229,7 +228,7 @@ export class CommonProgram {
                     this.pendingTx = ctx.txId
                     resolve(txId)
                 }).catch((e) => {
-                    if (start >= waitTime * 3) {
+                    if (start >= waitTime * 5) {
                         if (intervalID !== undefined) {
                             clearInterval(intervalID)
                         }
