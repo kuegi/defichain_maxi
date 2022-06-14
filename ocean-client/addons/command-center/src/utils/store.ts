@@ -3,16 +3,18 @@ import SSM from 'aws-sdk/clients/ssm'
 // handle AWS Paramter
 export class Store {
     private ssm: SSM
+    private postfix: string
     readonly settings: StoredSettings
 
     constructor() {
         this.ssm = new SSM()
+        this.postfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ""
         this.settings = new StoredSettings()
     }
 
     async updateExecutedMessageId(id: number): Promise<unknown> {
         const messageId = {
-            Name: StoreKey.LastExecutedMessageId,
+            Name: this.extendKey(StoreKey.LastExecutedMessageId),
             Value: "" + id,
             Overwrite: true,
             Type: 'String'
@@ -22,7 +24,7 @@ export class Store {
 
     async updateSkip(): Promise<unknown> {
         const skip = {
-            Name: StoreKey.Skip,
+            Name: this.extendKey(StoreKey.Skip),
             Value: "true",
             Overwrite: true,
             Type: 'String'
@@ -41,25 +43,29 @@ export class Store {
 
     async fetchSettings(): Promise<StoredSettings> {
 
+        let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramNotificationChatId)
+        let TelegramNotificationTokenKey = this.extendKey(StoreKey.TelegramNotificationToken)
+        let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
+
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
             Names: [
-                StoreKey.TelegramNotificationChatId,
-                StoreKey.TelegramNotificationToken,
-                StoreKey.LastExecutedMessageId,
+                TelegramNotificationChatIdKey,
+                TelegramNotificationTokenKey,
+                LastExecutedMessageIdKey,
             ]
         }).promise()).Parameters ?? []
 
-        this.settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
-        this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
-        this.settings.lastExecutedMessageId = this.getNumberValue(StoreKey.LastExecutedMessageId, parameters)
+        this.settings.chatId = this.getValue(TelegramNotificationChatIdKey, parameters)
+        this.settings.token = this.getValue(TelegramNotificationTokenKey, parameters)
+        this.settings.lastExecutedMessageId = this.getNumberValue(LastExecutedMessageIdKey, parameters)
 
         return this.settings
     }
 
     private async updateMaxCollateralRatio(ratio: string): Promise<unknown> {
         const maxCollateralRatio = {
-            Name: StoreKey.MaxCollateralRatio,
+            Name: this.extendKey(StoreKey.MaxCollateralRatio),
             Value: ratio,
             Overwrite: true,
             Type: 'String'
@@ -69,7 +75,7 @@ export class Store {
 
     private async updateMinCollateralRatio(ratio: string): Promise<unknown> {
         const minCollateralRatio = {
-            Name: StoreKey.MinCollateralRatio,
+            Name: this.extendKey(StoreKey.MinCollateralRatio),
             Value: ratio,
             Overwrite: true,
             Type: 'String'
@@ -89,6 +95,10 @@ export class Store {
     private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
         let value = parameters?.find(element => element.Name === key)?.Value
         return value ? JSON.parse(value) : undefined
+    }
+
+    private extendKey(key: StoreKey): string {
+        return key.replace("-maxi", "-maxi" + this.postfix)
     }
 }
 

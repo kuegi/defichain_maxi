@@ -1,6 +1,7 @@
 import { CheckMaxi } from "./check-maxi";
 import { Commands } from "./command";
 import { RemoveExposure } from "./remove-exposure";
+import { SetRange } from "./set-range";
 import { Skip } from "./skip";
 import { StoreCommand } from "./store-command";
 
@@ -14,12 +15,14 @@ export class Help extends StoreCommand {
         let checkMaxi = new CheckMaxi(this.telegram)
         let skip = new Skip(this.telegram, this.store)
         let removeExposure = new RemoveExposure(this.telegram, this.store)
+        let setRange = new SetRange(this.telegram, this.store, [])
 
         return "\n\nWelcome to your Command Center.\nHere is a list of available commands\n"
         + "\n/help\ndisplays all available commands with a short description\n"
         + "\n" + checkMaxi.name() + "\n" + checkMaxi.description() + "\n"
         + "\n" + skip.name() + "\n" + skip.description() + "\n"
-        + "\n" + removeExposure.name() + "\n" + removeExposure.description()
+        + "\n" + removeExposure.name() + "\n" + removeExposure.description() + "\n"
+        + "\n" + setRange.name() + "\n" + setRange.description()
     }
 
     successMessage(): string | undefined {
