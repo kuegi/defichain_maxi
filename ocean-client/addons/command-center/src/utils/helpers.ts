@@ -12,3 +12,8 @@ export function checkSafetyOf(message: Message, settings: StoredSettings): boole
             message.chat_id === settings.chatId && // only from configured chat
             !message.is_bot // message should not come from a bot
 }
+
+export function functionNameWithPostfix(): string {
+    let postfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ""
+    return "defichain-vault-maxi" + postfix
+}
