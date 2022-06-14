@@ -1,22 +1,19 @@
-import { Commands } from "./command";
-import { StoreCommand } from "./store-command";
+import { Command, Commands } from "./command";
+import { Execute } from "./execute";
 
-export class RemoveExposure extends StoreCommand {
+export class RemoveExposure extends Command {
 
     name(): string {
         return Commands.RemoveExposure
     }
 
     description(): string {
-        return "sets max-collateral-ratio to -1, which will remove exposure available to your vault-maxi. Removes all LM tokens and pays back loans. Be cautious of impermanent loss, which will still be left and need to be taken care manually"
-    }
-
-    successMessage(): string {
-        return "Your vault-maxis' max collateral ratio is set to -1"
+        return "Executes your vault-maxi with overridden settings max-collateral-ratio = -1, which will remove exposure available to your vault-maxi. Removes all LM tokens and pays back loans. Be cautious of impermanent loss, which will still be left and need to be taken care manually"
     }
 
     doExecution(): Promise<unknown> {
-        return this.store.removeExposure()
+        let execute = new Execute(this.telegram, '{"ignoreSkip": true, "overrideSettings":{"maxCollateralRatio": "-1"}}', "removeExposure execution done")
+        return execute.execute()
     }
 
 }

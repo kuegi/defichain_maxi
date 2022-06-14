@@ -1,6 +1,7 @@
 import { Command, Commands } from "./command";
 import { Lambda } from "aws-sdk";
 import { Telegram } from "../utils/telegram";
+import { functionNameWithPostfix } from "../utils/helpers";
 
 export class CheckMaxi extends Command {
 
@@ -8,8 +9,7 @@ export class CheckMaxi extends Command {
 
     constructor(telegram: Telegram) {
         super(telegram)
-        let postfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ""
-        this.functionName = "defichain-vault-maxi" + postfix
+        this.functionName = functionNameWithPostfix()
     }
 
     name(): string {
