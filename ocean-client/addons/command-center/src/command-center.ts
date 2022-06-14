@@ -8,7 +8,7 @@ import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
 
-const VERSION = "v1.0"
+const VERSION = "v1.0beta"
 
 async function execute(messages: Message[], settings: StoredSettings, telegram: Telegram, store: Store) {
     for (const message of messages) {
