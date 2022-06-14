@@ -2,6 +2,7 @@ import { CheckMaxi } from './commands/check-maxi'
 import { Command, Commands } from './commands/command'
 import { Help } from './commands/help'
 import { RemoveExposure } from './commands/remove-exposure'
+import { SetRange } from './commands/set-range'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
@@ -13,8 +14,12 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
     for (const message of messages) {
         let isSafe = checkSafetyOf(message, settings)
         if (isSafe) {
+            let commandData = message.command.split(" ")
+            if (commandData.length == 0) {
+                continue
+            }
             let command: Command | undefined
-            switch (message.command) {
+            switch (commandData[0]) {
                 case Commands.Help:
                     command = new Help(telegram, store)
                     break
@@ -26,6 +31,9 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
                     break
                 case Commands.RemoveExposure:
                     command = new RemoveExposure(telegram, store)
+                    break
+                case Commands.SetRange:
+                    command = new SetRange(telegram, store, commandData)
                     break
                 default:
                     console.log("ignore " + message.command)
