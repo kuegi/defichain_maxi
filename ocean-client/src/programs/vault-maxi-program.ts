@@ -179,8 +179,9 @@ export class VaultMaxiProgram extends CommonProgram {
                     console.warn(message)
                     return true//can still run
                 }
+                const safeRatio= safeCollRatio/100
+                const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).div(safeRatio))
                 if (!this.isSingleMint) {
-                    const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
                     const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount, pool!.priceRatio.ba))
                     const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
                     const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
@@ -205,9 +206,9 @@ export class VaultMaxiProgram extends CommonProgram {
                             oracleB = new BigNumber(coll.activePrice?.active?.amount ?? "0")
                         }
                     })
-                    const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).multipliedBy(100).div(safeCollRatio))
-                    const neededLPtokens = neededrepay.times(this.targetCollateral).times(pool.totalLiquidity.token)
-                        .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(this.targetCollateral),
+
+                    const neededLPtokens = neededrepay.times(safeRatio).times(pool.totalLiquidity.token)
+                        .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(safeRatio),
                             oracleB.times(pool.tokenB.reserve)))
 
                     const neededAssetA = neededLPtokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
