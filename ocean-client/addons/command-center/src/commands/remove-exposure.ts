@@ -12,7 +12,7 @@ export class RemoveExposure extends Command {
     }
 
     doExecution(): Promise<unknown> {
-        let execute = new Execute(this.telegram, '{"ignoreSkip": true, "overrideSettings":{"maxCollateralRatio": "-1"}}', "removeExposure execution done")
+        let execute = new Execute(this.telegram, '{"overrideSettings":{"ignoreSkip": true, "maxCollateralRatio": "-1"}}', "removeExposure execution done")
         return execute.execute()
     }
 
