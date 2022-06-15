@@ -1,5 +1,4 @@
-import fetch from "cross-fetch";
-import { extendForListOfPoolPairs, Poolpair } from "../utils/helpers";
+import { fetchListOfPoolPairs } from "../utils/helpers";
 import { Commands } from "./command";
 import { Skip } from "./skip";
 import { StoreParameterCommand } from "./store-parameter-command";
@@ -11,15 +10,8 @@ export class SetToken extends StoreParameterCommand {
 
     private usageMessage: string = "/setToken QQQ\nwill result in\ntoken = QQQ"
 
-    private oceanURL: string = process.env.VAULTMAXI_OCEAN_URL ?? "https://ocean.defichain.com"
-
     async prepare() {
-        const response = await fetch(extendForListOfPoolPairs(this.oceanURL))
-        const json = await response.json()
-        let poolpairs = json["data"] as Poolpair[]
-        this.listOfTokens = poolpairs.map((poolpair) => {
-            return poolpair.symbol.replace("-DUSD", "")
-        })
+        this.listOfTokens = await fetchListOfPoolPairs()
     }
 
     parseCommandData(): void {
