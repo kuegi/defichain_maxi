@@ -47,6 +47,16 @@ export class Store {
         return this.ssm.putParameter(reinvest).promise()
     }
 
+    async updateToken(value: string): Promise<unknown> {
+        const token = {
+            Name: this.extendKey(StoreKey.LMToken),
+            Value: value,
+            Overwrite: true,
+            Type: 'String'
+        }
+        return this.ssm.putParameter(token).promise()
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
 
         let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramNotificationChatId)

@@ -1,6 +1,10 @@
 import { StoredSettings } from "./store";
 import { Message } from "./telegram";
 
+export interface Poolpair {
+    symbol: string
+}
+
 export function isNullOrEmpty(value: string): boolean {
     return value === undefined || value.length === 0
 }
@@ -23,4 +27,8 @@ export function isNumber(value: string|undefined): boolean {
         return false
     }
     return !isNaN(Number(value))
+}
+
+export function extendForListOfPoolPairs(url: string): string {
+    return url + "/v0/mainnet/poolpairs?size=1000"
 }
