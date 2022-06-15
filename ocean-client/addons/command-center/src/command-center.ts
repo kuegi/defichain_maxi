@@ -5,6 +5,7 @@ import { Help } from './commands/help'
 import { RemoveExposure } from './commands/remove-exposure'
 import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
+import { SetToken } from './commands/set-token'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
@@ -41,6 +42,9 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
             case Commands.SetReinvest:
                 command = new SetReinvest(telegram, store, commandData)
                 break
+            case Commands.SetToken:
+                command = new SetToken(telegram, store, commandData)
+                await (command as SetToken).prepare()
             default:
                 console.log("ignore " + message.command)
                 break
@@ -60,13 +64,15 @@ export async function main(): Promise<Object> {
         return checkSafetyOf(message, settings)
     })
     if (messages.length > 0) {
+        // Krysh: update last message right away to avoid infinite error loops because of some command
+        // couldn't be processed.
+        await store.updateExecutedMessageId(messages.slice(-1)[0].id)
         let isIdle = settings.state.startsWith("idle")
         if (isIdle) {
             await execute(messages, settings, telegram, store)
         } else {
             await telegram.send("Your vault-maxi is busy. Try again later")
         }
-        await store.updateExecutedMessageId(messages.slice(-1)[0].id)
     }
 
     return { statusCode: 200 }
