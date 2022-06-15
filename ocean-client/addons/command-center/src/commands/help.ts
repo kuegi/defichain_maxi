@@ -1,3 +1,4 @@
+import { ChangeTokenTo } from "./change-token-to";
 import { CheckMaxi } from "./check-maxi";
 import { Commands } from "./command";
 import { Execute } from "./execute";
@@ -22,15 +23,16 @@ export class Help extends StoreCommand {
         let setRange = new SetRange(this.telegram, this.store, [])
         let setReinvest = new SetReinvest(this.telegram, this.store, [])
         let setToken = new SetToken(this.telegram, this.store, [])
+        let changeTokenTo = new ChangeTokenTo(this.telegram, this.store, [])
 
         return "\n\nWelcome to your Command Center.\nHere is a list of available commands\n"
-        + "\n/help\ndisplays all available commands with a short description\n"
         + "\n" + checkMaxi.name() + "\n" + checkMaxi.description() + "\n"
         + "\n" + execute.name() + "\n" + execute.description() + "\n"
         + "\n" + skip.name() + "\n" + skip.description() + "\n"
         + "\n" + removeExposure.name() + "\n" + removeExposure.description() + "\n"
         + "\n" + setRange.name() + "\n" + setRange.description() + "\n"
         + "\n" + setReinvest.name() + "\n" + setReinvest.description() + "\n"
+        + "\n" + changeTokenTo.name() + "\n" + changeTokenTo.description() + "\n"
         + "\n" + setToken.name() + "\n" + setToken.description()
     }
 

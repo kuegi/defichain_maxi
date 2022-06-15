@@ -1,3 +1,4 @@
+import { ChangeTokenTo } from './commands/change-token-to'
 import { CheckMaxi } from './commands/check-maxi'
 import { Command, Commands } from './commands/command'
 import { Execute } from './commands/execute'
@@ -45,10 +46,16 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
             case Commands.SetToken:
                 command = new SetToken(telegram, store, commandData)
                 await (command as SetToken).prepare()
+                break
+            case Commands.ChangeTokenTo:
+                command = new ChangeTokenTo(telegram, store, commandData)
+                await (command as ChangeTokenTo).prepare()
+                break
             default:
                 console.log("ignore " + message.command)
                 break
         }
+        await telegram.send("executing " + message.command)
         await command?.execute()
     }
 }

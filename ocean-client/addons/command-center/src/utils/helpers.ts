@@ -1,9 +1,12 @@
+import fetch from "cross-fetch";
 import { StoredSettings } from "./store";
 import { Message } from "./telegram";
 
 export interface Poolpair {
     symbol: string
 }
+
+export const oceanURL = process.env.VAULTMAXI_OCEAN_URL ?? "https://ocean.defichain.com"
 
 export function isNullOrEmpty(value: string): boolean {
     return value === undefined || value.length === 0
@@ -31,4 +34,13 @@ export function isNumber(value: string|undefined): boolean {
 
 export function extendForListOfPoolPairs(url: string): string {
     return url + "/v0/mainnet/poolpairs?size=1000"
+}
+
+export async function fetchListOfPoolPairs(): Promise<string[]> {
+    const response = await fetch(extendForListOfPoolPairs(oceanURL))
+    const json = await response.json()
+    let poolpairs = json["data"] as Poolpair[]
+    return poolpairs.map((poolpair) => {
+        return poolpair.symbol.replace("-DUSD", "")
+    })
 }
