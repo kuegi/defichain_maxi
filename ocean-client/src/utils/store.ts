@@ -57,6 +57,7 @@ export class StoredSettings {
     maxCollateralRatio: number = 250
     LMPair: string = "GLD-DUSD"
     mainCollateralAsset: string = "DFI"
+    stableCoinArbBatchSize: number = -1
     reinvestThreshold: number | undefined
     stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
     shouldSkipNext: boolean = false

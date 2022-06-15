@@ -179,14 +179,14 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const txn = await this.account!.withTransactionBuilder().dex.poolSwap({
             fromScript: this.script!,
             fromTokenId: fromTokenId,
             fromAmount: amount,
             toScript: this.script!,
             toTokenId: toTokenId,
-            maxPrice: new BigNumber(999999999)
+            maxPrice: maxPrice
         }, this.script!)
         return this.sendWithPrevout(txn, prevout)
     }

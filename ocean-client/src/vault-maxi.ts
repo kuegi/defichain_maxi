@@ -6,7 +6,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
-import { delay, isNullOrEmpty, nextCollateralRatio } from './utils/helpers'
+import { delay, isNullOrEmpty, nextCollateralRatio, nextCollateralValue, nextLoanValue } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 
@@ -185,6 +185,20 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
                         result = await program.increaseExposure(vault, pool!, balances, telegram)
                         exposureChanged = true
+                        vault = await program.getVault() as LoanVaultActive
+                        balances = await program.getTokenBalances()
+                    }
+                }
+                if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS && settings.mainCollateralAsset === "DUSD" && settings.stableCoinArbBatchSize > 0) {// enough time left -> continue
+                    const freeCollateral=  BigNumber.min(+vault.collateralValue - (+vault.loanValue*+vault.loanScheme.minColRatio),
+                                                nextCollateralValue(vault).minus(nextLoanValue(vault).times(vault.loanScheme.minColRatio)))
+                    if (freeCollateral.lt(settings.stableCoinArbBatchSize)) {
+                        const message = "available collateral is less than batchsize for Arb, please adjust"
+                        await telegram.send(message)
+                        console.warn(message)
+                    } else {
+                        result = await program.checkAndDoStableArb(vault, pool!, settings.stableCoinArbBatchSize, telegram)
+                        exposureChanged = result
                         vault = await program.getVault() as LoanVaultActive
                         balances = await program.getTokenBalances()
                     }
