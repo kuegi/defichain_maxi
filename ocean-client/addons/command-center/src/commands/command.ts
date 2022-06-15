@@ -8,6 +8,8 @@ export enum Commands {
     RemoveExposure = "/removeExposure",
     SetRange = "/setRange",
     SetReinvest = "/setReinvest",
+    SetToken = "/setToken",
+    ChangeTokenTo = "/changeTokenTo"
 }
 
 export abstract class Command {
