@@ -107,12 +107,12 @@ export class StoreAWS implements IStore {
         this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false" ) === "true"
         if(this.settings.shouldSkipNext) {
             //reset to false, so no double skip ever
-            this.ssm.putParameter({
+            await this.ssm.putParameter({
                 Name: SkipKey,
                 Value: "false",
                 Overwrite: true,
                 Type: 'String'
-            }).send()
+            }).promise()
         }
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
