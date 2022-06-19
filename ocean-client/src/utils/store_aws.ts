@@ -52,6 +52,7 @@ export class StoreAWS implements IStore {
         let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
         let SkipKey = StoreKey.Skip.replace("-maxi", "-maxi" + storePostfix)
+        let StableArbBatchSizeKey = StoreKey.StableArbBatchSize.replace("-maxi", "-maxi" + storePostfix)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -60,6 +61,7 @@ export class StoreAWS implements IStore {
                 StoreKey.TelegramNotificationToken,
                 StoreKey.TelegramLogsChatId,
                 StoreKey.TelegramLogsToken,
+                StableArbBatchSizeKey,
             ]
         }).promise()).Parameters ?? []
 
@@ -104,6 +106,7 @@ export class StoreAWS implements IStore {
         this.settings.mainCollateralAsset = this.getOptionalValue(MainCollAssetKey, parameters) ?? "DFI"
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+        this.settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
         this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false" ) === "true"
         if(this.settings.shouldSkipNext) {
             //reset to false, so no double skip ever
@@ -155,4 +158,5 @@ enum StoreKey {
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     State = '/defichain-maxi/state',
     Skip = '/defichain-maxi/skip',
+    StableArbBatchSize = '/defichain-maxi/stable-arb-batch-size',
 }

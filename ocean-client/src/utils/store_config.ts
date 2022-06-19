@@ -68,6 +68,7 @@ export class StoreConfig implements IStore {
         this.settings.LMPair = lmPair
         this.settings.mainCollateralAsset = this.config.mainCollateralAsset
         this.settings.reinvestThreshold = this.config.reinvestThreshold;
+        this.settings.stableCoinArbBatchSize = this.config.stableArbBatchSize ?? -1;
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile));
         let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, " ");
         this.settings.seed = seedList?.trim().split(' ') ?? [];
@@ -89,4 +90,5 @@ class ConfigFile {
     LMPair: string | undefined
     mainCollateralAsset: string = "DFI"
     reinvestThreshold: number | undefined = 0
+    stableArbBatchSize: number | undefined = -1
 }
