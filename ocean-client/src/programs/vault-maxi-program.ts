@@ -643,7 +643,8 @@ export class VaultMaxiProgram extends CommonProgram {
         const usdtColl = vault.collateralAmounts.find(coll => coll.symbol === "USDT")
         const usdcColl = vault.collateralAmounts.find(coll => coll.symbol === "USDC")
         const dusdColl = vault.collateralAmounts.find(coll => coll.symbol === "DUSD")
-
+        const dfiColl = vault.collateralAmounts.find(coll => coll.symbol === "DFI")
+        
         const dusdPerUsdt = new BigNumber(dusdPool?.priceRatio.ab).multipliedBy(usdtPool?.priceRatio.ba)
         const dusdPerUsdc = new BigNumber(dusdPool?.priceRatio.ab).multipliedBy(usdcPool?.priceRatio.ba)
 
@@ -652,14 +653,14 @@ export class VaultMaxiProgram extends CommonProgram {
         let target: LoanVaultTokenAmount | TokenData | undefined
         
         if (BigNumber.max(dusdPerUsdc, dusdPerUsdt).gte(1 + minOffPeg)) { //premium case: swap stable -> DUSD
-            target = dusdColl!
+            target = dusdColl ?? await this.getToken("DUSD")
             if (dusdPerUsdt.gt(dusdPerUsdc) && +(usdtColl?.amount ?? "0") > 0) {
                 coll = usdtColl!
             } else if (dusdPerUsdc.gt(1 + minOffPeg) && +(usdcColl?.amount ?? "0") > 0) {
                 coll = usdcColl!
             }
-        } else if (BigNumber.min(dusdPerUsdc, dusdPerUsdt).lte(1 - minOffPeg)//discount case: swap  DUSD -> stable
-            && +dusdColl!.amount - stableCoinArbBatchSize > +vault.collateralValue * 0.6) { //keep buffer in case of market fluctuation
+        } else if (+(dusdColl?.amount ?? "0") > 0 && BigNumber.min(dusdPerUsdc, dusdPerUsdt).lte(1 - minOffPeg)//discount case: swap  DUSD -> stable
+            && (+(dusdColl?.amount ?? "0") + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
             if (dusdPerUsdt.lt(dusdPerUsdc)) {
                 target = usdtColl ?? await this.getToken("USDT")
             } else {

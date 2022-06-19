@@ -189,11 +189,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                         balances = await program.getTokenBalances()
                     }
                 }
-                if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS && settings.mainCollateralAsset === "DUSD" && settings.stableCoinArbBatchSize > 0) {// enough time left -> continue
+                if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS && settings.stableCoinArbBatchSize > 0) {// enough time left -> continue
                     const freeCollateral=  BigNumber.min(+vault.collateralValue - (+vault.loanValue*+vault.loanScheme.minColRatio),
                                                 nextCollateralValue(vault).minus(nextLoanValue(vault).times(vault.loanScheme.minColRatio)))
                     if (freeCollateral.lt(settings.stableCoinArbBatchSize)) {
-                        const message = "available collateral is less than batchsize for Arb, please adjust"
+                        const message = "available collateral (from ratio) is less than batchsize for Arb, please adjust"
                         await telegram.send(message)
                         console.warn(message)
                     } else {
