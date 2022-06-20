@@ -13,54 +13,30 @@ export class Store {
     }
 
     async updateExecutedMessageId(id: number): Promise<unknown> {
-        const messageId = {
-            Name: this.extendKey(StoreKey.LastExecutedMessageId),
-            Value: "" + id,
-            Overwrite: true,
-            Type: 'String'
-        }
-        return this.ssm.putParameter(messageId).promise()
+        return this.updateParameter(StoreKey.LastExecutedMessageId, "" + id)
     }
 
     async updateSkip(): Promise<unknown> {
-        const skip = {
-            Name: this.extendKey(StoreKey.Skip),
-            Value: "true",
-            Overwrite: true,
-            Type: 'String'
-        }
-        return this.ssm.putParameter(skip).promise()
+        return this.updateParameter(StoreKey.Skip, "true")
     }
 
     async updateRange(min: string, max: string): Promise<void> {
-        await this.updateMinCollateralRatio(min)
-        await this.updateMaxCollateralRatio(max)
+        await this.updateParameter(StoreKey.MinCollateralRatio, min)
+        await this.updateParameter(StoreKey.MaxCollateralRatio, max)
     }
 
     async updateReinvest(value: string): Promise<unknown> {
-        const reinvest = {
-            Name: this.extendKey(StoreKey.Reinvest),
-            Value: value,
-            Overwrite: true,
-            Type: 'String'
-        }
-        return this.ssm.putParameter(reinvest).promise()
+        return this.updateParameter(StoreKey.Reinvest, value)
     }
 
     async updateToken(value: string): Promise<unknown> {
-        const token = {
-            Name: this.extendKey(StoreKey.LMToken),
-            Value: value,
-            Overwrite: true,
-            Type: 'String'
-        }
-        return this.ssm.putParameter(token).promise()
+        return this.updateParameter(StoreKey.LMToken, value)
     }
 
     async fetchSettings(): Promise<StoredSettings> {
 
-        let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramNotificationChatId)
-        let TelegramNotificationTokenKey = this.extendKey(StoreKey.TelegramNotificationToken)
+        let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramChatId)
+        let TelegramNotificationTokenKey = this.extendKey(StoreKey.TelegramToken)
         let TelegramUserName = this.extendKey(StoreKey.TelegramUserName)
         let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
         let StateKey = this.extendKey(StoreKey.State)
@@ -85,24 +61,14 @@ export class Store {
         return this.settings
     }
 
-    private async updateMaxCollateralRatio(ratio: string): Promise<unknown> {
-        const maxCollateralRatio = {
-            Name: this.extendKey(StoreKey.MaxCollateralRatio),
-            Value: ratio,
+    private async updateParameter(key: StoreKey, value: string): Promise<unknown> {
+        const newValue = {
+            Name: this.extendKey(key),
+            Value: value,
             Overwrite: true,
             Type: 'String'
         }
-        return this.ssm.putParameter(maxCollateralRatio).promise()
-    }
-
-    private async updateMinCollateralRatio(ratio: string): Promise<unknown> {
-        const minCollateralRatio = {
-            Name: this.extendKey(StoreKey.MinCollateralRatio),
-            Value: ratio,
-            Overwrite: true,
-            Type: 'String'
-        }
-        return this.ssm.putParameter(minCollateralRatio).promise()
+        return this.ssm.putParameter(newValue).promise()
     }
 
     private getValue(key: string, parameters: SSM.ParameterList): string {
@@ -134,8 +100,8 @@ enum StoreKey {
     Reinvest = '/defichain-maxi/settings/reinvest',
 
     // command center related keys
-    TelegramNotificationChatId = '/defichain-maxi/command-center/telegram/chat-id',
-    TelegramNotificationToken = '/defichain-maxi/command-center/telegram/token',
+    TelegramChatId = '/defichain-maxi/command-center/telegram/chat-id',
+    TelegramToken = '/defichain-maxi/command-center/telegram/token',
     TelegramUserName = '/defichain-maxi/command-center/telegram/username',
     LastExecutedMessageId = '/defichain-maxi/command-center/last-executed-message-id',
 }

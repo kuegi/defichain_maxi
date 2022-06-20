@@ -53,21 +53,16 @@ export class ChangeTokenTo extends StoreParameterCommand {
     }
     
     async doExecution(): Promise<unknown> {
-        if (this.token === undefined) {
-            // Krysh: will never be executed, as validation should fail
-            return new Promise<void>(resolve => {})
-        }
-
         // 1) set skip to true
         let skip = new Skip(this.telegram, this.store)
         await skip.execute()
 
         // 2) remove exposure from current configured token
-        let removeExposure = new RemoveExposure(this.telegram)
+        let removeExposure = new RemoveExposure(this.telegram, this.store)
         await removeExposure.execute()
 
         // 3) update token
-        await this.store.updateToken(this.token)
+        await this.store.updateToken(this.token!)
         
         // 4) finally execute again to ensure new token is active
         let execute = new Execute(this.telegram, '{"overrideSettings":{"ignoreSkip": true}}', "Change to " + this.token + " finished successfully.")
