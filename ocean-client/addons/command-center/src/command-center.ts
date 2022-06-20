@@ -35,7 +35,7 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
                 command = new Skip(telegram, store)
                 break
             case Commands.RemoveExposure:
-                command = new RemoveExposure(telegram)
+                command = new RemoveExposure(telegram, store)
                 break
             case Commands.SetRange:
                 command = new SetRange(telegram, store, commandData)
