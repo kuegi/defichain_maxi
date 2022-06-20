@@ -49,15 +49,10 @@ export class SetToken extends StoreParameterCommand {
     }
 
     async doExecution(): Promise<unknown> {
-        if (this.token === undefined) {
-            // Krysh: will never be executed, as validation should fail
-            return new Promise<void>(resolve => {})
-        }
-
         let skip = new Skip(this.telegram, this.store)
         await skip.execute()
 
-        return this.store.updateToken(this.token)
+        return this.store.updateToken(this.token!)
     }
 
 }

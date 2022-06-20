@@ -19,7 +19,7 @@ export class Help extends StoreCommand {
         let checkMaxi = new CheckMaxi(this.telegram)
         let execute = new Execute(this.telegram)
         let skip = new Skip(this.telegram, this.store)
-        let removeExposure = new RemoveExposure(this.telegram)
+        let removeExposure = new RemoveExposure(this.telegram, this.store)
         let setRange = new SetRange(this.telegram, this.store, [])
         let setReinvest = new SetReinvest(this.telegram, this.store, [])
         let setToken = new SetToken(this.telegram, this.store, [])
