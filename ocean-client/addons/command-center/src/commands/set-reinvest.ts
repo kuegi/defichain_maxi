@@ -36,11 +36,7 @@ export class SetReinvest extends StoreParameterCommand {
     }
 
     async doExecution(): Promise<unknown> {
-        if (this.reinvest === undefined) {
-            // Krysh: will never be executed, as validation should fail
-            return new Promise<void>(resolve => {})
-        }
-        await this.store.updateReinvest(this.reinvest)
+        await this.store.updateReinvest(this.reinvest!)
         let checkMaxi = new CheckMaxi(this.telegram)
         return checkMaxi.execute()
     }

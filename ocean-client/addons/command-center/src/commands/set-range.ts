@@ -44,11 +44,7 @@ export class SetRange extends StoreParameterCommand {
     }
 
     async doExecution(): Promise<unknown> {
-        if (this.minCollateralRatio === undefined || this.maxCollateralRatio === undefined) {
-            // Krysh: will never be executed, as validation should fail
-            return new Promise<void>(resolve => {})
-        }
-        await this.store.updateRange(this.minCollateralRatio, this.maxCollateralRatio)
+        await this.store.updateRange(this.minCollateralRatio!, this.maxCollateralRatio!)
         let checkMaxi = new CheckMaxi(this.telegram)
         return checkMaxi.execute()
     }
