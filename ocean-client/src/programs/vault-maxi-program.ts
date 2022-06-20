@@ -777,7 +777,7 @@ export class VaultMaxiProgram extends CommonProgram {
                     }
                 })
                 console.log("swaping " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + ") DFI to " + this.mainCollateralAsset)
-                const swap = await this.swap(amountToUse, 0, mainTokenId, prevout)
+                const swap = await this.swap(amountToUse, 0, mainTokenId, new BigNumber(999999999), prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
                 if (! await this.waitForTx(swap.txId)) {
                     await telegram.send("ERROR: swapping reinvestment failed")

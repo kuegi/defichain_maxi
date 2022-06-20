@@ -147,16 +147,19 @@ enum StoreKey {
     TelegramNotificationToken = '/defichain-maxi/telegram/notifications/token',
     TelegramLogsChatId = '/defichain-maxi/telegram/logs/chat-id',
     TelegramLogsToken = '/defichain-maxi/telegram/logs/token',
+
     DeFiAddress = '/defichain-maxi/wallet/address',
     DeFiVault = '/defichain-maxi/wallet/vault',
     DeFiWalletSeed = '/defichain-maxi/wallet/seed',
+    
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
     LMPair = '/defichain-maxi/settings/lm-pair',
     MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
+    StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
+
     State = '/defichain-maxi/state',
     Skip = '/defichain-maxi/skip',
-    StableArbBatchSize = '/defichain-maxi/stable-arb-batch-size',
 }
