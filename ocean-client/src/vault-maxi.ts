@@ -26,7 +26,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-const VERSION = "v2.0beta"
+export const VERSION = "v2.0beta"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
@@ -244,7 +244,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 state: ProgramState.Error,
                 tx: "",
                 txId: commonProgram?.pendingTx ?? "",
-                blockHeight: 0
+                blockHeight: 0,
+                version: VERSION
             })
             await delay(60000) // cooldown and not to spam telegram
         }

@@ -11,6 +11,7 @@ import { CTransactionSegWit, TokenBalance, Transaction } from "@defichain/jellyf
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
+import { VERSION } from "../vault-maxi";
 
 
 export enum VaultMaxiProgramTransaction {
@@ -840,7 +841,8 @@ export class VaultMaxiProgram extends CommonProgram {
             state: state,
             tx: transaction,
             txId: txId,
-            blockHeight: await this.getBlockHeight()
+            blockHeight: await this.getBlockHeight(),
+            version: VERSION
         })
     }
 

@@ -37,3 +37,6 @@
 
 * [X] single mint version
 * [X] add "skip" parameter to skip one execution (used by add ons)
+* [X] add version to state
+* [ ] add donationOnReinvest parameter
+* [ ] remove exposure if interest threshold breached
