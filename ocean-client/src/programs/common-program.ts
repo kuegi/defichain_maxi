@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, DeFiTransactionConstants, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
+import { CTransactionSegWit, DeFiTransactionConstants, PoolId, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
@@ -190,6 +190,22 @@ export class CommonProgram {
         }, this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
+
+    async compositeswap(amount: BigNumber, fromTokenId: number, toTokenId: number, pools: PoolId[], maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const txn = await this.account!.withTransactionBuilder().dex.compositeSwap({
+            poolSwap: {
+            fromScript: this.script!,
+            fromTokenId: fromTokenId,
+            fromAmount: amount,
+            toScript: this.script!,
+            toTokenId: toTokenId,
+            maxPrice: maxPrice
+            },
+            pools: pools
+        }, this.script!)
+        return this.sendWithPrevout(txn, prevout)
+    }
+
 
 
     async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransactionSegWit> {

@@ -7,7 +7,7 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CTransactionSegWit, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
+import { CTransactionSegWit, PoolId, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
@@ -304,6 +304,7 @@ export class VaultMaxiProgram extends CommonProgram {
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
+            + "\n"+ (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size"+this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
 
         console.log(message)
@@ -646,40 +647,60 @@ export class VaultMaxiProgram extends CommonProgram {
         const dusdColl = vault.collateralAmounts.find(coll => coll.symbol === "DUSD")
         const dfiColl = vault.collateralAmounts.find(coll => coll.symbol === "DFI")
         
-        const dusdPerUsdt = new BigNumber(dusdPool?.priceRatio.ab).multipliedBy(usdtPool?.priceRatio.ba)
-        const dusdPerUsdc = new BigNumber(dusdPool?.priceRatio.ab).multipliedBy(usdcPool?.priceRatio.ba)
+        const usdtPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdtPool?.priceRatio.ab)
+        const usdcPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdcPool?.priceRatio.ab)
 
         const minOffPeg = 0.02
+        const pegReference = +(process.env.VAULTMAXI_DUSD_PEG_REF ?? "1")
         let coll: LoanVaultTokenAmount | undefined
-        let target: LoanVaultTokenAmount | TokenData | undefined
-        
-        if (BigNumber.max(dusdPerUsdc, dusdPerUsdt).gte(1 + minOffPeg)) { //premium case: swap stable -> DUSD
-            target = dusdColl ?? await this.getToken("DUSD")
-            if (dusdPerUsdt.gt(dusdPerUsdc) && +(usdtColl?.amount ?? "0") > 0) {
+        let target: LoanVaultTokenAmount | { id: string; symbol: string; } | undefined
+
+        console.log("stable arb: "+usdcPerDUSD.toFixed(4)+ " "+usdtPerDUSD.toFixed(4)+" vs "+pegReference+" min diff "+minOffPeg+". batchsize: "+stableCoinArbBatchSize)
+        let pools : PoolId[] = []
+        let maxPrice= pegReference
+        if (BigNumber.min(usdcPerDUSD, usdtPerDUSD).lte(pegReference - minOffPeg)) { //discount case: swap stable -> DUSD
+             target = dusdColl ?? dusdPool.tokenA 
+            if (usdtPerDUSD.gt(usdcPerDUSD) && +(usdtColl?.amount ?? "0") > 0) {
                 coll = usdtColl!
-            } else if (dusdPerUsdc.gt(1 + minOffPeg) && +(usdcColl?.amount ?? "0") > 0) {
+                pools = [{id:+usdtPool.id}]
+            } else if (usdcPerDUSD.gt(1 + minOffPeg) && +(usdcColl?.amount ?? "0") > 0) {
                 coll = usdcColl!
+                pools = [{id:+usdcPool.id}]
             }
-        } else if (+(dusdColl?.amount ?? "0") > 0 && BigNumber.min(dusdPerUsdc, dusdPerUsdt).lte(1 - minOffPeg)//discount case: swap  DUSD -> stable
+            pools.push({id:+dusdPool.id})
+            console.log("found premium of "+coll?.symbol)
+            maxPrice= pegReference           
+        } else if (+(dusdColl?.amount ?? "0") > 0 && BigNumber.max(usdcPerDUSD, usdtPerDUSD).gte(pegReference + minOffPeg)//premium case: swap  DUSD -> stable
             && (+(dusdColl?.amount ?? "0") + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
-            if (dusdPerUsdt.lt(dusdPerUsdc)) {
-                target = usdtColl ?? await this.getToken("USDT")
-            } else {
-                target = usdcColl ?? await this.getToken("USDC")
-            }
             coll = dusdColl!
+            pools = [{id:+dusdPool.id}]
+            if (usdtPerDUSD.lt(usdcPerDUSD)) {
+                target = usdtColl ??  usdtPool.tokenA 
+                pools.push({id:+usdtPool.id})
+            } else {
+                target = usdcColl ?? usdcPool.tokenA 
+                pools.push({id:+usdcPool.id})
+            }
+            console.log("found discount of "+target?.symbol)
+            maxPrice= 1/pegReference
         }
         if (coll && target) {
             const size = BigNumber.min(stableCoinArbBatchSize, coll.amount)
             const withdrawTx = await this.withdrawFromVault(+coll.id, size)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, withdrawTx.txId)
             let prevout = this.prevOutFromTx(withdrawTx)
-            const swap = await this.swap(size, +coll.id, +target!.id, new BigNumber(1), prevout)
+            let swap
+            try {
+                swap = await this.compositeswap(size, +coll.id, +target!.id, pools, new BigNumber(maxPrice), prevout)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, swap.txId)
             prevout = this.prevOutFromTx(swap)
+            } catch(e) {
+                // error in swap, probably a "price higher than indicated"
+                swap= undefined
+            }
             //wait, cause we dont' know how much we make and don't want to leave dust behind
             let lastTx
-            if (!await this.waitForTx(swap.txId)) {
+            if (!swap || !await this.waitForTx(swap.txId)) {
                 //swap failed, pay back
                 await telegram.send("tried stable arb but failed")
                 console.info("tried stable arb but failed")
@@ -692,7 +713,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 lastTx = await this.depositToVault(+target!.id, new BigNumber(balance!.amount))
             }
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, lastTx.txId)
-            await this.waitForTx(swap.txId)
+            await this.waitForTx(lastTx.txId)
             return true
         } else {
             return false

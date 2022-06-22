@@ -26,7 +26,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = "v2.0beta"
+export const VERSION = "v2.0beta2"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
@@ -190,15 +190,18 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     }
                 }
                 if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS && settings.stableCoinArbBatchSize > 0) {// enough time left -> continue
-                    const freeCollateral=  BigNumber.min(+vault.collateralValue - (+vault.loanValue*+vault.loanScheme.minColRatio),
-                                                nextCollateralValue(vault).minus(nextLoanValue(vault).times(vault.loanScheme.minColRatio)))
+                    const freeCollateral=  BigNumber.min(+vault.collateralValue - (+vault.loanValue*(+vault.loanScheme.minColRatio/100+0.01)),
+                                                nextCollateralValue(vault).minus(nextLoanValue(vault).times(+vault.loanScheme.minColRatio/100+0.01)))
+                    let batchSize= settings.stableCoinArbBatchSize
                     if (freeCollateral.lt(settings.stableCoinArbBatchSize)) {
-                        const message = "available collateral (from ratio) is less than batchsize for Arb, please adjust"
+                        const message = "available collateral from ratio ("+freeCollateral.toFixed(1)+") is less than batchsize for Arb, please adjust"
                         await telegram.send(message)
                         console.warn(message)
-                    } else {
-                        result = await program.checkAndDoStableArb(vault, pool!, settings.stableCoinArbBatchSize, telegram)
-                        exposureChanged = result
+                        batchSize= freeCollateral.toNumber()
+                    } 
+                    if(batchSize > 0) {
+                        const changed = await program.checkAndDoStableArb(vault, pool!, batchSize, telegram)
+                        exposureChanged = exposureChanged || changed
                         vault = await program.getVault() as LoanVaultActive
                         balances = await program.getTokenBalances()
                     }
