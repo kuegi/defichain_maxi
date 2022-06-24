@@ -45,6 +45,7 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/settings/reinvest
 /defichain-maxi/state (written by the bot itself)
 /defichain-maxi/skip (set to "true" to skip the next execution)
+/defichain-maxi/stable-arb-batch-size (if > 0 -> search for stable-coin arbitrage and do batches of max this size)
 ```
 saved as a SecureString:
 ```

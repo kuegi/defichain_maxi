@@ -53,6 +53,7 @@ export class StoreAWS implements IStore {
         let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
         let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
         let SkipKey = StoreKey.Skip.replace("-maxi", "-maxi" + storePostfix)
+        let StableArbBatchSizeKey = StoreKey.StableArbBatchSize.replace("-maxi", "-maxi" + storePostfix)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -62,6 +63,7 @@ export class StoreAWS implements IStore {
                 StoreKey.TelegramLogsChatId,
                 StoreKey.TelegramLogsToken,
                 SkipKey,
+                StableArbBatchSizeKey,
             ]
         }).promise()).Parameters ?? []
 
@@ -107,8 +109,9 @@ export class StoreAWS implements IStore {
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.autoDonationPercentOfReinvest = this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? this.settings.autoDonationPercentOfReinvest
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
-        this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false" ) === "true"
-        if(this.settings.shouldSkipNext) {
+        this.settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
+        this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false") === "true"
+        if (this.settings.shouldSkipNext) {
             //reset to false, so no double skip ever
             this.ssm.putParameter({
                 Name: SkipKey,
@@ -147,16 +150,20 @@ enum StoreKey {
     TelegramNotificationToken = '/defichain-maxi/telegram/notifications/token',
     TelegramLogsChatId = '/defichain-maxi/telegram/logs/chat-id',
     TelegramLogsToken = '/defichain-maxi/telegram/logs/token',
+
     DeFiAddress = '/defichain-maxi/wallet/address',
     DeFiVault = '/defichain-maxi/wallet/vault',
     DeFiWalletSeed = '/defichain-maxi/wallet/seed',
+
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
     LMPair = '/defichain-maxi/settings/lm-pair',
     MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
+    StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
     AutoDonationPercentOfReinvest = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
+
     State = '/defichain-maxi/state',
     Skip = '/defichain-maxi/skip',
 }

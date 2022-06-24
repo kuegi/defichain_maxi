@@ -1,4 +1,4 @@
-import { LoanVaultActive, LoanVaultLiquidated, LoanVaultState } from "@defichain/whale-api-client/dist/api/loan";
+import { LoanVaultActive, LoanVaultLiquidated, LoanVaultState, LoanVaultTokenAmount } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { Telegram } from "../utils/telegram";
@@ -7,10 +7,12 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CTransactionSegWit, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
+import { CTransactionSegWit, PoolId, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
 import { DONATION_ADDRESS } from "../vault-maxi";
+import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
+import { VERSION } from "../vault-maxi";
 
 
 export enum VaultMaxiProgramTransaction {
@@ -19,7 +21,8 @@ export enum VaultMaxiProgramTransaction {
     PaybackLoan = "paybackloan",
     TakeLoan = "takeloan",
     AddLiquidity = "addliquidity",
-    Reinvest = "reinvest"
+    Reinvest = "reinvest",
+    StableArbitrage = "stablearbitrage"
 }
 
 export class CheckedValues {
@@ -46,7 +49,6 @@ export class CheckedValues {
 }
 
 export class VaultMaxiProgram extends CommonProgram {
-
     private targetCollateral: number
     readonly lmPair: string
     readonly assetA: string
@@ -180,7 +182,7 @@ export class VaultMaxiProgram extends CommonProgram {
                     console.warn(message)
                     return true//can still run
                 }
-                const safeRatio= safeCollRatio/100
+                const safeRatio = safeCollRatio / 100
                 const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).div(safeRatio))
                 if (!this.isSingleMint) {
                     const neededStock = neededrepay.div(BigNumber.sum(tokenLoan.activePrice!.active!.amount, pool!.priceRatio.ba))
@@ -303,7 +305,8 @@ export class VaultMaxiProgram extends CommonProgram {
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
-            + "\n"+(this.settings.autoDonationPercentOfReinvest > 0 ? "Thank you for donating "+(this.settings.autoDonationPercentOfReinvest)+"% of your rewards":"auto donation is turned off")
+            + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? "Thank you for donating " + (this.settings.autoDonationPercentOfReinvest) + "% of your rewards" : "auto donation is turned off")
+            + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size" + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
 
         console.log(message)
@@ -405,7 +408,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
 
         //not instant, but sometimes weird error. race condition? -> use explicit prevout now
-        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram,this.prevOutFromTx(removeTx))) {
+        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram, this.prevOutFromTx(removeTx))) {
             await telegram.send("done reducing exposure")
             return true
         }
@@ -477,7 +480,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
 
         //not instant, but sometimes weird error. race condition? -> use explicit prevout now
-        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram,this.prevOutFromTx(removeTx))) {
+        if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram, this.prevOutFromTx(removeTx))) {
             await telegram.send("done removing exposure")
             return true
         }
@@ -492,7 +495,7 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
         let waitingTx = undefined
-        let used_prevout= prevout
+        let used_prevout = prevout
         if (loanTokens.length > 0) {
             console.log(" paying back tokens " + loanTokens.map(token => " " + token.amount + "@" + token.symbol))
             let paybackTokens: TokenBalance[] = []
@@ -630,6 +633,101 @@ export class VaultMaxiProgram extends CommonProgram {
         }
     }
 
+
+    async checkAndDoStableArb(vault: LoanVaultActive, pool: PoolPairData, stableCoinArbBatchSize: number, telegram: Telegram): Promise<boolean> {
+        //get DUSD-DFI, USDT-DFI and USDC-DFI pool
+        const dusdPool = await this.getPool("DUSD-DFI")
+        const usdtPool = await this.getPool("USDT-DFI")
+        const usdcPool = await this.getPool("USDC-DFI")
+
+        if (!dusdPool?.priceRatio.ab || !usdtPool?.priceRatio.ba || !usdcPool?.priceRatio.ba) {
+            console.error("couldn't get stable pool data")
+            return false
+        }
+        const usdtColl = vault.collateralAmounts.find(coll => coll.symbol === "USDT")
+        const usdcColl = vault.collateralAmounts.find(coll => coll.symbol === "USDC")
+        const dusdColl = vault.collateralAmounts.find(coll => coll.symbol === "DUSD")
+        const dfiColl = vault.collateralAmounts.find(coll => coll.symbol === "DFI")
+
+        const usdtPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdtPool?.priceRatio.ab)
+        const usdcPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdcPool?.priceRatio.ab)
+
+        const minOffPeg = +(process.env.VAULTMAXI_DUSD_MIN_PEG_DIFF ?? "0.02")
+        const pegReference = +(process.env.VAULTMAXI_DUSD_PEG_REF ?? "1")
+        let coll: LoanVaultTokenAmount | undefined
+        let target: LoanVaultTokenAmount | { id: string; symbol: string; } | undefined
+
+        console.log("stable arb: " + usdcPerDUSD.toFixed(4) + " in USDC, " + usdtPerDUSD.toFixed(4) + " in USDT vs " + pegReference + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
+        let pools: PoolId[] = []
+        let maxPrice = pegReference
+        if (BigNumber.min(usdcPerDUSD, usdtPerDUSD).lte(pegReference - minOffPeg)) { //discount case: swap stable -> DUSD
+            target = dusdColl ?? dusdPool.tokenA
+            if (usdtPerDUSD.gt(usdcPerDUSD) && +(usdtColl?.amount ?? "0") > 0) {
+                coll = usdtColl!
+                pools = [{ id: +usdtPool.id }]
+            } else if (usdcPerDUSD.gt(1 + minOffPeg) && +(usdcColl?.amount ?? "0") > 0) {
+                coll = usdcColl!
+                pools = [{ id: +usdcPool.id }]
+            }
+            pools.push({ id: +dusdPool.id })
+            console.log("found premium of " + coll?.symbol)
+            maxPrice = pegReference
+        } else if (+(dusdColl?.amount ?? "0") > 0 && BigNumber.max(usdcPerDUSD, usdtPerDUSD).gte(pegReference + minOffPeg)//premium case: swap  DUSD -> stable
+            && (+(dusdColl?.amount ?? "0") + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
+            coll = dusdColl!
+            pools = [{ id: +dusdPool.id }]
+            if (usdtPerDUSD.lt(usdcPerDUSD)) {
+                target = usdtColl ?? usdtPool.tokenA
+                pools.push({ id: +usdtPool.id })
+            } else {
+                target = usdcColl ?? usdcPool.tokenA
+                pools.push({ id: +usdcPool.id })
+            }
+            console.log("found discount of " + target?.symbol)
+            maxPrice = 1 / pegReference
+        }
+        if (coll && target) {
+            const size = BigNumber.min(stableCoinArbBatchSize, coll.amount)
+            console.log("withdrawing " + size.toFixed(2) + "@" + coll?.symbol)
+            const withdrawTx = await this.withdrawFromVault(+coll.id, size)
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, withdrawTx.txId)
+            let prevout = this.prevOutFromTx(withdrawTx)
+            let swap
+            try {
+                console.log("swapping " + size.toFixed(2) + "@" + coll?.symbol + " to " + target.symbol)
+                swap = await this.compositeswap(size, +coll.id, +target!.id, pools, new BigNumber(maxPrice).decimalPlaces(8), prevout)
+                await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, swap.txId)
+                prevout = this.prevOutFromTx(swap)
+            } catch (e) {
+                // error in swap, probably a "price higher than indicated"
+                console.warn("error in swap " + e)
+                swap = undefined
+            }
+            //wait, cause we dont' know how much we make and don't want to leave dust behind
+            let lastTx
+            let telegrammsg
+            if (!swap || !await this.waitForTx(swap.txId)) {
+                //swap failed, pay back
+                telegrammsg = "tried stable arb but failed, " + (swap ? "swaptx failed directly." : "swap didn't go throu.")
+                console.info(telegrammsg + " redpositing " + size.toFixed(2) + "@" + coll.symbol)
+                lastTx = await this.depositToVault(+coll.id, size, prevout)
+            } else {
+                const balance = await this.getTokenBalance(target!.symbol)
+                telegrammsg = "did stable arb. got " + balance?.amount + "@" + target?.symbol + " for " + size.toFixed(4) + "@" + coll.symbol
+                console.info(telegrammsg + ", depositing " + balance?.amount + "@" + target.symbol)
+                lastTx = await this.depositToVault(+target!.id, new BigNumber(balance!.amount), prevout)
+            }
+            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, lastTx.txId)
+            await this.waitForTx(lastTx.txId)
+            await telegram.send(telegrammsg)
+
+            return true
+        } else {
+            return false
+        }
+    }
+
+
     async sendMotivationalLog(vault: LoanVaultActive, pool: PoolPairData, donatedAmount: BigNumber, telegram: Telegram): Promise<void> {
         if (this.targetCollateral > 2.50) {
             return //TODO: send message that user could maximize further?
@@ -655,7 +753,7 @@ export class VaultMaxiProgram extends CommonProgram {
             rewardMessage = "$" + (rewardDiff).toFixed(0) + " in rewards per year"
         }
         const message = "With VaultMaxi you currently earn additional " + rewardMessage + " (compared to using " + referenceRatio + "% collateral ratio).\n"
-            + (donatedAmount.gt(0)? "Thank your for donating "+donatedAmount.toFixed(3)+" DFI!" : "You are very welcome.\nDonations are always appreciated!")
+            + (donatedAmount.gt(0) ? "Thank your for donating " + donatedAmount.toFixed(3) + " DFI!" : "You are very welcome.\nDonations are always appreciated!")
         if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
             await telegram.send(message)
         } else {
@@ -663,7 +761,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
     }
 
-    
+
     async checkAndDoReinvest(vault: LoanVaultActive, pool: PoolPairData, balances: Map<String, AddressToken>, telegram: Telegram): Promise<boolean> {
         if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
             return false
@@ -686,19 +784,19 @@ export class VaultMaxiProgram extends CommonProgram {
         }
 
         if (amountToUse.gt(this.settings.reinvestThreshold)) {
-            let donatedAmount= new BigNumber(0);
-            if(this.settings.autoDonationPercentOfReinvest > 0) {
+            let donatedAmount = new BigNumber(0);
+            if (this.settings.autoDonationPercentOfReinvest > 0) {
                 //send donation and reduce amountToUse
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
-                console.log("donating "+donatedAmount.toFixed(2)+" DFI")
-                const tx = await this.sendDFIToAccount(donatedAmount,DONATION_ADDRESS)
+                console.log("donating " + donatedAmount.toFixed(2) + " DFI")
+                const tx = await this.sendDFIToAccount(donatedAmount, DONATION_ADDRESS)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
                 prevout = this.prevOutFromTx(tx)
 
-                amountToUse= amountToUse.minus(donatedAmount)
+                amountToUse = amountToUse.minus(donatedAmount)
             }
             if (this.mainCollateralAsset == "DFI") {
-                console.log("depositing " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-"+donatedAmount+") DFI to vault ")
+                console.log("depositing " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to vault ")
                 const tx = await this.depositToVault(0, amountToUse, prevout) //DFI is token 0
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
                 if (! await this.waitForTx(tx.txId)) {
@@ -706,7 +804,7 @@ export class VaultMaxiProgram extends CommonProgram {
                     console.error("depositing failed")
                     return false
                 } else {
-                    await telegram.send("reinvested " + amountToUse.toFixed(4) + " (" + amountFromBalance.toFixed(4) + " tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus "+donatedAmount.toFixed(4)+" donation) DFI")
+                    await telegram.send("reinvested " + amountToUse.toFixed(4) + " (" + amountFromBalance.toFixed(4) + " tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation) DFI")
                     console.log("done ")
                     await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
                     return true
@@ -718,8 +816,8 @@ export class VaultMaxiProgram extends CommonProgram {
                         mainTokenId = +coll.id
                     }
                 })
-                console.log("swaping " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos  + "-"+donatedAmount+ ") DFI to " + this.mainCollateralAsset)
-                const swap = await this.swap(amountToUse, 0, mainTokenId, prevout)
+                console.log("swaping " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to " + this.mainCollateralAsset)
+                const swap = await this.swap(amountToUse, 0, mainTokenId, new BigNumber(999999999), prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
                 if (! await this.waitForTx(swap.txId)) {
                     await telegram.send("ERROR: swapping reinvestment failed")
@@ -738,7 +836,7 @@ export class VaultMaxiProgram extends CommonProgram {
                         return false
                     } else {
                         await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + this.mainCollateralAsset
-                            + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus "+donatedAmount.toFixed(4)+" donation)")
+                            + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
                         console.log("done ")
                         await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
                         return true
@@ -782,7 +880,8 @@ export class VaultMaxiProgram extends CommonProgram {
             state: state,
             tx: transaction,
             txId: txId,
-            blockHeight: await this.getBlockHeight()
+            blockHeight: await this.getBlockHeight(),
+            version: VERSION
         })
     }
 

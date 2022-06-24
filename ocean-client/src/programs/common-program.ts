@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, DeFiTransactionConstants, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
+import { CTransactionSegWit, DeFiTransactionConstants, PoolId, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
@@ -182,27 +182,44 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    
+
     async sendDFIToAccount(amount: BigNumber, address: string, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const balances: ScriptBalances[] = [{ script: this.account!.addressToScript(address), balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
         const txn = await this.account!.withTransactionBuilder().account.accountToAccount({
             to: balances,
             from: this.script!
         }, this.script!)
+        from: this.script!
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const txn = await this.account!.withTransactionBuilder().dex.poolSwap({
             fromScript: this.script!,
             fromTokenId: fromTokenId,
             fromAmount: amount,
             toScript: this.script!,
             toTokenId: toTokenId,
-            maxPrice: new BigNumber(999999999)
+            maxPrice: maxPrice
         }, this.script!)
         return this.sendWithPrevout(txn, prevout)
     }
+
+    async compositeswap(amount: BigNumber, fromTokenId: number, toTokenId: number, pools: PoolId[], maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const txn = await this.account!.withTransactionBuilder().dex.compositeSwap({
+            poolSwap: {
+                fromScript: this.script!,
+                fromTokenId: fromTokenId,
+                fromAmount: amount,
+                toScript: this.script!,
+                toTokenId: toTokenId,
+                maxPrice: maxPrice
+            },
+            pools: pools
+        }, this.script!)
+        return this.sendWithPrevout(txn, prevout)
+    }
+
 
 
     async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransactionSegWit> {
@@ -221,14 +238,14 @@ export class CommonProgram {
             }
             txn = signed
         }
-        return this.send(txn, prevout ? 2000 : 0) //initial wait time when depending on other tx
+        return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
     }
 
     async send(txn: TransactionSegWit, initialWaitTime: number = 0): Promise<CTransactionSegWit> {
         const ctx = new CTransactionSegWit(txn)
         const hex: string = ctx.toHex()
 
-        console.log("Sending txId: " + ctx.txId+ " with input: "+ctx.vin[0].txid+":"+ctx.vin[0].index)
+        console.log("Sending txId: " + ctx.txId + " with input: " + ctx.vin[0].txid + ":" + ctx.vin[0].index)
         let start = initialWaitTime
         const waitTime = 10000
         const txId: string = await new Promise((resolve, error) => {
@@ -248,7 +265,7 @@ export class CommonProgram {
                         console.log("failed to send tx even after after multiple retries (" + e.error.message + ")")
                         error(e)
                     } else {
-                        console.log("error sending tx (" + e.error.message + "). retrying after "+(waitTime/1000).toFixed(0)+" seconds")
+                        console.log("error sending tx (" + e.error.message + "). retrying after " + (waitTime / 1000).toFixed(0) + " seconds")
                     }
                 })
             }
