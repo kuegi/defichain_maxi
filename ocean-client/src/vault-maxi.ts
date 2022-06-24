@@ -27,15 +27,16 @@ class maxiEvent {
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
 export const VERSION = "v2.0beta2"
+export const DONATION_ADDRESS = "df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07"
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
-    let ocean= process.env.VAULTMAXI_OCEAN_URL
+    let ocean = process.env.VAULTMAXI_OCEAN_URL
     while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
         console.log("starting with " + context.getRemainingTimeInMillis() + "ms available")
         let store = new Store()
         let settings = await store.fetchSettings()
-        
+
         console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
 
         if (event) {
@@ -51,20 +52,20 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     settings.LMPair = event.overrideSettings.LMPair
                 if (event.overrideSettings.mainCollateralAsset)
                     settings.mainCollateralAsset = event.overrideSettings.mainCollateralAsset
-                if(event.overrideSettings.ignoreSkip && settings.shouldSkipNext) {
-                    settings.shouldSkipNext= false
+                if (event.overrideSettings.ignoreSkip && settings.shouldSkipNext) {
+                    settings.shouldSkipNext = false
                     await store.writeSkipNext()
                 }
             }
         }
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
         const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + VERSION + logId + "]")
-        if(settings.shouldSkipNext) {
+        if (settings.shouldSkipNext) {
             //inform EVERYONE to not miss it in case of an error.
-            const message= "skipped one execution as requested"
+            const message = "skipped one execution as requested"
             console.log(message)
             await telegram.send(message)
-            await telegram.log(message) 
+            await telegram.log(message)
             return { statusCode: 200 }
         }
         let commonProgram: CommonProgram | undefined
@@ -154,6 +155,19 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
                 + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
             let exposureChanged = false
+            //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
+            if (settings.mainCollateralAsset === "DFI") {
+                const poolApr = (pool?.apr?.total ?? 0) * 100
+                const dusdToken = await program.getLoanToken("15")
+                let interest = +vault.loanScheme.interestRate + +dusdToken.interest
+                console.log("DUSD currently has a total interest of " + interest.toFixed(4) + " = " + vault.loanScheme.interestRate + " + " + dusdToken.interest + " vs APR of " + poolApr.toFixed(4))
+                if (interest > poolApr) {
+                    console.log("interest rate higher than APR -> removing exposure")
+                    await telegram.send("interest rate higher than APR -> removing/preventing exposure")
+                    settings.maxCollateralRatio = -1
+                }
+            }
+
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
             // no reinvest (or reinvest done and still time left) -> check for increase exposure
@@ -190,16 +204,16 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     }
                 }
                 if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS && settings.stableCoinArbBatchSize > 0) {// enough time left -> continue
-                    const freeCollateral=  BigNumber.min(+vault.collateralValue - (+vault.loanValue*(+vault.loanScheme.minColRatio/100+0.01)),
-                                                nextCollateralValue(vault).minus(nextLoanValue(vault).times(+vault.loanScheme.minColRatio/100+0.01)))
-                    let batchSize= settings.stableCoinArbBatchSize
+                    const freeCollateral = BigNumber.min(+vault.collateralValue - (+vault.loanValue * (+vault.loanScheme.minColRatio / 100 + 0.01)),
+                        nextCollateralValue(vault).minus(nextLoanValue(vault).times(+vault.loanScheme.minColRatio / 100 + 0.01)))
+                    let batchSize = settings.stableCoinArbBatchSize
                     if (freeCollateral.lt(settings.stableCoinArbBatchSize)) {
-                        const message = "available collateral from ratio ("+freeCollateral.toFixed(1)+") is less than batchsize for Arb, please adjust"
+                        const message = "available collateral from ratio (" + freeCollateral.toFixed(1) + ") is less than batchsize for Arb, please adjust"
                         await telegram.send(message)
                         console.warn(message)
-                        batchSize= freeCollateral.toNumber()
-                    } 
-                    if(batchSize > 0) {
+                        batchSize = freeCollateral.toNumber()
+                    }
+                    if (batchSize > 0) {
                         const changed = await program.checkAndDoStableArb(vault, pool!, batchSize, telegram)
                         exposureChanged = exposureChanged || changed
                         vault = await program.getVault() as LoanVaultActive
@@ -238,9 +252,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             } else {
                 await telegram.log(message)
             }
-            if(ocean != undefined) {
+            if (ocean != undefined) {
                 console.info("falling back to default ocean")
-                ocean= undefined
+                ocean = undefined
             }
             //program might not be there, so directly the store with no access to ocean
             await store.updateToState({

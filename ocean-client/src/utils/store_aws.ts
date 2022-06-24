@@ -47,6 +47,7 @@ export class StoreAWS implements IStore {
         let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
+        let AutoDonationPercentOfReinvestKey = StoreKey.AutoDonationPercentOfReinvest.replace("-maxi", "-maxi" + storePostfix)
         let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
         let LMPairKey = StoreKey.LMPair.replace("-maxi", "-maxi" + storePostfix)
         let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
@@ -61,6 +62,7 @@ export class StoreAWS implements IStore {
                 StoreKey.TelegramNotificationToken,
                 StoreKey.TelegramLogsChatId,
                 StoreKey.TelegramLogsToken,
+                SkipKey,
                 StableArbBatchSizeKey,
             ]
         }).promise()).Parameters ?? []
@@ -76,7 +78,7 @@ export class StoreAWS implements IStore {
                 MainCollAssetKey,
                 StateKey,
                 ReinvestThreshold,
-                SkipKey,
+                AutoDonationPercentOfReinvestKey,
             ]
         }).promise()).Parameters ?? [])
 
@@ -105,10 +107,11 @@ export class StoreAWS implements IStore {
         this.settings.LMPair = lmPair
         this.settings.mainCollateralAsset = this.getOptionalValue(MainCollAssetKey, parameters) ?? "DFI"
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
+        this.settings.autoDonationPercentOfReinvest = this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? this.settings.autoDonationPercentOfReinvest
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
         this.settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
-        this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false" ) === "true"
-        if(this.settings.shouldSkipNext) {
+        this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false") === "true"
+        if (this.settings.shouldSkipNext) {
             //reset to false, so no double skip ever
             this.ssm.putParameter({
                 Name: SkipKey,
@@ -151,7 +154,7 @@ enum StoreKey {
     DeFiAddress = '/defichain-maxi/wallet/address',
     DeFiVault = '/defichain-maxi/wallet/vault',
     DeFiWalletSeed = '/defichain-maxi/wallet/seed',
-    
+
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
@@ -159,6 +162,7 @@ enum StoreKey {
     MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
     ReinvestThreshold = '/defichain-maxi/settings/reinvest',
     StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
+    AutoDonationPercentOfReinvest = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
 
     State = '/defichain-maxi/state',
     Skip = '/defichain-maxi/skip',
