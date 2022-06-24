@@ -1,6 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { CTransactionSegWit, DeFiTransactionConstants, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
-import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
@@ -175,6 +174,16 @@ export class CommonProgram {
         const balances: ScriptBalances[] = [{ script: this.script!, balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
         const txn = await this.account!.withTransactionBuilder().account.utxosToAccount({
             to: balances
+        }, this.script!)
+        return this.sendWithPrevout(txn, prevout)
+    }
+
+    
+    async sendDFIToAccount(amount: BigNumber, address: string, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+        const balances: ScriptBalances[] = [{ script: this.account!.addressToScript(address), balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
+        const txn = await this.account!.withTransactionBuilder().account.accountToAccount({
+            to: balances,
+            from: this.script!
         }, this.script!)
         return this.sendWithPrevout(txn, prevout)
     }

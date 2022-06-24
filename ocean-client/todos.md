@@ -37,3 +37,4 @@
 
 * [X] single mint version
 * [X] add "skip" parameter to skip one execution (used by add ons)
+* [X] add autodonation setting, default = 0
