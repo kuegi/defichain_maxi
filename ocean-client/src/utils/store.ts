@@ -58,6 +58,7 @@ export class StoredSettings {
     LMPair: string = "GLD-DUSD"
     mainCollateralAsset: string = "DFI"
     reinvestThreshold: number | undefined
+    autoDonationPercentOfReinvest: number = 0
     stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0 }
     shouldSkipNext: boolean = false
 }

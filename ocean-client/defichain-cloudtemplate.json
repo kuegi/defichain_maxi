@@ -21,7 +21,8 @@
             "MaxCollateralRatio",
             "LMPair",
             "MainCollateralAsset",
-            "MinReinvest"
+            "MinReinvest",
+            "AutoDonation"
           ]
         },
         {
@@ -66,6 +67,9 @@
         },
         "MinReinvest": {
           "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
+        },
+        "AutoDonation": {
+          "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%."
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
@@ -143,6 +147,11 @@
       "Type": "Number",
       "Default": 1,
       "Description": "Above this threshold script will add DFI as collateral"
+    },
+    "AutoDonation": {
+      "Type": "Number",
+      "Default": 0,
+      "Description": "Percent of your rewards that will be automatically donated to the developers. Thanks."
     },
     "TelegramNotificationChatId": {
       "Type": "String",
@@ -536,6 +545,18 @@
         "Type": "String",
         "Value": {
           "Ref": "MinReinvest"
+        }
+      }
+    },
+    "vaultMaxiParamAutoDonation": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Percent of your rewards that will be donated to developers",
+        "Name": "/defichain-maxi/settings/auto-donation-percent-of-reinvest",
+        "Type": "String",
+        "Value": {
+          "Ref": "AutoDonation"
         }
       }
     },
