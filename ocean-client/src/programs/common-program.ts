@@ -2,7 +2,7 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { CTransactionSegWit, DeFiTransactionConstants, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
+import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
@@ -96,6 +96,10 @@ export class CommonProgram {
 
     async getToken(token: string): Promise<TokenData> {
         return this.client.tokens.get(token)
+    }
+
+    async getLoanToken(token: string): Promise<LoanToken> {
+        return this.client.loan.getLoanToken(token)
     }
 
     async getBlockHeight(): Promise<number> {

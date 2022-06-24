@@ -155,6 +155,19 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
                 + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
             let exposureChanged = false
+            //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
+            if(settings.mainCollateralAsset === "DFI") {
+                const poolApr= (pool?.apr?.total ?? 0)*100
+                const dusdToken = await program.getLoanToken("15")
+                let interest = +vault.loanScheme.interestRate + +dusdToken.interest
+                console.log("DUSD currently has a total interest of "+interest.toFixed(4)+" = "+vault.loanScheme.interestRate+" + "+dusdToken.interest+" vs APR of "+poolApr.toFixed(4))
+                if(interest > poolApr) {
+                    console.log("interest rate higher than APR -> removing exposure")
+                    await telegram.send("interest rate higher than APR -> removing/preventing exposure")
+                   settings.maxCollateralRatio = -1
+                }
+            }
+
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
             // no reinvest (or reinvest done and still time left) -> check for increase exposure
