@@ -650,12 +650,12 @@ export class VaultMaxiProgram extends CommonProgram {
         const usdtPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdtPool?.priceRatio.ab)
         const usdcPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdcPool?.priceRatio.ab)
 
-        const minOffPeg = 0.02
+        const minOffPeg = +(process.env.VAULTMAXI_DUSD_MIN_PEG_DIFF ?? "0.02")
         const pegReference = +(process.env.VAULTMAXI_DUSD_PEG_REF ?? "1")
         let coll: LoanVaultTokenAmount | undefined
         let target: LoanVaultTokenAmount | { id: string; symbol: string; } | undefined
 
-        console.log("stable arb: "+usdcPerDUSD.toFixed(4)+ " "+usdtPerDUSD.toFixed(4)+" vs "+pegReference+" min diff "+minOffPeg+". batchsize: "+stableCoinArbBatchSize)
+        console.log("stable arb: "+usdcPerDUSD.toFixed(4)+ " in USDC, "+usdtPerDUSD.toFixed(4)+" in USDT vs "+pegReference+" min diff "+minOffPeg+". batchsize: "+stableCoinArbBatchSize)
         let pools : PoolId[] = []
         let maxPrice= pegReference
         if (BigNumber.min(usdcPerDUSD, usdtPerDUSD).lte(pegReference - minOffPeg)) { //discount case: swap stable -> DUSD
@@ -686,34 +686,39 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         if (coll && target) {
             const size = BigNumber.min(stableCoinArbBatchSize, coll.amount)
+            console.log("withdrawing "+size.toFixed(2)+ "@"+coll?.symbol)
             const withdrawTx = await this.withdrawFromVault(+coll.id, size)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, withdrawTx.txId)
             let prevout = this.prevOutFromTx(withdrawTx)
             let swap
             try {
-                swap = await this.compositeswap(size, +coll.id, +target!.id, pools, new BigNumber(maxPrice), prevout)
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, swap.txId)
-            prevout = this.prevOutFromTx(swap)
+                console.log("swapping "+size.toFixed(2)+ "@"+coll?.symbol+" to "+target.symbol)
+                swap = await this.compositeswap(size, +coll.id, +target!.id, pools, new BigNumber(maxPrice).decimalPlaces(8), prevout)
+                await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, swap.txId)
+                prevout = this.prevOutFromTx(swap)
             } catch(e) {
                 // error in swap, probably a "price higher than indicated"
+                console.warn("error in swap "+e)
                 swap= undefined
             }
             //wait, cause we dont' know how much we make and don't want to leave dust behind
             let lastTx
+            let telegrammsg            
             if (!swap || !await this.waitForTx(swap.txId)) {
                 //swap failed, pay back
-                await telegram.send("tried stable arb but failed")
-                console.info("tried stable arb but failed")
-                lastTx = await this.depositToVault(+coll.id, size)
+                telegrammsg= "tried stable arb but failed, "+(swap?"swaptx failed directly.":"swap didn't go throu.")
+                console.info(telegrammsg+" redpositing "+size.toFixed(2)+"@"+coll.symbol)
+                lastTx = await this.depositToVault(+coll.id, size,prevout)
             } else {
                 const balance = await this.getTokenBalance(target!.symbol)
-                const msg = "did stable arb. got " + balance?.amount + "@" + target?.symbol + " for " + size.toFixed(4) + "@" + coll.symbol
-                await telegram.send(msg)
-                console.info(msg)
-                lastTx = await this.depositToVault(+target!.id, new BigNumber(balance!.amount))
+                telegrammsg = "did stable arb. got " + balance?.amount + "@" + target?.symbol + " for " + size.toFixed(4) + "@" + coll.symbol
+                console.info(telegrammsg+", depositing "+balance?.amount+"@"+target.symbol)
+                lastTx = await this.depositToVault(+target!.id, new BigNumber(balance!.amount),prevout)
             }
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, lastTx.txId)
             await this.waitForTx(lastTx.txId)
+            await telegram.send(telegrammsg)
+                
             return true
         } else {
             return false

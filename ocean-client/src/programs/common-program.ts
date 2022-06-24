@@ -224,7 +224,7 @@ export class CommonProgram {
             }
             txn = signed
         }
-        return this.send(txn, prevout ? 2000 : 0) //initial wait time when depending on other tx
+        return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
     }
 
     async send(txn: TransactionSegWit, initialWaitTime: number = 0): Promise<CTransactionSegWit> {
