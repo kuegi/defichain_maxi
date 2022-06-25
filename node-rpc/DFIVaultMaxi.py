@@ -23,9 +23,9 @@ mainCollateralAsset = "DFI"
 minCollateralRatio = 160
 maxCollateralRatio = -1
 targetCollateral = 1.6
-lmPair = "GME-DUSD"
+lmPair = "notInSettings"
 assetA = "GME"
-assetB = "DUSD"
+assetB = "noSettingsFound"
 minReinvest = None
 logToConsole = True
 logToFile = False
@@ -93,6 +93,9 @@ settingsPath = sys.argv[1] if len(sys.argv) > 1 else None
 if settingsPath is not None:
     print("Importing settings from %s" % settingsPath)
     readSettings(settingsPath)
+else:
+    print("You need to provide a settings path!")
+
 
 logger = utils.setup_logger("SafeVault_" + logId, logging.INFO, logToConsole, logToFile)
 utils.LOGGER = logger
@@ -318,8 +321,8 @@ try:
     logSettings()
     while assetB == "DUSD" or lmPair == "DUSD-DFI":
         lastheight = rpc('getblockcount')
-
-        readSettings(settingsPath)
+        if settingsPath is not None:
+            readSettings(settingsPath)
         if lastheight > lastBlockSettingsLogged + 720:
             logSettings(True)  # log periodically to know whats going on
 
