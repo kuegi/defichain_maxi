@@ -329,13 +329,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*-collateral-ratio"
-                    },
-                    {
-                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/lm-pair"
-                    },
-                    {
-                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/main-collateral-asset"
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/settings/*"
                     }
                   ]
                 },
