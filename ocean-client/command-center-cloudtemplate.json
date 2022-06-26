@@ -28,65 +28,22 @@
     }
   },
   "Parameters": {
-    "TelegramNotificationChatId": {
+    "TelegramChatId": {
       "Type": "String",
-      "Default": "",
-      "AllowedPattern" : "(-?[0-9]+)?",
+      "Default": "1234567890",
+      "AllowedPattern" : "-?[0-9]+",
       "Description": "Telegram chat id to use for commands f.e. 1234567890"
     },
-    "TelegramNotificationToken": {
+    "TelegramToken": {
       "Type": "String",
-      "Default": "",
-      "AllowedPattern" : "([0-9]{10}:.*)?",
+      "Default": "1112345576:AAGsample-token-telegram-abcd",
+      "AllowedPattern" : "[0-9]{10}:.*",
       "Description": "Token of the telegram bot to use for your command center f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
     },
     "TelegramUsername": {
       "Type": "String",
       "Default": "",
-      "AllowedPattern" : "(-?[0-9]+)?",
       "Description": "Your Telegram username to verify that the command was sent by you. (Important without @)"
-    }
-  },
-  "Conditions": {
-    "CreateTelegram": {
-      "Fn::And": [
-        {
-          "Fn::Not": [
-            {
-              "Fn::Equals": [
-                {
-                  "Ref": "TelegramChatId"
-                },
-                ""
-              ]
-            }
-          ]
-        },
-        {
-          "Fn::Not": [
-            {
-              "Fn::Equals": [
-                {
-                  "Ref": "TelegramToken"
-                },
-                ""
-              ]
-            }
-          ]
-        },
-        {
-          "Fn::Not": [
-            {
-              "Fn::Equals": [
-                {
-                  "Ref": "TelegramUsername"
-                },
-                ""
-              ]
-            }
-          ]
-        }
-      ]
     }
   },
   "Resources": {
@@ -132,111 +89,28 @@
                     "ssm:Get*",
                     "ssm:List*"
                   ],
-                  "Resource": {
-                    "Fn::Join": [
-                      ":",
-                      [
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/command-center*",
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/state"
-                      ]
-                    ]
-                  }
+                  "Resource": [ 
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center*"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state"}
+                  ]
                 },
                 {
                   "Effect": "Allow",
                   "Action": [
                     "ssm:PutParameter"
                   ],
-                  "Resource": {
-                    "Fn::Join": [
-                      ":",
-                      [
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/command-center/last-executed-message-id",
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/skip",
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/settings/max-collateral-ratio",
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/settings/min-collateral-ratio",
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/lm-token",
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi*/reinvest"
-                      ]
-                    ]
-                  }
+                  "Resource": [ 
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center/last-executed-message-id"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/skip"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*"}
+                  ]
                 },
                 {
                   "Effect": "Allow",
                   "Action": [
                     "lambda:InvokeFunction"
                   ],
-                  "Resource": {
-                    "Fn::Join": [
-                      ":",
-                      [
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "function:defichain-maxi*"
-                      ]
-                    ]
-                  }
+                  "Resource": {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:function:defichain-maxi*"}
                 }
               ]
             }
@@ -249,7 +123,7 @@
       "Properties": {
         "Name": "commandCenterTrigger",
         "Description": "Triggers your vault maxis' command center",
-        "ScheduleExpression": "rate(1 minutes)",
+        "ScheduleExpression": "rate(1 minute)",
         "Targets": [
           {
             "Id": "commandCenterTarget",
@@ -301,7 +175,6 @@
     },
     "commandCenterParamTelegramChatId": {
       "Type": "AWS::SSM::Parameter",
-      "Condition": "CreateTelegram",
       "Properties": {
         "DataType": "text",
         "Description": "Telegram chat id for commands",
@@ -314,7 +187,6 @@
     },
     "commandCenterParamTelegramToken": {
       "Type": "AWS::SSM::Parameter",
-      "Condition": "CreateTelegram",
       "Properties": {
         "DataType": "text",
         "Description": "Telegram bot token for command center",
@@ -327,7 +199,6 @@
     },
     "commandCenterParamTelegramUsername": {
       "Type": "AWS::SSM::Parameter",
-      "Condition": "CreateTelegram",
       "Properties": {
         "DataType": "text",
         "Description": "Your Telegram username to verify sent commands",
