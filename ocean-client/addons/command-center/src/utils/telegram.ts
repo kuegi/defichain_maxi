@@ -62,6 +62,8 @@ export class Telegram {
         const response = await fetch(messagesUrl)
         let json = await response.json()
         let notifications = json["result"] as TelegramNotification[]
+        notifications= notifications.filter(notification => notification.message != undefined && notification.message.chat?.id == +this.chatId)
+        console.log("got telegram messages: "+JSON.stringify(notifications))
         return notifications.map((notification) => {
             let entity = ""
             if (notification.message.entities.length > 0) {
