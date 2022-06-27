@@ -33,7 +33,7 @@ export class Execute extends Command {
             LogType: "None",
             Payload: this.payload
         }
-
+        console.log("invoking lambda with params "+JSON.stringify(params))
         return lambda.invoke(params).promise().then((value) => {
             // read payload to get status code of executed lambda
             if (value.Payload !== undefined) {

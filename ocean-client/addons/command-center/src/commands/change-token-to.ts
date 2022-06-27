@@ -53,15 +53,13 @@ export class ChangeTokenTo extends StoreParameterCommand {
     }
     
     async doExecution(): Promise<unknown> {
-        // 1) set skip to true
-        let skip = new Skip(this.telegram, this.store)
-        await skip.execute()
-
+        // 1) set skip to true (part of remove exposure)
         // 2) remove exposure from current configured token
         let removeExposure = new RemoveExposure(this.telegram, this.store)
         await removeExposure.execute()
 
         // 3) update token
+        console.log("updating token")
         await this.store.updateToken(this.token!)
         
         // 4) finally execute again to ensure new token is active

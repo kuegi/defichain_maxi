@@ -21,6 +21,7 @@ export class RemoveExposure extends StoreCommand {
         let skip = new Skip(this.telegram, this.store)
         await skip.execute()
 
+        console.log("executing remove exposure")
         let execute = new Execute(this.telegram, '{"overrideSettings":{"ignoreSkip": true, "maxCollateralRatio": "-1"}}', "removeExposure execution done")
         return execute.execute()
     }
