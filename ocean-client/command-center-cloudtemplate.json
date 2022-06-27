@@ -110,7 +110,7 @@
                   "Action": [
                     "lambda:InvokeFunction"
                   ],
-                  "Resource": {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:function:defichain-maxi*"}
+                  "Resource": {"Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:defichain-vault-maxi*"}
                 }
               ]
             }
