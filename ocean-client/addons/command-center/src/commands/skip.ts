@@ -18,6 +18,7 @@ export class Skip extends StoreCommand {
     }
 
     doExecution(): Promise<unknown> {
+        console.log("executing skip")
         return this.store.updateSkip()
     }
 }
