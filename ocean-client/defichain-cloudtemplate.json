@@ -432,19 +432,7 @@
                     "ssm:List*"
                   ],
                   "Resource": {
-                    "Fn::Join": [
-                      ":",
-                      [
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi/*"
-                      ]
-                    ]
+                    "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*"
                   }
                 },
                 {
@@ -452,21 +440,12 @@
                   "Action": [
                     "ssm:PutParameter"
                   ],
-                  "Resource": {
-                    "Fn::Join": [
-                      ":",
-                      [
-                        "arn:aws:ssm",
-                        {
-                          "Ref": "AWS::Region"
-                        },
-                        {
-                          "Ref": "AWS::AccountId"
-                        },
-                        "parameter/defichain-maxi/state"
-                      ]
-                    ]
-                  }
+                  "Resource": [{
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/state"
+                    },{
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/skip"
+                    }
+                  ]
                 }
               ]
             }
