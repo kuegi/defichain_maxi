@@ -1,7 +1,7 @@
-import { Lambda } from "aws-sdk";
+import { config, Lambda } from "aws-sdk";
 import { functionNameWithPostfix } from "../utils/helpers";
 import { Telegram } from "../utils/telegram";
-import { Command, Commands } from "./command";
+import { Command } from "./command";
 
 export class Execute extends Command {
 
@@ -16,6 +16,14 @@ export class Execute extends Command {
         this.functionName = functionNameWithPostfix()
         this.payload = payload
         this.successMessage = successMessage
+        console.log("config")
+        config.update({
+            maxRetries: 0,
+            httpOptions: {
+                timeout: 14 * 60 * 1000, // 14 minutes timeout
+                connectTimeout: 5000
+            }
+        })
     }
 
     doExecution(): Promise<unknown> {
@@ -31,6 +39,7 @@ export class Execute extends Command {
         return lambda.invoke(params).promise().then((value) => {
             // read payload to get status code of executed lambda
             if (value.Payload !== undefined) {
+                console.log("returned payload: " + value.Payload as string)
                 let lambdaResponse = JSON.parse(value.Payload as string)
                 if (lambdaResponse.statusCode === 200) {
                     this.telegram.send(this.successMessage)

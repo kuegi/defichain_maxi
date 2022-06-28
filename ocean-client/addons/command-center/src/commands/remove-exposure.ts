@@ -1,4 +1,3 @@
-import { Commands } from "./command";
 import { Execute } from "./execute";
 import { Skip } from "./skip";
 import { StoreCommand } from "./store-command";

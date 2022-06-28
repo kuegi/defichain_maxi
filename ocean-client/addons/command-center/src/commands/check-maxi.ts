@@ -1,4 +1,4 @@
-import { Command, Commands } from "./command";
+import { Command } from "./command";
 import { Lambda } from "aws-sdk";
 import { Telegram } from "../utils/telegram";
 import { functionNameWithPostfix } from "../utils/helpers";
