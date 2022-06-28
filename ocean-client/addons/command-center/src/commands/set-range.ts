@@ -8,7 +8,9 @@ export class SetRange extends StoreParameterCommand {
     private minCollateralRatio: string|undefined
     private maxCollateralRatio: string|undefined
 
-    private usageMessage: string = "/setRange 170-175 or /setRange 170 175\nwill result in\nmin-collateral-ratio = 170\nmax-collateral-ratio = 175"
+    private static usageMessage: string = "/setRange 170-175 or /setRange 170 175\nwill result in\nmin-collateral-ratio = 170\nmax-collateral-ratio = 175"
+
+    static description = "sets given range as min-collateral-ratio and max-collateral-ratio. After changing range it will automatically execute " + Commands.CheckMaxi + " to check if configuration is still valid.\nexample: " + SetRange.usageMessage
 
     parseCommandData(): void {
         if (this.commandData.length === 2) {
@@ -22,7 +24,7 @@ export class SetRange extends StoreParameterCommand {
     }
 
     validationErrorMessage(): string {
-        return "Input parameter failed validation. Please use following\n" + this.usageMessage
+        return "Input parameter failed validation. Please use following\n" + SetRange.usageMessage
     }
 
     validate(): boolean {
@@ -33,14 +35,6 @@ export class SetRange extends StoreParameterCommand {
 
     successMessage(): string | undefined {
         return "Your vault-maxis' range is set to " + this.minCollateralRatio + "-" + this.maxCollateralRatio
-    }
-
-    name(): string {
-        return Commands.SetRange
-    }
-
-    description(): string {
-        return "sets given range as min-collateral-ratio and max-collateral-ratio. After changing range it will automatically execute " + Commands.CheckMaxi + " to check if configuration is still valid.\nexample: " + this.usageMessage
     }
 
     async doExecution(): Promise<unknown> {

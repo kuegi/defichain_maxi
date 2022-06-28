@@ -6,18 +6,11 @@ import { functionNameWithPostfix } from "../utils/helpers";
 export class CheckMaxi extends Command {
 
     private functionName: string
+    static description = "executes check-setup on your vault-maxi (Lambda function name: " + functionNameWithPostfix() + ")"
 
     constructor(telegram: Telegram) {
         super(telegram)
         this.functionName = functionNameWithPostfix()
-    }
-
-    name(): string {
-        return Commands.CheckMaxi
-    }
-
-    description(): string {
-        return "executes check-setup on your vault-maxi (Lambda function name: " + this.functionName + ")"
     }
 
     doExecution(): Promise<unknown> {
