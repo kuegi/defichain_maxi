@@ -9,19 +9,13 @@ export class Execute extends Command {
     private payload: string
     private successMessage: string
 
+    static description = "executes your vault-maxi (Lambda function name: " + functionNameWithPostfix() + ")"
+
     constructor(telegram: Telegram, payload: string = "", successMessage: string = "execution done") {
         super(telegram)
         this.functionName = functionNameWithPostfix()
         this.payload = payload
         this.successMessage = successMessage
-    }
-
-    name(): string {
-        return Commands.Execute
-    }
-
-    description(): string {
-        return "executes your vault-maxi (Lambda function name: " + this.functionName + ")"
     }
 
     doExecution(): Promise<unknown> {

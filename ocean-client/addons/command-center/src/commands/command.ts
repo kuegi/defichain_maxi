@@ -19,8 +19,6 @@ export abstract class Command {
         this.telegram = telegram
     }
 
-    abstract name(): string
-    abstract description(): string
     abstract doExecution(): Promise<unknown>
 
     async execute(): Promise<unknown> {

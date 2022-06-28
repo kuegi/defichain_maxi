@@ -5,16 +5,10 @@ import { StoreCommand } from "./store-command";
 
 export class RemoveExposure extends StoreCommand {
 
+    static description = "Executes your vault-maxi with overridden settings max-collateral-ratio = -1, which will remove exposure available to your vault-maxi. Removes all LM tokens and pays back loans. Be cautious of impermanent loss, which will still be left and need to be taken care manually"
+
     successMessage(): string | undefined {
         return undefined
-    }
-
-    name(): string {
-        return Commands.RemoveExposure
-    }
-
-    description(): string {
-        return "Executes your vault-maxi with overridden settings max-collateral-ratio = -1, which will remove exposure available to your vault-maxi. Removes all LM tokens and pays back loans. Be cautious of impermanent loss, which will still be left and need to be taken care manually"
     }
 
     async doExecution(): Promise<unknown> {
