@@ -9,8 +9,15 @@ export class ChangeTokenTo extends StoreParameterCommand {
 
     private token: string|undefined
     private listOfTokens: string[] = []
+    private static usageMessage: string = "/changeTokenTo QQQ\nwill result in\ntoken = QQQ"
 
-    private usageMessage: string = "/changeTokenTo QQQ\nwill result in\ntoken = QQQ"
+    static description = "changes your vault-maxi to use a new token. This will automatically trigger a set of steps:\n"
+    + "1. sets skip to true to prevent double execution of vault-maxi\n"
+    + "2. remove exposure of your current token, which will remove LM tokens and pay back loans (dToken and dUSD). Impermament loss need to be handled manually.\n"
+    + "3. change token in the parameter settings\n"
+    + "4. trigger a vault-maxi execution to complete the change to a new token\n"
+    + "CAREFUL: don't forget to execute " + Commands.SetToken + " on any failsafe bot instances.\n"
+    + "example: " + ChangeTokenTo.usageMessage
 
     async prepare() {
         this.listOfTokens = await fetchListOfPoolPairs()
@@ -23,7 +30,7 @@ export class ChangeTokenTo extends StoreParameterCommand {
     }
     
     validationErrorMessage(): string {
-        return "Input parameter failed validation. Please use following\n" + this.usageMessage
+        return "Input parameter failed validation. Please use following\n" + ChangeTokenTo.usageMessage
     }
     
     validate(): boolean {
@@ -36,20 +43,6 @@ export class ChangeTokenTo extends StoreParameterCommand {
     successMessage(): string | undefined {
         return "Your vault-maxis' token is set to " + this.token 
         + ". Previous exposure got removed. Please take care of any unwanted loans via impermament loss by yourself."
-    }
-    
-    name(): string {
-        return Commands.ChangeTokenTo
-    }
-    
-    description(): string {
-        return "changes your vault-maxi to use a new token. This will automatically trigger a set of steps:\n"
-        + "1. sets skip to true to prevent double execution of vault-maxi\n"
-        + "2. remove exposure of your current token, which will remove LM tokens and pay back loans (dToken and dUSD). Impermament loss need to be handled manually.\n"
-        + "3. change token in the parameter settings\n"
-        + "4. trigger a vault-maxi execution to complete the change to a new token\n"
-        + "CAREFUL: don't forget to execute " + Commands.SetToken + " on any failsafe bot instances.\n"
-        + "example: " + this.usageMessage
     }
     
     async doExecution(): Promise<unknown> {

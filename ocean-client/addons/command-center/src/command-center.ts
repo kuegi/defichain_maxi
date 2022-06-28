@@ -23,7 +23,7 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
         let command: Command | undefined
         switch (commandData[0]) {
             case Commands.Help:
-                command = new Help(telegram, store)
+                command = new Help(telegram)
                 break
             case Commands.CheckMaxi:
                 command = new CheckMaxi(telegram)
