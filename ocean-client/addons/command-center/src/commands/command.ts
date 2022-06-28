@@ -4,6 +4,7 @@ export enum Commands {
     Help = '/help',
     CheckMaxi = '/checkMaxi',
     Skip = "/skip",
+    Resume = "/resume",
     Execute = "/execute",
     RemoveExposure = "/removeExposure",
     SetRange = "/setRange",

@@ -91,7 +91,8 @@
                   ],
                   "Resource": [ 
                     {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center*"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state"}
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*"}
                   ]
                 },
                 {
