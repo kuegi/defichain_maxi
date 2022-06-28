@@ -4,6 +4,7 @@ import { Command, Commands } from './commands/command'
 import { Execute } from './commands/execute'
 import { Help } from './commands/help'
 import { RemoveExposure } from './commands/remove-exposure'
+import { Resume } from './commands/resume'
 import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
 import { SetToken } from './commands/set-token'
@@ -34,6 +35,9 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
             case Commands.Skip:
                 command = new Skip(telegram, store)
                 break
+            case Commands.Resume:
+                command = new Resume(telegram, store)
+                break
             case Commands.RemoveExposure:
                 command = new RemoveExposure(telegram, store)
                 break
@@ -48,8 +52,10 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
                 await (command as SetToken).prepare()
                 break
             case Commands.ChangeTokenTo:
-                command = new ChangeTokenTo(telegram, store, commandData)
-                await (command as ChangeTokenTo).prepare()
+                let changeTokenTo = new ChangeTokenTo(telegram, store, commandData)
+                changeTokenTo.setOldToken(settings.LMToken)
+                await changeTokenTo.prepare()
+                command = changeTokenTo
                 break
             default:
                 console.log("ignore " + message.command)

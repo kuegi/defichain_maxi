@@ -16,8 +16,8 @@ export class Store {
         return this.updateParameter(StoreKey.LastExecutedMessageId, "" + id)
     }
 
-    async updateSkip(): Promise<unknown> {
-        return this.updateParameter(StoreKey.Skip, "true")
+    async updateSkip(value: boolean = true): Promise<unknown> {
+        return this.updateParameter(StoreKey.Skip, value ? "true" : "false")
     }
 
     async updateRange(min: string, max: string): Promise<void> {
@@ -40,6 +40,7 @@ export class Store {
         let TelegramUserName = this.extendKey(StoreKey.TelegramUserName)
         let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
         let StateKey = this.extendKey(StoreKey.State)
+        let LMTokenKey = this.extendKey(StoreKey.LMToken)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -49,6 +50,7 @@ export class Store {
                 TelegramUserName,
                 LastExecutedMessageIdKey,
                 StateKey,
+                LMTokenKey,
             ]
         }).promise()).Parameters ?? []
 
@@ -57,6 +59,7 @@ export class Store {
         this.settings.username = this.getValue(TelegramUserName, parameters)
         this.settings.lastExecutedMessageId = this.getNumberValue(LastExecutedMessageIdKey, parameters)
         this.settings.state = this.getValue(StateKey, parameters)
+        this.settings.LMToken = this.getValue(LMTokenKey, parameters)
 
         return this.settings
     }
@@ -112,4 +115,5 @@ export class StoredSettings {
     lastExecutedMessageId: number|undefined
     username: string = ""
     state: string = ""
+    LMToken: string = ""
 }
