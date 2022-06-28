@@ -1,0 +1,223 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Telegram Chat"
+          },
+          "Parameters": [
+            "TelegramChatId",
+            "TelegramToken",
+            "TelegramUsername"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "TelegramChatId": {
+          "default": "Command center chat id"
+        },
+        "TelegramToken": {
+          "default": "Telegram bot token"
+        },
+        "TelegramUsername": {
+          "default": "Your Telegram username"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "TelegramChatId": {
+      "Type": "String",
+      "Default": "1234567890",
+      "AllowedPattern" : "-?[0-9]+",
+      "Description": "Telegram chat id to use for commands f.e. 1234567890"
+    },
+    "TelegramToken": {
+      "Type": "String",
+      "Default": "1112345576:AAGsample-token-telegram-abcd",
+      "AllowedPattern" : "[0-9]{10}:.*",
+      "Description": "Token of the telegram bot to use for your command center f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+    },
+    "TelegramUsername": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Your Telegram username to verify that the command was sent by you. (Important without @)"
+    }
+  },
+  "Resources": {
+    "commandCenterRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "CommandCenterPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:Describe*",
+                    "ssm:Get*",
+                    "ssm:List*"
+                  ],
+                  "Resource": [ 
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center*"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state"}
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:PutParameter"
+                  ],
+                  "Resource": [ 
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center/last-executed-message-id"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/skip"},
+                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*"}
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction"
+                  ],
+                  "Resource": {"Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:defichain-vault-maxi*"}
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "commandCenterTrigger": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "commandCenterTrigger",
+        "Description": "Triggers your vault maxis' command center",
+        "ScheduleExpression": "rate(1 minute)",
+        "Targets": [
+          {
+            "Id": "commandCenterTarget",
+            "Arn": {
+              "Fn::GetAtt": [
+                "commandCenterLambda",
+                "Arn"
+              ]
+            }
+          }
+        ],
+        "State": "ENABLED"
+      }
+    },
+    "commandCenterTriggerInvokeLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "commandCenterLambda"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "commandCenterTrigger",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "commandCenterLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "defichain-vault-maxi-command-center",
+        "Handler": "index.main",
+        "Role": {
+          "Fn::GetAtt": [
+            "commandCenterRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "S3Bucket": {"Fn::Sub": "defichain-maxi-public-${AWS::Region}"},
+          "S3Key": "command-center-1-0.zip"
+        },
+        "Runtime": "nodejs14.x",
+        "Timeout": 900
+      }
+    },
+    "commandCenterParamTelegramChatId": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Telegram chat id for commands",
+        "Name": "/defichain-maxi/command-center/telegram/chat-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramChatId"
+        }
+      }
+    },
+    "commandCenterParamTelegramToken": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Telegram bot token for command center",
+        "Name": "/defichain-maxi/command-center/telegram/token",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramToken"
+        }
+      }
+    },
+    "commandCenterParamTelegramUsername": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Your Telegram username to verify sent commands",
+        "Name": "/defichain-maxi/command-center/telegram/username",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramUsername"
+        }
+      }
+    },
+    "commandCenterParamLastExecutedMessageId": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "message id of last execution. DO NOT CHANGE THIS VALUE",
+        "Name": "/defichain-maxi/command-center/last-executed-message-id",
+        "Type": "String",
+        "Value": "0"
+      }
+    }
+  }
+}
