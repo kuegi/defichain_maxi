@@ -1,0 +1,11 @@
+{
+    "NODE_USER": "YourNodeUser",
+    "NODE_PASSWORD": "YourNodeUserPassword",
+    "sourceAddress": "<your-source-address>",
+    "destinationAddress": "<your-destination-address>",
+    "portfolio": [
+        { "token": "GLD", "allocation": 0.3 },
+        { "token": "SPY", "allocation": 0.7 }
+    ],
+    "shouldExecute": false
+}
