@@ -813,7 +813,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 //send donation and reduce amountToUse
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
                 console.log("donating " + donatedAmount.toFixed(2) + " DFI")
-                const tx = await this.sendDFIToAccount(donatedAmount, DONATION_ADDRESS)
+                const tx = await this.sendDFIToAccount(donatedAmount, DONATION_ADDRESS, prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
                 prevout = this.prevOutFromTx(tx)
 
