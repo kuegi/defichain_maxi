@@ -693,7 +693,8 @@ export class VaultMaxiProgram extends CommonProgram {
                 pools = [{ id: +usdcPool.id }]
             }
             pools.push({ id: +dusdPool.id })
-            console.log("found premium of " + coll?.symbol)
+            if(coll)
+                console.log("found premium of " + coll?.symbol)
             maxPrice = pegReference
         } else if (+(dusdColl?.amount ?? "0") > 0 && BigNumber.max(usdcPerDUSD, usdtPerDUSD).gte(pegReference + minOffPeg)//premium case: swap  DUSD -> stable
             && (+(dusdColl?.amount ?? "0") + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
