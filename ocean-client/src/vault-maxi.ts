@@ -103,11 +103,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 // if we are on state waiting for last transaction,  we should wait for txId
                 if (information.state === ProgramState.WaitingForTransaction || information.txId.length > 0) {
                     console.log("waiting for tx from previous run")
-                    const result = await program.waitForTx(information.txId, information.blockHeight)
+                    const resultFromPrevTx = await program.waitForTx(information.txId, information.blockHeight)
                     vault = await program.getVault() as LoanVaultActive
                     balances = await program.getTokenBalances()
-                    console.log(result ? "done" : " timed out -> cleanup")
-                    if (!result || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
+                    console.log(resultFromPrevTx ? "done" : " timed out -> cleanup")
+                    if (!resultFromPrevTx || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
                         information.state = ProgramState.Error //force cleanup
                     } else {
                         information.state = ProgramState.Idle
