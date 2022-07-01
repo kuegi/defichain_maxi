@@ -761,8 +761,34 @@ export class VaultMaxiProgram extends CommonProgram {
             //no data, not motivation
             return
         }
-        const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
-        const rewardDiff = loanDiff * pool.apr.total
+
+        const neededrepayForRefRatio = BigNumber.max(
+            new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).dividedBy(referenceRatio/100)),
+            nextLoanValue(vault).minus(nextCollateralValue(vault).div(referenceRatio/100)))
+        
+        let oracleA: BigNumber = new BigNumber(0)
+        vault.loanAmounts.forEach(loanamount => {
+            if (loanamount.symbol == this.assetA) {
+                oracleA = new BigNumber(loanamount.activePrice?.active?.amount ?? "1") //fallback in case of DUSD (has no oracle)
+            }
+        })
+        let wantedTokens: BigNumber
+        let oracleB= new BigNumber(1)
+        if (!this.isSingleMint) {
+            wantedTokens = neededrepayForRefRatio
+                .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve), pool.tokenB.reserve)) //would be oracleB* pool!.tokenB.reserve but oracleB is always 1 for DUSD as loan
+        } else {
+            oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") //DUSD fallback
+
+            wantedTokens = neededrepayForRefRatio.times(referenceRatio/100)
+                .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(referenceRatio/100), //additional "times" due to part collateral, part loan
+                    oracleB.times(pool.tokenB.reserve)))
+        }
+
+        const loanDiff = wantedTokens.times(BigNumber.sum(oracleA.times(pool.tokenA.reserve),oracleB.times(pool.tokenB.reserve)))
+        //for double mint it would be the same, but single mint is more complex
+        //const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
+        const rewardDiff = loanDiff.toNumber() * pool.apr.total
         if (rewardDiff < 100) {
             return //just a testvault, no need to motivate anyone
         }
