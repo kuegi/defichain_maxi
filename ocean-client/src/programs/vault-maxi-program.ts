@@ -306,7 +306,7 @@ export class VaultMaxiProgram extends CommonProgram {
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
             + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? "Thank you for donating " + (this.settings.autoDonationPercentOfReinvest) + "% of your rewards" : "auto donation is turned off")
-            + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size" + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
+            + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size " + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
 
         console.log(message)
