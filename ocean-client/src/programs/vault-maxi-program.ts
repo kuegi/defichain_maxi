@@ -1,17 +1,15 @@
 import { LoanVaultActive, LoanVaultLiquidated, LoanVaultState, LoanVaultTokenAmount } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
-import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { Telegram } from "../utils/telegram";
 import { CommonProgram, ProgramState } from "./common-program";
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CTransactionSegWit, PoolId, TokenBalance, Transaction } from "@defichain/jellyfish-transaction/dist";
+import { CTransactionSegWit, PoolId, TokenBalance } from "@defichain/jellyfish-transaction/dist";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
-import { DONATION_ADDRESS } from "../vault-maxi";
-import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
+import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { VERSION } from "../vault-maxi";
 
 
@@ -226,6 +224,10 @@ export class VaultMaxiProgram extends CommonProgram {
                 }
             }
         }
+
+        // sanity check for auto-donate feature, do NOT allow auto-donate above our defined max percentage
+        this.settings.autoDonationPercentOfReinvest = Math.min(this.settings.autoDonationPercentOfReinvest, DONATION_MAX_PERCENTAGE)
+
         return true
     }
 
@@ -300,12 +302,15 @@ export class VaultMaxiProgram extends CommonProgram {
             values.assetA = values.assetB = undefined
         }
         values.reinvest = this.settings.reinvestThreshold
+        const autoDonationMessage = this.settings.autoDonationPercentOfReinvest > DONATION_MAX_PERCENTAGE
+            ? "Thank you for donating " + (DONATION_MAX_PERCENTAGE) + "% of your rewards. You set to donate " + this.settings.autoDonationPercentOfReinvest + "% which is great but feels like an input error. Donation was reduced to " + DONATION_MAX_PERCENTAGE + "% of your reinvest. Feel free to donate more manually"
+            : "Thank you for donating " + (this.settings.autoDonationPercentOfReinvest) + "% of your rewards"
 
         const message = values.constructMessage()
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
-            + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? "Thank you for donating " + (this.settings.autoDonationPercentOfReinvest) + "% of your rewards" : "auto donation is turned off")
+            + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : "auto donation is turned off")
             + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size " + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
 
