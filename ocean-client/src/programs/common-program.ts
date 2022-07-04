@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, DeFiTransactionConstants, PoolId, Script, ScriptBalances, TokenBalance, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
+import { CTransactionSegWit, DeFiTransactionConstants, PoolId, Script, ScriptBalances, TokenBalance, TokenBalanceUInt32, Transaction, TransactionSegWit } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
@@ -10,9 +10,8 @@ import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
 import { Store, StoredSettings } from "../utils/store";
 import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
-import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder/dist/txn/txn_fee'
-import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
-import { WalletClassic } from "@defichain/jellyfish-wallet-classic";
+import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
+import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
 export enum ProgramState {
     Idle = "idle",
@@ -128,7 +127,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async paybackLoans(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async paybackLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const txn = await this.account!.withTransactionBuilder().loans.paybackLoan({
             vaultId: this.settings.vault,
             from: this.script!,
@@ -138,7 +137,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async takeLoans(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async takeLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
         const txn = await this.account!.withTransactionBuilder().loans.takeLoan({
             vaultId: this.settings.vault,
             to: this.script!,

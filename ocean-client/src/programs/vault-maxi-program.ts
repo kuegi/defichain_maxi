@@ -6,9 +6,9 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { Store } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CTransactionSegWit, PoolId, TokenBalance } from "@defichain/jellyfish-transaction/dist";
+import { CTransactionSegWit, PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
-import { Prevout } from '@defichain/jellyfish-transaction-builder/dist/provider'
+import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { VERSION } from "../vault-maxi";
 
@@ -503,7 +503,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let used_prevout = prevout
         if (loanTokens.length > 0) {
             console.log(" paying back tokens " + loanTokens.map(token => " " + token.amount + "@" + token.symbol))
-            let paybackTokens: TokenBalance[] = []
+            let paybackTokens: TokenBalanceUInt32[] = []
             loanTokens.forEach(addressToken => {
                 paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
             })
@@ -689,6 +689,8 @@ export class VaultMaxiProgram extends CommonProgram {
         const dfiColl = vault.collateralAmounts.find(coll => coll.symbol === "DFI")
 
         let poolRatios: PoolRatio[] = []
+
+        //TODO: also consider fees (pool.commission and pool.tokenA.fee)
 
         poolRatios.push({
             ratio: new BigNumber(dusdPool.priceRatio.ba).multipliedBy(usdtPool.priceRatio.ab),
