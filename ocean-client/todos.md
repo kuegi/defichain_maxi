@@ -40,3 +40,5 @@
 * [X] add autodonation setting, default = 0
 * [X] remove/prevent exposure if interest rate is above APR
 * [X] add version to state
+
+* [ ] prepare arb for stablecoin pools

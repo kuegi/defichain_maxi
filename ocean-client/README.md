@@ -38,14 +38,17 @@ To run, the script needs parameters set in the AWS ParameterStore:
 ```
 /defichain-maxi/wallet/address
 /defichain-maxi/wallet/vault
+
 /defichain-maxi/settings/min-collateral-ratio
 /defichain-maxi/settings/max-collateral-ratio
 /defichain-maxi/settings/lm-pair
 /defichain-maxi/settings/main-collateral-asset
+/defichain-maxi/settings/stable-arb-batch-size (if > 0 -> search for stable-coin arbitrage and do batches of max this size)
 /defichain-maxi/settings/reinvest
+/defichain-maxi/settings/auto-donation-percent-of-reinvest (if > 0 this percentage of your reinvested amount will be donated to the devs on every reinvest. highly appreciated.)
+
 /defichain-maxi/state (written by the bot itself)
 /defichain-maxi/skip (set to "true" to skip the next execution)
-/defichain-maxi/stable-arb-batch-size (if > 0 -> search for stable-coin arbitrage and do batches of max this size)
 ```
 saved as a SecureString:
 ```

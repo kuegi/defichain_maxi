@@ -25,12 +25,12 @@ export class StoreAWS implements IStore {
 
     async skipNext(): Promise<void> {
         const key = StoreKey.Skip.replace("-maxi", "-maxi" + this.settings.paramPostFix)
-        this.ssm.putParameter({
+        await this.ssm.putParameter({
             Name: key,
             Value: "true",
             Overwrite: true,
             Type: 'String'
-        }).send()
+        }).promise()
 
     }
 
@@ -113,12 +113,13 @@ export class StoreAWS implements IStore {
         this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false") === "true"
         if (this.settings.shouldSkipNext) {
             //reset to false, so no double skip ever
-            this.ssm.putParameter({
+            console.log("got skip command, reset to false")
+            await this.ssm.putParameter({
                 Name: SkipKey,
                 Value: "false",
                 Overwrite: true,
                 Type: 'String'
-            }).send()
+            }).promise()
         }
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
