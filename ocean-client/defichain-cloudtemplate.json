@@ -159,7 +159,7 @@
     },
     "AutoDonation": {
       "Type": "Number",
-      "Default": 0,
+      "Default": 5,
       "Description": "Percent of your rewards that will be automatically donated to the developers. Thanks."
     },
     "TelegramNotificationChatId": {
