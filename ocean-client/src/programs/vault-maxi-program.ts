@@ -671,12 +671,13 @@ export class VaultMaxiProgram extends CommonProgram {
             poolsForSwap: PoolId[]
         }
         //get DUSD-DFI, USDT-DFI and USDC-DFI pool
-        const dusdPool = await this.getPool("DUSD-DFI")
-        const usdtPool = await this.getPool("USDT-DFI")
-        const usdcPool = await this.getPool("USDC-DFI")
+        const poolData= await this.getPools()
+        const dusdPool = poolData.find(pool => pool.symbol === "DUSD-DFI")
+        const usdtPool = poolData.find(pool => pool.symbol === "USDT-DFI")
+        const usdcPool = poolData.find(pool => pool.symbol === "USDC-DFI")
 
-        const usdtPoolDirect = await this.getPool("USDT-DUSD")
-        const usdcPoolDirect = await this.getPool("USDC-DUSD")
+        const usdtPoolDirect = poolData.find(pool => pool.symbol === "USDT-DUSD")
+        const usdcPoolDirect = poolData.find(pool => pool.symbol === "USDC-DUSD")
 
         if (!dusdPool?.priceRatio.ab || !usdtPool?.priceRatio.ba || !usdcPool?.priceRatio.ba) {
             console.error("couldn't get stable pool data")

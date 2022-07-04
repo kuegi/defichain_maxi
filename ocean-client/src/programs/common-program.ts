@@ -80,10 +80,14 @@ export class CommonProgram {
         return this.client.loan.getVault(this.settings.vault)
     }
 
-    async getPool(poolId: string): Promise<PoolPairData | undefined> {
-        const respose = await this.client.poolpairs.list(1000)
+    async getPools(): Promise<PoolPairData[]> {
+        return await this.client.poolpairs.list(1000)
+    }
 
-        return respose.find(pool => {
+    async getPool(poolId: string): Promise<PoolPairData | undefined> {
+        const pools = await this.getPools()
+
+        return pools.find(pool => {
             return pool.symbol == poolId
         })
     }
