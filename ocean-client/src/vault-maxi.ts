@@ -122,7 +122,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     vault = await program.getVault() as LoanVaultActive
                     balances = await program.getTokenBalances()
                     //need to get updated vault
-                    await telegram.log("executed clean-up part of script " + (result ? "successfull" : "with problems") + ". vault ratio after clean-up " + vault.collateralRatio)
+                    await telegram.log("executed clean-up part of script " + (result ? "successfully" : "with problems") + ". vault ratio after clean-up " + vault.collateralRatio)
                     if (!result) {
                         console.error("Error in cleaning up")
                         await telegram.send("There was an error in recovering from a failed state. please check yourself!")
