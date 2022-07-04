@@ -41,4 +41,4 @@
 * [X] remove/prevent exposure if interest rate is above APR
 * [X] add version to state
 
-* [ ] prepare arb for stablecoin pools
+* [X] prepare arb for stablecoin pools

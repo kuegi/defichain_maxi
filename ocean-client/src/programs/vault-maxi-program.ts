@@ -562,13 +562,13 @@ export class VaultMaxiProgram extends CommonProgram {
         let wantedAssetB: BigNumber
         let prevout
         let loanArray
-        
-        let dfiDusdCollateralValue= new BigNumber(0)
-        vault.collateralAmounts.forEach( coll => {
-            if(coll.symbol === "DFI"){
-                dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(BigNumber.min(coll.activePrice?.active?.amount ?? 0,coll.activePrice?.next?.amount ?? 0)))
+
+        let dfiDusdCollateralValue = new BigNumber(0)
+        vault.collateralAmounts.forEach(coll => {
+            if (coll.symbol === "DFI") {
+                dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(BigNumber.min(coll.activePrice?.active?.amount ?? 0, coll.activePrice?.next?.amount ?? 0)))
             }
-            if(coll.symbol === "DUSD") {
+            if (coll.symbol === "DUSD") {
                 dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(0.99))
             }
         })
@@ -584,11 +584,11 @@ export class VaultMaxiProgram extends CommonProgram {
                 { token: +pool.tokenB.id, amount: wantedAssetB }
             ]
             //check if enough collateral is there to even take new loan
-            if(dfiDusdCollateralValue.times(vault.loanScheme.minColRatio).div(100).lte(additionalLoan.plus(vault.loanValue))) {
+            if (dfiDusdCollateralValue.times(vault.loanScheme.minColRatio).div(100).lte(additionalLoan.plus(vault.loanValue))) {
                 console.error("not enough collateral of DFI or DUSD to take more loans")
                 await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
                 return false
-            } 
+            }
         } else {
             let oracleB = new BigNumber(0.99) //case DUSD
             let assetBInColl = "0"
@@ -613,13 +613,13 @@ export class VaultMaxiProgram extends CommonProgram {
                 await telegram.send("Could not increase exposure, not enough " + this.assetB + " in collateral to use: " + wantedAssetB.toFixed(4) + " vs. " + assetBInColl)
                 return false
             }
-            
+
             //check if enough collateral is there to even take new loan
-            if(dfiDusdCollateralValue.minus(wantedAssetB).times(vault.loanScheme.minColRatio).div(100).lte(wantedAssetA.plus(vault.loanValue))) {
+            if (dfiDusdCollateralValue.minus(wantedAssetB).times(vault.loanScheme.minColRatio).div(100).lte(wantedAssetA.plus(vault.loanValue))) {
                 console.error("not enough collateral of DFI or DUSD to take more loans")
                 await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
                 return false
-            } 
+            }
             const withdrawTx = await this.withdrawFromVault(+pool.tokenB.id, wantedAssetB)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, withdrawTx.txId)
             prevout = this.prevOutFromTx(withdrawTx)
@@ -663,55 +663,94 @@ export class VaultMaxiProgram extends CommonProgram {
 
 
     async checkAndDoStableArb(vault: LoanVaultActive, pool: PoolPairData, stableCoinArbBatchSize: number, telegram: Telegram): Promise<boolean> {
+
+        interface PoolRatio {
+            ratio: BigNumber
+            coll: LoanVaultTokenAmount | undefined
+            tokenA: { id: string; symbol: string; }
+            poolsForSwap: PoolId[]
+        }
         //get DUSD-DFI, USDT-DFI and USDC-DFI pool
         const dusdPool = await this.getPool("DUSD-DFI")
         const usdtPool = await this.getPool("USDT-DFI")
         const usdcPool = await this.getPool("USDC-DFI")
 
+        const usdtPoolDirect = await this.getPool("USDT-DUSD")
+        const usdcPoolDirect = await this.getPool("USDC-DUSD")
+
         if (!dusdPool?.priceRatio.ab || !usdtPool?.priceRatio.ba || !usdcPool?.priceRatio.ba) {
             console.error("couldn't get stable pool data")
             return false
         }
+
         const usdtColl = vault.collateralAmounts.find(coll => coll.symbol === "USDT")
         const usdcColl = vault.collateralAmounts.find(coll => coll.symbol === "USDC")
         const dusdColl = vault.collateralAmounts.find(coll => coll.symbol === "DUSD")
         const dfiColl = vault.collateralAmounts.find(coll => coll.symbol === "DFI")
 
-        const usdtPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdtPool?.priceRatio.ab)
-        const usdcPerDUSD = new BigNumber(dusdPool?.priceRatio.ba).multipliedBy(usdcPool?.priceRatio.ab)
+        let poolRatios: PoolRatio[] = []
+
+        poolRatios.push({
+            ratio: new BigNumber(dusdPool.priceRatio.ba).multipliedBy(usdtPool.priceRatio.ab),
+            coll: usdtColl,
+            tokenA: usdtPool.tokenA,
+            poolsForSwap: [{ id: +usdtPool.id }, { id: +dusdPool.id }]
+        })
+        poolRatios.push({
+            ratio: new BigNumber(dusdPool.priceRatio.ba).multipliedBy(usdcPool.priceRatio.ab),
+            coll: usdcColl,
+            tokenA: usdcPool.tokenA,
+            poolsForSwap: [{ id: +usdcPool.id }, { id: +dusdPool.id }]
+        })
+
+        if (usdtPoolDirect) {
+            poolRatios.push({
+                ratio: new BigNumber(usdtPoolDirect.priceRatio.ba), //is ba correct here?
+                coll: usdtColl,
+                tokenA: usdtPoolDirect.tokenA,
+                poolsForSwap: [{ id: +usdtPoolDirect.id }]
+            })
+        }
+        if (usdcPoolDirect) {
+            poolRatios.push({
+                ratio: new BigNumber(usdcPoolDirect.priceRatio.ba), //is ba correct here?
+                coll: usdcColl,
+                tokenA: usdcPoolDirect.tokenA,
+                poolsForSwap: [{ id: +usdcPoolDirect.id }]
+            })
+        }
 
         const minOffPeg = +(process.env.VAULTMAXI_DUSD_MIN_PEG_DIFF ?? "0.02")
         const pegReference = +(process.env.VAULTMAXI_DUSD_PEG_REF ?? "1")
-        let coll: LoanVaultTokenAmount | undefined
-        let target: LoanVaultTokenAmount | { id: string; symbol: string; } | undefined
 
-        console.log("stable arb: " + usdcPerDUSD.toFixed(4) + " in USDC, " + usdtPerDUSD.toFixed(4) + " in USDT vs " + pegReference + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
+        let coll: LoanVaultTokenAmount | undefined
+        let target: { id: string; symbol: string; } | undefined
+
+        poolRatios.sort((a, b) => a.ratio.comparedTo(b.ratio))
+
+        const ratiosmsg = poolRatios.map(ratio => "" + ratio.ratio.toFixed(4) + " in " + ratio.tokenA.symbol + " ("+(ratio.coll?"got coll":"not in coll") + ") via " + ratio.poolsForSwap.length + " pools").join(", ")
+        console.log("stable arb: " + ratiosmsg + " vs " + pegReference + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
+
         let pools: PoolId[] = []
         let maxPrice = pegReference
-        if (BigNumber.min(usdcPerDUSD, usdtPerDUSD).lte(pegReference - minOffPeg)) { //discount case: swap stable -> DUSD
-            target = dusdColl ?? dusdPool.tokenA
-            if (usdtPerDUSD.gt(usdcPerDUSD) && +(usdtColl?.amount ?? "0") > 0) {
-                coll = usdtColl!
-                pools = [{ id: +usdtPool.id }]
-            } else if (usdcPerDUSD.gt(1 + minOffPeg) && +(usdcColl?.amount ?? "0") > 0) {
-                coll = usdcColl!
-                pools = [{ id: +usdcPool.id }]
-            }
-            pools.push({ id: +dusdPool.id })
-            if(coll)
-                console.log("found premium of " + coll?.symbol)
+
+        let discountRatios = poolRatios.filter(ratio => ratio.coll)
+
+        const minRatio = discountRatios.length > 0 ? discountRatios[0] : undefined
+        const maxRatio = poolRatios[poolRatios.length - 1]
+
+        if (minRatio && minRatio.ratio.lte(pegReference - minOffPeg)) { //discount case: swap stable -> DUSD
+            coll = minRatio.coll!
+            target = dusdPool.tokenA
+            pools = minRatio.poolsForSwap
+            console.log("found premium of " + coll.symbol)
             maxPrice = pegReference
-        } else if (+(dusdColl?.amount ?? "0") > 0 && BigNumber.max(usdcPerDUSD, usdtPerDUSD).gte(pegReference + minOffPeg)//premium case: swap  DUSD -> stable
-            && (+(dusdColl?.amount ?? "0") + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
-            coll = dusdColl!
-            pools = [{ id: +dusdPool.id }]
-            if (usdtPerDUSD.lt(usdcPerDUSD)) {
-                target = usdtColl ?? usdtPool.tokenA
-                pools.push({ id: +usdtPool.id })
-            } else {
-                target = usdcColl ?? usdcPool.tokenA
-                pools.push({ id: +usdcPool.id })
-            }
+        } else if (dusdColl && +dusdColl.amount > 0 && maxRatio.ratio.gte(pegReference + minOffPeg)//premium case: swap  DUSD -> stable
+            && (+dusdColl.amount + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
+            coll = dusdColl
+            target = maxRatio.tokenA
+            pools = maxRatio.poolsForSwap
+            pools.reverse()
             console.log("found discount of " + target?.symbol)
             maxPrice = 1 / pegReference
         }
@@ -768,9 +807,9 @@ export class VaultMaxiProgram extends CommonProgram {
         }
 
         const neededrepayForRefRatio = BigNumber.max(
-            new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).dividedBy(referenceRatio/100)),
-            nextLoanValue(vault).minus(nextCollateralValue(vault).div(referenceRatio/100)))
-        
+            new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).dividedBy(referenceRatio / 100)),
+            nextLoanValue(vault).minus(nextCollateralValue(vault).div(referenceRatio / 100)))
+
         let oracleA: BigNumber = new BigNumber(0)
         vault.loanAmounts.forEach(loanamount => {
             if (loanamount.symbol == this.assetA) {
@@ -778,19 +817,19 @@ export class VaultMaxiProgram extends CommonProgram {
             }
         })
         let wantedTokens: BigNumber
-        let oracleB= new BigNumber(1)
+        let oracleB = new BigNumber(1)
         if (!this.isSingleMint) {
             wantedTokens = neededrepayForRefRatio
                 .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve), pool.tokenB.reserve)) //would be oracleB* pool!.tokenB.reserve but oracleB is always 1 for DUSD as loan
         } else {
             oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") //DUSD fallback
 
-            wantedTokens = neededrepayForRefRatio.times(referenceRatio/100)
-                .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(referenceRatio/100), //additional "times" due to part collateral, part loan
+            wantedTokens = neededrepayForRefRatio.times(referenceRatio / 100)
+                .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(referenceRatio / 100), //additional "times" due to part collateral, part loan
                     oracleB.times(pool.tokenB.reserve)))
         }
 
-        const loanDiff = wantedTokens.times(BigNumber.sum(oracleA.times(pool.tokenA.reserve),oracleB.times(pool.tokenB.reserve)))
+        const loanDiff = wantedTokens.times(BigNumber.sum(oracleA.times(pool.tokenA.reserve), oracleB.times(pool.tokenB.reserve)))
         //for double mint it would be the same, but single mint is more complex
         //const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
         const rewardDiff = loanDiff.toNumber() * pool.apr.total
