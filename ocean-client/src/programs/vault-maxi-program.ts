@@ -753,27 +753,32 @@ export class VaultMaxiProgram extends CommonProgram {
         let target: { id: string; symbol: string; } | undefined
 
         poolRatios.sort((b, a) => a.ratio.times(a.feeOut).comparedTo(b.ratio.times(b.feeOut)))
+        const maxRatio = poolRatios[0]
 
-        let ratiosmsg = poolRatios.map(ratio => "" + ratio.ratio.toFixed(4) + "(fee: "+ratio.feeOut.toFixed(4)+")  in " + ratio.tokenA.symbol + " ("+(ratio.coll?"got coll":"not in coll") + ") via " + ratio.poolsForSwap.length + " pools").join(", ")
+        let ratiosmsg = poolRatios.map(ratio =>  ratio.tokenA.symbol + ": " + ratio.ratio.times(ratio.feeOut).toFixed(4) +
+         " (raw: "+ratio.ratio.toFixed(4)+" with fee ratio: "+ratio.feeOut.toFixed(4)+") " + " via " + ratio.poolsForSwap.length + " pools ("
+         +(ratio.coll?"got in coll":"not in coll")+")").join(", ")
         console.log("stable arb for premium: " + ratiosmsg + " vs " + pegReference + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
 
         let pools: PoolId[] = []
         let maxPrice = pegReference
 
+        const one= new BigNumber(1)
+        poolRatios.sort((b, a) => a.feeIn.div(a.ratio).comparedTo(b.feeIn.div(b.ratio)))
+
+        ratiosmsg = poolRatios.map(ratio =>  ratio.tokenA.symbol +": " + ratio.feeIn.div(ratio.ratio).toFixed(4) +
+         " (raw: "+one.div(ratio.ratio).toFixed(4)+" with fee ratio: "+ratio.feeIn.toFixed(4)+") "
+         + " via " + ratio.poolsForSwap.length + " pools ("+(ratio.coll?"got in coll":"not in coll") + ")").join(", ")
+        console.log("stable arb for discount: " + ratiosmsg + " vs " + (1/pegReference).toFixed(4) + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
+
         let discountRatios = poolRatios.filter(ratio => ratio.coll)
-        discountRatios.sort((a, b) => a.ratio.times(a.feeIn).comparedTo(b.ratio.times(b.feeIn)))
-        ratiosmsg = discountRatios.map(ratio => "" + ratio.ratio.toFixed(4) + "(fee: "+ratio.feeIn.toFixed(4)+") in " + ratio.tokenA.symbol + " ("+(ratio.coll?"got coll":"not in coll") + ") via " + ratio.poolsForSwap.length + " pools").join(", ")
-        console.log("stable arb for discount: " + ratiosmsg + " vs " + pegReference + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
-
-        
         const minRatio = discountRatios.length > 0 ? discountRatios[0] : undefined
-        const maxRatio = poolRatios[0]
 
-        if (minRatio && minRatio.ratio.times(minRatio.feeIn).lte(pegReference - minOffPeg)) { //discount case: swap stable -> DUSD
+        if (minRatio && minRatio.feeIn.div(minRatio.ratio).gte(1/pegReference + minOffPeg)) { //discount case: swap stable -> DUSD
             coll = minRatio.coll!
             target = dusdPool.tokenA
             pools = minRatio.poolsForSwap
-            console.log("found premium of " + coll.symbol)
+            console.log("found DUSD discount against " + coll.symbol+": "+minRatio.ratio.toFixed(4)+", "+minRatio.ratio.div(minRatio.feeIn).toFixed(4)+" after fees")
             maxPrice = pegReference
         } else if (dusdColl && +dusdColl.amount > 0 && maxRatio.ratio.times(maxRatio.feeOut).gte(pegReference + minOffPeg)//premium case: swap  DUSD -> stable
             && (+dusdColl.amount + +(dfiColl?.amount ?? "0") - stableCoinArbBatchSize > +vault.collateralValue * 0.6)) { //keep buffer in case of market fluctuation
@@ -781,7 +786,7 @@ export class VaultMaxiProgram extends CommonProgram {
             target = maxRatio.tokenA
             pools = maxRatio.poolsForSwap
             pools.reverse()
-            console.log("found discount of " + target?.symbol)
+            console.log("found DUSD premium against " + target?.symbol+": "+maxRatio.ratio.toFixed(4)+", "+maxRatio.ratio.times(maxRatio.feeOut).toFixed(4)+" after fees")
             maxPrice = 1 / pegReference
         }
         if (coll && target) {
