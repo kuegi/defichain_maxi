@@ -73,7 +73,7 @@
           "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
         },
         "AutoDonation": {
-          "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%."
+          "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
@@ -135,7 +135,7 @@
     },
     "LMPair": {
       "Type": "String",
-      "Default": "DUSD-DFI",
+      "Default": "QQQ-DUSD",
       "MinLength": "6",
       "AllowedPattern" : "[A-Z.]+-DUSD|DUSD-DFI",
       "Description": "The pair to be used for Liquidity Mining f.e. QQQ-DUSD"
