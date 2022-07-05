@@ -723,7 +723,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
         if (usdtPoolDirect) {
             poolRatios.push({
-                ratio: new BigNumber(usdtPoolDirect.priceRatio.ba), //is ba correct here?
+                ratio: new BigNumber(usdtPoolDirect.priceRatio.ab), 
                 feeIn: this.combineFees([usdtPoolDirect.tokenA.fee?.inPct, usdtPoolDirect.tokenB.fee?.outPct ,
                                             usdtPoolDirect.commission  ]),
                 feeOut: this.combineFees([usdtPoolDirect.tokenB.fee?.inPct, usdtPoolDirect.tokenA.fee?.outPct ,
@@ -735,7 +735,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         if (usdcPoolDirect) {
             poolRatios.push({
-                ratio: new BigNumber(usdcPoolDirect.priceRatio.ba), //is ba correct here?
+                ratio: new BigNumber(usdcPoolDirect.priceRatio.ab), 
                 feeIn: this.combineFees([usdcPoolDirect.tokenA.fee?.inPct, usdcPoolDirect.tokenB.fee?.outPct ,
                                          usdcPoolDirect.commission]),
                 feeOut: this.combineFees([usdcPoolDirect.tokenB.fee?.inPct, usdcPoolDirect.tokenA.fee?.outPct ,
@@ -756,8 +756,7 @@ export class VaultMaxiProgram extends CommonProgram {
         const maxRatio = poolRatios[0]
 
         let ratiosmsg = poolRatios.map(ratio =>  ratio.tokenA.symbol + ": " + ratio.ratio.times(ratio.feeOut).toFixed(4) +
-         " (raw: "+ratio.ratio.toFixed(4)+" with fee ratio: "+ratio.feeOut.toFixed(4)+") " + " via " + ratio.poolsForSwap.length + " pools ("
-         +(ratio.coll?"got in coll":"not in coll")+")").join(", ")
+         " (raw: "+ratio.ratio.toFixed(4)+" with fee ratio: "+ratio.feeOut.toFixed(4)+") " + " via " + ratio.poolsForSwap.length + " pools").join(", ")
         console.log("stable arb for premium: " + ratiosmsg + " vs " + pegReference + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
 
         let pools: PoolId[] = []
@@ -771,7 +770,7 @@ export class VaultMaxiProgram extends CommonProgram {
          + " via " + ratio.poolsForSwap.length + " pools ("+(ratio.coll?"got in coll":"not in coll") + ")").join(", ")
         console.log("stable arb for discount: " + ratiosmsg + " vs " + (1/pegReference).toFixed(4) + " min diff " + minOffPeg + ". batchsize: " + stableCoinArbBatchSize)
 
-        let discountRatios = poolRatios.filter(ratio => ratio.coll)
+        let discountRatios = poolRatios.filter(ratio => ratio.coll && +ratio.coll.amount > 0)
         const minRatio = discountRatios.length > 0 ? discountRatios[0] : undefined
 
         if (minRatio && minRatio.feeIn.div(minRatio.ratio).gte(1/pegReference + minOffPeg)) { //discount case: swap stable -> DUSD
@@ -791,14 +790,14 @@ export class VaultMaxiProgram extends CommonProgram {
         }
         if (coll && target) {
             const size = BigNumber.min(stableCoinArbBatchSize, coll.amount)
-            console.log("withdrawing " + size.toFixed(2) + "@" + coll?.symbol)
+            console.log("withdrawing " + size.toFixed(2) + "@" + coll.symbol)
             const withdrawTx = await this.withdrawFromVault(+coll.id, size)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, withdrawTx.txId)
             let prevout = this.prevOutFromTx(withdrawTx)
             let swap
             try {
-                console.log("swapping " + size.toFixed(2) + "@" + coll?.symbol + " to " + target.symbol)
-                swap = await this.compositeswap(size, +coll.id, +target!.id, pools, new BigNumber(maxPrice).decimalPlaces(8), prevout)
+                console.log("swapping " + size.toFixed(2) + "@" + coll.symbol + " to " + target.symbol)
+                swap = await this.compositeswap(size, +coll.id, +target.id, pools, new BigNumber(maxPrice).decimalPlaces(8), prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, swap.txId)
                 prevout = this.prevOutFromTx(swap)
             } catch (e) {
@@ -812,13 +811,13 @@ export class VaultMaxiProgram extends CommonProgram {
             if (!swap || !await this.waitForTx(swap.txId)) {
                 //swap failed, pay back
                 telegrammsg = "tried stable arb but failed, " + (swap ? "swaptx failed directly." : "swap didn't go throu.")
-                console.info(telegrammsg + " redpositing " + size.toFixed(2) + "@" + coll.symbol)
+                console.info(telegrammsg + " redepositing " + size.toFixed(2) + "@" + coll.symbol)
                 lastTx = await this.depositToVault(+coll.id, size, prevout)
             } else {
-                const balance = await this.getTokenBalance(target!.symbol)
+                const balance = await this.getTokenBalance(target.symbol)
                 telegrammsg = "did stable arb. got " + balance?.amount + "@" + target?.symbol + " for " + size.toFixed(4) + "@" + coll.symbol
                 console.info(telegrammsg + ", depositing " + balance?.amount + "@" + target.symbol)
-                lastTx = await this.depositToVault(+target!.id, new BigNumber(balance!.amount), prevout)
+                lastTx = await this.depositToVault(+target.id, new BigNumber(balance!.amount), prevout)
             }
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, lastTx.txId)
             await this.waitForTx(lastTx.txId)
