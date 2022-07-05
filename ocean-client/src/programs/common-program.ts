@@ -192,7 +192,6 @@ export class CommonProgram {
             to: balances,
             from: this.script!
         }, this.script!)
-        from: this.script!
         return this.sendWithPrevout(txn, prevout)
     }
 
