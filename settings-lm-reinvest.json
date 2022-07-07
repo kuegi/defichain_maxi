@@ -1,0 +1,13 @@
+{
+  "NODE_USER":   "yourNodeName",
+  "NODE_PASSWORD": "yourSuperSecureNodePassword",
+
+  "address":"yourAddress",
+  "telegram": {
+    "token": "telegramBot:Token",
+    "channel": "channelToSendMessagesTo"
+  },
+  "minReinvest": 3,
+  "logToConsole": true,
+  "logToFile": true
+}
