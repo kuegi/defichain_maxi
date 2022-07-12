@@ -9,7 +9,7 @@ import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { CTransactionSegWit, PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
-import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
+import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE, MAX_REINVEST_FOR_DONATION } from "../vault-maxi";
 import { VERSION } from "../vault-maxi";
 
 
@@ -913,7 +913,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
         if (amountToUse.gt(this.settings.reinvestThreshold)) {
             let donatedAmount = new BigNumber(0);
-            if (this.settings.autoDonationPercentOfReinvest > 0) {
+            if (this.settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(MAX_REINVEST_FOR_DONATION)) {
                 //send donation and reduce amountToUse
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
                 console.log("donating " + donatedAmount.toFixed(2) + " DFI")
@@ -967,6 +967,11 @@ export class VaultMaxiProgram extends CommonProgram {
                             + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
                         console.log("done ")
                         await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
+                        if(this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
+                            await telegram.send("you activated auto donation, but the reinvested amount was too big to be a reinvest. "+
+                                                "We assume that this was a transfer of funds, so we skipped auto-donation. " + 
+                                                "Feel free to manually donate anyway.")
+                        }
                         return true
                     }
                 }
