@@ -34,6 +34,7 @@ export const MAX_REINVEST_FOR_DONATION = 1000
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
     let ocean = process.env.VAULTMAXI_OCEAN_URL
+    let errorCooldown= 60000
     while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
         console.log("starting with " + context.getRemainingTimeInMillis() + "ms available")
         let store = new Store()
@@ -245,7 +246,14 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             console.error("Error in script")
             console.error(e)
             let message = "There was an unexpected error in the script. please check the logs"
-            if (e instanceof WhaleClientTimeoutException) {
+            if (e instanceof SyntaxError) {
+                console.info("syntaxError: '"+e.name+"' message: "+e.message)
+                if(e.message == "Unexpected token < in JSON at position 0" ) {
+                    message = "There was a error from the ocean api. will try again."
+                }
+                //TODO: do we have to go to error state in this case? or just continue on current state next time?
+            }
+            if (e instanceof WhaleClientTimeoutException ) {
                 message = "There was a timeout from the ocean api. will try again."
                 //TODO: do we have to go to error state in this case? or just continue on current state next time?
             }
@@ -266,7 +274,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 blockHeight: 0,
                 version: VERSION
             })
-            await delay(60000) // cooldown and not to spam telegram
+            await delay(errorCooldown) // cooldown and not to spam telegram
+            errorCooldown += 60000 //increase cooldown. if error is serious -> less spam in telegram
         }
     }
     return { statusCode: 500 } //means we came out of error loop due to not enough time left
