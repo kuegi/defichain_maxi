@@ -17,19 +17,6 @@ export class LMReinvestProgram extends CommonProgram {
         this.lmPair = this.settings.LMPair
     }
 
-    async doValidationChecks(telegram: Telegram): Promise<boolean> {
-        if (!super.doValidationChecks(telegram)) {
-            return false
-        }
-        if (!this.settings.LMPair.endsWith("-DFI")) {
-            const message = "Can only work with DFI pools, not with " + this.settings.LMPair
-            await telegram.send(message)
-            console.error(message)
-            return false
-        }
-        return true
-    }
-
 
     async doMaxiChecks(telegram: Telegram,
         pool: PoolPairData | undefined
@@ -115,7 +102,12 @@ export class LMReinvestProgram extends CommonProgram {
             const tokenA = pool.tokenA
             const tokenB = pool.tokenB
             console.log("swaping " + amountToSwap + " half of (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to " + tokenA.symbol)
-            const swap = await this.swap(amountToSwap, +tokenB.id, +tokenA.id, new BigNumber(999999999), prevout)
+            let swap = await this.swap(amountToSwap, +tokenB.id, +tokenA.id, new BigNumber(999999999), prevout)
+            if(+tokenB.id  != 0) {
+                //need to swap both
+                console.log("swaping " + amountToSwap + " DFI to " + tokenB.symbol)
+                swap = await this.swap(amountToSwap, +tokenB.id, +tokenA.id, new BigNumber(999999999), this.prevOutFromTx(swap))
+            }
             if (! await this.waitForTx(swap.txId)) {
                 await telegram.send("ERROR: swapping reinvestment failed")
                 console.error("swapping reinvestment failed")
@@ -147,7 +139,7 @@ export class LMReinvestProgram extends CommonProgram {
             } else {
                 await telegram.send("reinvested " + amountToUse.toFixed(4) + "@DFI"
                     + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)"
-                    + "\n in " + usedAssetA.toFixed(4) + "@" + tokenA.symbol + " + " + usedAssetB.toFixed(4) + "@" + tokenB.symbol)
+                    + "\n in " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " + " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
                 console.log("done ")
                 return true
             }

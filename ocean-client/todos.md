@@ -43,4 +43,5 @@
 
 * [X] prepare arb for stablecoin pools
 
-* [ ] LM-maxi (reinvest bot)
+* [X] LM-maxi (reinvest bot)
+* [X] LM-reinvest also for -DUSD pools (swap both)
