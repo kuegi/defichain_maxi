@@ -143,7 +143,7 @@ export class LMReinvestProgram extends CommonProgram {
             } else {
                 await telegram.send("reinvested " + amountToUse.toFixed(4) + "@DFI"
                     + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)"
-                    + "\n in " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " + " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
+                    + "\n in " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " paired with " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
                 console.log("done ")
                 return true
             }
