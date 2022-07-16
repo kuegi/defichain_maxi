@@ -28,8 +28,6 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         let store = new StoreAWSReinvest()
         let settings = await store.fetchSettings()
 
-        console.log("initial state: " + ProgramStateConverter.toValue(settings.stateInformation))
-
         if (event) {
             console.log("received event " + JSON.stringify(event))
         }
