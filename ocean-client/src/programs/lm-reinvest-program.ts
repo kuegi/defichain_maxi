@@ -115,7 +115,7 @@ export class LMReinvestProgram extends CommonProgram {
             const tokenA = pool.tokenA
             const tokenB = pool.tokenB
             console.log("swaping " + amountToSwap + " half of (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to " + tokenA.symbol)
-            const swap = await this.swap(amountToUse, 0, +tokenA.id, new BigNumber(999999999), prevout)
+            const swap = await this.swap(amountToSwap, +tokenB.id, +tokenA.id, new BigNumber(999999999), prevout)
             if (! await this.waitForTx(swap.txId)) {
                 await telegram.send("ERROR: swapping reinvestment failed")
                 console.error("swapping reinvestment failed")
