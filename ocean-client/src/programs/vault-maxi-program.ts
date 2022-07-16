@@ -3,10 +3,10 @@ import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { Telegram } from "../utils/telegram";
 import { CommonProgram, ProgramState } from "./common-program";
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { Store } from "../utils/store";
+import { IStore } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CTransactionSegWit, PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
+import { PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
@@ -55,7 +55,7 @@ export class VaultMaxiProgram extends CommonProgram {
     private isSingleMint: boolean
     private readonly keepWalletClean: boolean
 
-    constructor(store: Store, walletSetup: WalletSetup) {
+    constructor(store: IStore, walletSetup: WalletSetup) {
         super(store, walletSetup);
 
         this.lmPair = this.settings.LMPair;
@@ -1013,13 +1013,4 @@ export class VaultMaxiProgram extends CommonProgram {
         })
     }
 
-    private prevOutFromTx(tx: CTransactionSegWit): Prevout {
-        return {
-            txid: tx.txId,
-            vout: 1,
-            value: tx.vout[1].value,
-            script: tx.vout[1].script,
-            tokenId: tx.vout[1].tokenId
-        }
-    }
 }

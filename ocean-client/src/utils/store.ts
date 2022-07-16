@@ -10,7 +10,7 @@ export interface IStore {
     skipNext(): Promise<void>;
 }
 
-export class Store {
+export class Store implements IStore {
 
     public get settings(): StoredSettings {
         return this.storeprovider.settings;
@@ -37,9 +37,8 @@ export class Store {
         return await this.storeprovider.fetchSettings()
     }
 
-    async writeSkipNext(): Promise<void> {
+    async skipNext(): Promise<void> {
         await this.storeprovider.skipNext()
-
     }
 
 }
