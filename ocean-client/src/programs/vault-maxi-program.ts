@@ -9,7 +9,7 @@ import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
-import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE, MAX_REINVEST_FOR_DONATION } from "../vault-maxi";
+import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { VERSION } from "../vault-maxi";
 
 
@@ -918,7 +918,7 @@ export class VaultMaxiProgram extends CommonProgram {
             let maxReinvestForDonation = this.settings.reinvestThreshold
             if (dfiPrice && pool.apr) {
                 //35040 executions per year -> this is the expected reward per maxi trigger in DFI, every reinvest below that number is pointless
-                maxReinvestForDonation = Math.max(maxReinvestForDonation, (+vault.loanValue * pool.apr.reward / (35040 * +dfiPrice)) 
+                maxReinvestForDonation = Math.max(maxReinvestForDonation, (+vault.loanValue * pool.apr.reward / (35040 * +dfiPrice))) 
             } else {
                 maxReinvestForDonation = Math.max(maxReinvestForDonation, 10) //fallback to min 10 DFI reinvest
             }
