@@ -913,7 +913,17 @@ export class VaultMaxiProgram extends CommonProgram {
 
         if (amountToUse.gt(this.settings.reinvestThreshold)) {
             let donatedAmount = new BigNumber(0);
-            if (this.settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(MAX_REINVEST_FOR_DONATION)) {
+            let dfiCollateral = vault.collateralAmounts.find(coll => coll.symbol === "DFI")
+            let dfiPrice = dfiCollateral?.activePrice?.active?.amount
+            let maxReinvestForDonation = this.settings.reinvestThreshold
+            if (dfiPrice && pool.apr) {
+                //35040 executions per year -> this is the expected reward per maxi trigger in DFI, every reinvest below that number is pointless
+                maxReinvestForDonation = Math.max(maxReinvestForDonation, (+vault.loanValue * pool.apr.reward / (35040 * +dfiPrice)) 
+            } else {
+                maxReinvestForDonation = Math.max(maxReinvestForDonation, 10) //fallback to min 10 DFI reinvest
+            }
+            maxReinvestForDonation *= 2 //anything above twice the expected reinvest value is considered a transfer of funds
+            if (this.settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
                 //send donation and reduce amountToUse
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
                 console.log("donating " + donatedAmount.toFixed(2) + " DFI")
