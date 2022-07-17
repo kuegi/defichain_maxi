@@ -300,7 +300,7 @@
         "Timeout": 890
       }
     },
-    "vaultMaxiParamMinReinvest": {
+    "reinvestParamMinReinvest": {
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
@@ -312,7 +312,7 @@
         }
       }
     },
-    "vaultMaxiParamAutoDonation": {
+    "reinvestParamAutoDonation": {
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
@@ -324,7 +324,7 @@
         }
       }
     },
-    "vaultMaxiParamTelegramNotificationChatId": {
+    "reinvestParamTelegramNotificationChatId": {
       "Type": "AWS::SSM::Parameter",
       "Condition": "CreateTelegramNotifications",
       "Properties": {
@@ -337,7 +337,7 @@
         }
       }
     },
-    "vaultMaxiParamTelegramNotificationToken": {
+    "reinvestParamTelegramNotificationToken": {
       "Type": "AWS::SSM::Parameter",
       "Condition": "CreateTelegramNotifications",
       "Properties": {
@@ -350,7 +350,7 @@
         }
       }
     },
-    "vaultMaxiParamTelegramLogsChatId": {
+    "reinvestParamTelegramLogsChatId": {
       "Type": "AWS::SSM::Parameter",
       "Condition": "CreateTelegramLogs",
       "Properties": {
@@ -363,7 +363,7 @@
         }
       }
     },
-    "vaultMaxiParamTelegramLogsToken": {
+    "reinvestParamTelegramLogsToken": {
       "Type": "AWS::SSM::Parameter",
       "Condition": "CreateTelegramLogs",
       "Properties": {
@@ -376,7 +376,7 @@
         }
       }
     },
-    "vaultMaxiParamDeFiAddress": {
+    "reinvestParamDeFiAddress": {
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
@@ -388,7 +388,7 @@
         }
       }
     },
-    "vaultMaxiParamLMPair": {
+    "reinvestParamLMPair": {
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
