@@ -54,10 +54,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const DFIinAddress = new BigNumber(balances.get("DFI")?.amount ?? 0)
             let result = true
 
-            console.log("starting with " + DFIinAddress.toFixed(2) + " in address")
+            console.log("starting with " + DFIinAddress.toFixed(4) + " in address")
             await program.checkAndDoReinvest(pool!, balances, telegram)
-            await telegram.log("executed script")
-            console.log("script don ")
+            await telegram.log("executed script with " + DFIinAddress.toFixed(4) + " DFI in address")
+            console.log("script done ")
             return { statusCode: result ? 200 : 500 }
         } catch (e) {
             console.error("Error in script")
