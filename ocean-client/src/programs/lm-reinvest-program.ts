@@ -88,7 +88,8 @@ export class LMReinvestProgram extends CommonProgram {
 
         if (amountToUse.gt(this.settings.reinvestThreshold)) {
             let donatedAmount = new BigNumber(0);
-            if (this.settings.autoDonationPercentOfReinvest > 0) {
+            const maxReinvestForDonation = Math.max(this.settings.reinvestThreshold, 20) * 2 //anything below 20 DFI is considered a "reinvest all the time"            
+            if (this.settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
                 //send donation and reduce amountToUse
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
                 console.log("donating " + donatedAmount.toFixed(2) + " DFI")
@@ -144,6 +145,11 @@ export class LMReinvestProgram extends CommonProgram {
                 await telegram.send("reinvested " + amountToUse.toFixed(4) + "@DFI"
                     + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)"
                     + "\n in " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " paired with " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
+                if (this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
+                    await telegram.send("you activated auto donation, but the reinvested amount was too big to be a reinvest. " +
+                        "We assume that this was a transfer of funds, so we skipped auto-donation. " +
+                        "Feel free to manually donate anyway.")
+                }
                 console.log("done ")
                 return true
             }
