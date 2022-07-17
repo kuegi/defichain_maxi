@@ -71,10 +71,10 @@
     },
     "LMPair": {
       "Type": "String",
-      "Default": "QQQ-DUSD",
+      "Default": "BTC-DFI",
       "MinLength": "6",
-      "AllowedPattern": "[A-Z.]+-DUSD|DUSD-DFI",
-      "Description": "The pair to be used for Liquidity Mining f.e. QQQ-DUSD"
+      "AllowedPattern": "[A-Z.]+-(DUSD|DFI)",
+      "Description": "The pair to be used for Liquidity Mining f.e. BTC-DFI"
     },
     "MinReinvest": {
       "Type": "Number",
