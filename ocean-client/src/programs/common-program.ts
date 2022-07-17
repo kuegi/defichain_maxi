@@ -7,7 +7,7 @@ import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
 import { WhaleWalletAccount } from "@defichain/whale-api-wallet";
-import { Store, StoredSettings } from "../utils/store";
+import { IStore, StoredSettings } from "../utils/store";
 import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
@@ -21,7 +21,7 @@ export enum ProgramState {
 
 export class CommonProgram {
     protected readonly settings: StoredSettings
-    protected readonly store: Store
+    protected readonly store: IStore
     protected readonly client: WhaleApiClient
     protected readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
@@ -29,7 +29,7 @@ export class CommonProgram {
 
     pendingTx: string | undefined
 
-    constructor(store: Store, walletSetup: WalletSetup) {
+    constructor(store: IStore, walletSetup: WalletSetup) {
         this.settings = store.settings
         this.store = store
         this.client = walletSetup.client
@@ -241,6 +241,16 @@ export class CommonProgram {
             txn = signed
         }
         return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
+    }
+
+    protected prevOutFromTx(tx: CTransactionSegWit): Prevout {
+        return {
+            txid: tx.txId,
+            vout: 1,
+            value: tx.vout[1].value,
+            script: tx.vout[1].script,
+            tokenId: tx.vout[1].tokenId
+        }
     }
 
     async send(txn: TransactionSegWit, initialWaitTime: number = 0): Promise<CTransactionSegWit> {

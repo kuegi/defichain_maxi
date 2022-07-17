@@ -56,7 +56,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     settings.mainCollateralAsset = event.overrideSettings.mainCollateralAsset
                 if (event.overrideSettings.ignoreSkip && settings.shouldSkipNext) {
                     settings.shouldSkipNext = false
-                    await store.writeSkipNext()
+                    await store.skipNext()
                 }
             }
         }
