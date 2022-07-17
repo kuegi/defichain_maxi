@@ -103,11 +103,11 @@ export class LMReinvestProgram extends CommonProgram {
             const tokenB = pool.tokenB
             console.log("swaping " + amountToSwap + " half of (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to " + tokenA.symbol)
             let swap
-            if(+tokenB.id == 0) {
-                swap = await this.swap(amountToSwap, 0, +tokenA.id, new BigNumber(999999999), prevout)    
+            if (+tokenB.id == 0) {
+                swap = await this.swap(amountToSwap, 0, +tokenA.id, new BigNumber(999999999), prevout)
             } else {
-                const dusdPool= await this.getPool("DUSD-DFI")
-                swap = await this.compositeswap(amountToSwap, 0, +tokenA.id, [{id:+dusdPool!.id},{id:+pool.id}], new BigNumber(999999999), prevout)  
+                const dusdPool = await this.getPool("DUSD-DFI")
+                swap = await this.compositeswap(amountToSwap, 0, +tokenA.id, [{ id: +dusdPool!.id }, { id: +pool.id }], new BigNumber(999999999), prevout)
                 //need to swap both
                 console.log("swaping " + amountToSwap + " DFI to " + tokenB.symbol)
                 swap = await this.swap(amountToSwap, 0, +tokenB.id, new BigNumber(999999999), this.prevOutFromTx(swap))

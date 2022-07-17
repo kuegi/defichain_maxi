@@ -16,7 +16,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = "v1.0.alpha"
+export const VERSION = "v1.0.beta"
 export const DONATION_ADDRESS = "df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07"
 export const DONATION_MAX_PERCENTAGE = 50
 
@@ -51,7 +51,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             if (!await program.doMaxiChecks(telegram, pool)) {
                 return { statusCode: 500 }
             }
-            const DFIinAddress= new BigNumber(balances.get("DFI")?.amount ?? 0)
+            const DFIinAddress = new BigNumber(balances.get("DFI")?.amount ?? 0)
             let result = true
 
             console.log("starting with " + DFIinAddress.toFixed(2) + " in address")

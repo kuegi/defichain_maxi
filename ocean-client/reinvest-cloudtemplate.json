@@ -1,0 +1,404 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Defichain Wallet information (Don't forget to add your seed parameter as SecureString seperatly)"
+          },
+          "Parameters": [
+            "DeFiAddress"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Script Parameters"
+          },
+          "Parameters": [
+            "LMPair",
+            "MinReinvest",
+            "AutoDonation"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Telegram Notifications (Optional)"
+          },
+          "Parameters": [
+            "TelegramNotificationChatId",
+            "TelegramNotificationToken",
+            "TelegramLogsChatId",
+            "TelegramLogsToken"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "DeFiAddress": {
+          "default": "Defichain Address"
+        },
+        "LMPair": {
+          "default": "LM Pair"
+        },
+        "MinReinvest": {
+          "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
+        },
+        "AutoDonation": {
+          "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
+        },
+        "TelegramNotificationChatId": {
+          "default": "Notification Chat Id"
+        },
+        "TelegramNotificationToken": {
+          "default": "Notification Token"
+        },
+        "TelegramLogsChatId": {
+          "default": "Chat Id for Logs"
+        },
+        "TelegramLogsToken": {
+          "default": "Token for Logs"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "DeFiAddress": {
+      "Type": "String",
+      "MinLength": "42",
+      "MaxLength": "42",
+      "AllowedPattern": "df1[a-zA-Z0-9]*",
+      "Description": "Your defichain address to use, must be from the wallet defined by the seed parameter"
+    },
+    "LMPair": {
+      "Type": "String",
+      "Default": "QQQ-DUSD",
+      "MinLength": "6",
+      "AllowedPattern": "[A-Z.]+-DUSD|DUSD-DFI",
+      "Description": "The pair to be used for Liquidity Mining f.e. QQQ-DUSD"
+    },
+    "MinReinvest": {
+      "Type": "Number",
+      "Default": 1,
+      "Description": "Above this threshold script will add DFI as collateral"
+    },
+    "AutoDonation": {
+      "Type": "Number",
+      "Default": 5,
+      "Description": "Percent of your rewards that will be automatically donated to the developers. Thanks."
+    },
+    "TelegramNotificationChatId": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "(-?[0-9]+)?",
+      "Description": "telegram chatId to use for notifications (optional) f.e. 1234567890"
+    },
+    "TelegramNotificationToken": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "([0-9]{10}:.*)?",
+      "Description": "Token of the telegram bot to use for notifications (optional) f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+    },
+    "TelegramLogsChatId": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "(-?[0-9]+)?",
+      "Description": "telegram chatId to use for logs (optional) f.e. -1001234567890"
+    },
+    "TelegramLogsToken": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "([0-9]{10}:.*)?",
+      "Description": "Token of the telegram bot to use for logs (optional) f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+    }
+  },
+  "Rules": {
+    "needReinvest": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Equals": [
+                  {
+                    "Ref": "MinReinvest"
+                  },
+                  ""
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Reinvest can not be empty"
+        }
+      ]
+    }
+  },
+  "Conditions": {
+    "CreateTelegramLogs": {
+      "Fn::And": [
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramLogsChatId"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramLogsToken"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "CreateTelegramNotifications": {
+      "Fn::And": [
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramNotificationChatId"
+                },
+                ""
+              ]
+            }
+          ]
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "TelegramNotificationToken"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "reinvestRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "LogsAndSSM",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:Describe*",
+                    "ssm:Get*",
+                    "ssm:List*"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "reinvestTrigger": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "reinvestTrigger",
+        "Description": "Triggers the reinvest",
+        "ScheduleExpression": "rate(53 minutes)",
+        "Targets": [
+          {
+            "Id": "reinvestTarget",
+            "Arn": {
+              "Fn::GetAtt": [
+                "reinvestLambda",
+                "Arn"
+              ]
+            }
+          }
+        ],
+        "State": "ENABLED"
+      }
+    },
+    "reinvestTriggerInvokeLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "reinvestLambda"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "reinvestTrigger",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "reinvestLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "defichain-lm-reinvest",
+        "Handler": "index.main",
+        "Role": {
+          "Fn::GetAtt": [
+            "reinvestRole",
+            "Arn"
+          ]
+        },
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "defichain-maxi-public-${AWS::Region}"
+          },
+          "S3Key": "lm-reinvest-1-0beta.zip"
+        },
+        "Runtime": "nodejs14.x",
+        "Timeout": 890
+      }
+    },
+    "vaultMaxiParamMinReinvest": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Threshold for reinvesting measured in DFI",
+        "Name": "/defichain-maxi/settings-reinvest/reinvest",
+        "Type": "String",
+        "Value": {
+          "Ref": "MinReinvest"
+        }
+      }
+    },
+    "vaultMaxiParamAutoDonation": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Percent of your rewards that will be donated to developers",
+        "Name": "/defichain-maxi/settings-reinvest/auto-donation-percent-of-reinvest",
+        "Type": "String",
+        "Value": {
+          "Ref": "AutoDonation"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramNotificationChatId": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramNotifications",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram ChatId for notifications",
+        "Name": "/defichain-maxi/telegram/notifications/chat-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramNotificationChatId"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramNotificationToken": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramNotifications",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram Token for notifications",
+        "Name": "/defichain-maxi/telegram/notifications/token",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramNotificationToken"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramLogsChatId": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramLogs",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram Bot ChatId for log messages",
+        "Name": "/defichain-maxi/telegram/logs/chat-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramLogsChatId"
+        }
+      }
+    },
+    "vaultMaxiParamTelegramLogsToken": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateTelegramLogs",
+      "Properties": {
+        "DataType": "text",
+        "Description": "(Optional) Telegram Bot Token for log messages",
+        "Name": "/defichain-maxi/telegram/logs/token",
+        "Type": "String",
+        "Value": {
+          "Ref": "TelegramLogsToken"
+        }
+      }
+    },
+    "vaultMaxiParamDeFiAddress": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Your defichain address",
+        "Name": "/defichain-maxi/wallet-reinvest/address",
+        "Type": "String",
+        "Value": {
+          "Ref": "DeFiAddress"
+        }
+      }
+    },
+    "vaultMaxiParamLMPair": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "the pair to use for LM",
+        "Name": "/defichain-maxi/settings-reinvest/lm-pair",
+        "Type": "String",
+        "Value": {
+          "Ref": "LMPair"
+        }
+      }
+    }
+  }
+}
