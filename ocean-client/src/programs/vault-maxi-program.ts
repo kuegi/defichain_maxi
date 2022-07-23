@@ -572,6 +572,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(0.99))
             }
         })
+        // TODO: check 50%
         if (!this.isSingleMint) {
             wantedAssetA = additionalLoan.div(BigNumber.sum(oracleA, pool.priceRatio.ba))
             wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
@@ -584,7 +585,8 @@ export class VaultMaxiProgram extends CommonProgram {
                 { token: +pool.tokenB.id, amount: wantedAssetB }
             ]
             //check if enough collateral is there to even take new loan
-            if (dfiDusdCollateralValue.times(vault.loanScheme.minColRatio).div(100).lte(additionalLoan.plus(vault.loanValue))) {
+            //dusdDFI * 2 >= loan+additionLoan * minRatio
+            if (dfiDusdCollateralValue.times(2).lte(additionalLoan.plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))) {
                 console.error("not enough collateral of DFI or DUSD to take more loans")
                 await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
                 return false
@@ -615,7 +617,8 @@ export class VaultMaxiProgram extends CommonProgram {
             }
 
             //check if enough collateral is there to even take new loan
-            if (dfiDusdCollateralValue.minus(wantedAssetB).times(vault.loanScheme.minColRatio).div(100).lte(wantedAssetA.plus(vault.loanValue))) {
+            //dusdDFI-assetB * 2 >= loan+additionLoan * minRatio
+            if (dfiDusdCollateralValue.minus(wantedAssetB).times(2).lte(wantedAssetA.plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))) {
                 console.error("not enough collateral of DFI or DUSD to take more loans")
                 await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
                 return false
