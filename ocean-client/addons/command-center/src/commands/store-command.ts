@@ -14,10 +14,10 @@ export abstract class StoreCommand extends Command {
     abstract successMessage(): string|undefined
 
     async execute(): Promise<unknown> {
-        return super.execute().then(() => {
+        return super.execute().then(async () => {
             let message = this.successMessage()
             if (message !== undefined) {
-                this.telegram.send(message)   
+                await this.telegram.send(message)   
             }
         })
     }

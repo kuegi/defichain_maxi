@@ -3,8 +3,10 @@ import { Command, Commands } from "./command";
 import { Execute } from "./execute";
 import { RemoveExposure } from "./remove-exposure";
 import { Resume } from "./resume";
+import { SetAutoDonation } from "./set-auto-donation";
 import { SetRange } from "./set-range";
 import { SetReinvest } from "./set-reinvest";
+import { SetStableArbSize } from "./set-stable-arb-size";
 import { Skip } from "./skip";
 
 export class Help extends Command {
@@ -18,6 +20,8 @@ export class Help extends Command {
         + "\n" + Commands.RemoveExposure + "\n" + RemoveExposure.description + "\n"
         + "\n" + Commands.SetRange + "\n" + SetRange.description + "\n"
         + "\n" + Commands.SetReinvest + "\n" + SetReinvest.description + "\n"
+        + "\n" + Commands.SetStableArbSize + "\n" + SetStableArbSize.description + "\n"
+        + "\n" + Commands.SetAutoDonation + "\n" + SetAutoDonation.description
     }
 
     successMessage(): string | undefined {

@@ -4,8 +4,10 @@ import { Execute } from './commands/execute'
 import { Help } from './commands/help'
 import { RemoveExposure } from './commands/remove-exposure'
 import { Resume } from './commands/resume'
+import { SetAutoDonation } from './commands/set-auto-donation'
 import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
+import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
 import { Store } from './utils/store'
@@ -44,6 +46,12 @@ async function execute(messages: Message[], telegram: Telegram, store: Store) {
                 break
             case Commands.SetReinvest:
                 command = new SetReinvest(telegram, store, commandData)
+                break
+            case Commands.SetStableArbSize:
+                command = new SetStableArbSize(telegram, store, commandData)
+                break
+            case Commands.SetAutoDonation:
+                command = new SetAutoDonation(telegram, store, commandData)
                 break
             default:
                 console.log("ignore " + message.command)
