@@ -121,6 +121,16 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
 
+        const utxoBalance = await this.getUTXOBalance()
+        if( utxoBalance.lte(1e-4)) { //1 tx is roughly 2e-6 fee, one action mainly 3 tx -> 6e-6 fee. we want at least 10 actions safety -> below 1e-4 we warn
+            const message= "your UTXO balance is running low in "+this.settings.address+", only "+utxoBalance.toFixed(5)+" DFI left. Please replenish to prevent any errors"
+            await telegram.send(message)
+            console.warn(message)
+            if(utxoBalance.lte(0)) {
+                //can't work with no UTXOs
+                return false
+            }
+        }
         // showstoppers checked, now check for warnings or automatic adaptions
 
         if (+vaultcheck.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
