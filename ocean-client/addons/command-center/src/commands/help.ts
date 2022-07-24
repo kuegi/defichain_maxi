@@ -1,4 +1,3 @@
-import { ChangeTokenTo } from "./change-token-to";
 import { CheckMaxi } from "./check-maxi";
 import { Command, Commands } from "./command";
 import { Execute } from "./execute";
@@ -6,7 +5,6 @@ import { RemoveExposure } from "./remove-exposure";
 import { Resume } from "./resume";
 import { SetRange } from "./set-range";
 import { SetReinvest } from "./set-reinvest";
-import { SetToken } from "./set-token";
 import { Skip } from "./skip";
 
 export class Help extends Command {
@@ -20,8 +18,6 @@ export class Help extends Command {
         + "\n" + Commands.RemoveExposure + "\n" + RemoveExposure.description + "\n"
         + "\n" + Commands.SetRange + "\n" + SetRange.description + "\n"
         + "\n" + Commands.SetReinvest + "\n" + SetReinvest.description + "\n"
-        + "\n" + Commands.ChangeTokenTo + "\n" + ChangeTokenTo.description + "\n"
-        + "\n" + Commands.SetToken + "\n" + SetToken.description
     }
 
     successMessage(): string | undefined {
