@@ -1,4 +1,3 @@
-import { ChangeTokenTo } from './commands/change-token-to'
 import { CheckMaxi } from './commands/check-maxi'
 import { Command, Commands } from './commands/command'
 import { Execute } from './commands/execute'
@@ -7,15 +6,14 @@ import { RemoveExposure } from './commands/remove-exposure'
 import { Resume } from './commands/resume'
 import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
-import { SetToken } from './commands/set-token'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
-import { Store, StoredSettings } from './utils/store'
+import { Store } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
 
 const VERSION = "v1.0beta"
 
-async function execute(messages: Message[], settings: StoredSettings, telegram: Telegram, store: Store) {
+async function execute(messages: Message[], telegram: Telegram, store: Store) {
     for (const message of messages) {
         let commandData = message.command.split(" ")
         if (commandData.length == 0) {
@@ -47,16 +45,6 @@ async function execute(messages: Message[], settings: StoredSettings, telegram: 
             case Commands.SetReinvest:
                 command = new SetReinvest(telegram, store, commandData)
                 break
-            case Commands.SetToken:
-                command = new SetToken(telegram, store, commandData)
-                await (command as SetToken).prepare()
-                break
-            case Commands.ChangeTokenTo:
-                let changeTokenTo = new ChangeTokenTo(telegram, store, commandData)
-                changeTokenTo.setOldToken(settings.LMToken)
-                await changeTokenTo.prepare()
-                command = changeTokenTo
-                break
             default:
                 console.log("ignore " + message.command)
                 break
@@ -82,7 +70,7 @@ export async function main(): Promise<Object> {
         await store.updateExecutedMessageId(messages.slice(-1)[0].id)
         let isIdle = settings.state.startsWith("idle")
         if (isIdle) {
-            await execute(messages, settings, telegram, store)
+            await execute(messages, telegram, store)
         } else {
             await telegram.send("Your vault-maxi is busy. Try again later")
         }
