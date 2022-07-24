@@ -10,7 +10,7 @@ import { SetReinvest } from './commands/set-reinvest'
 import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
 import { checkSafetyOf } from './utils/helpers'
-import { Store } from './utils/store'
+import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
 
 const VERSION = "v1.0beta"
@@ -62,12 +62,17 @@ async function execute(messages: Message[], telegram: Telegram, store: Store) {
     }
 }
 
+function isFirstRun(settings: StoredSettings): boolean {
+    return settings.lastExecutedMessageId === 0
+}
+
 export async function main(): Promise<Object> {
 
     const store = new Store()
-    let settings = await store.fetchSettings()
+    const settings = await store.fetchSettings()
 
     const telegram = new Telegram(settings, "[CommandCenter " + process.env.AWS_REGION + " " + VERSION + "]")
+
     let messages = await telegram.getMessages()
     messages = messages.filter((message) => {
         return checkSafetyOf(message, settings)
@@ -75,8 +80,15 @@ export async function main(): Promise<Object> {
     if (messages.length > 0) {
         // Krysh: update last message right away to avoid infinite error loops because of some command
         // couldn't be processed.
-        await store.updateExecutedMessageId(messages.slice(-1)[0].id)
-        let isIdle = settings.state.startsWith("idle")
+        await store.updateExecutedMessageId(messages[messages.length - 1].id)
+        console.log("messages to be executed", messages.length)
+        // Krysh: if we are on the first run, ignore every command besides the last one
+        // to prevent any "old" commands to be executed
+        if (isFirstRun(settings)) {
+            messages = messages.slice(-1)
+            console.log("is first run, reduce to", messages.length)
+        }
+        const isIdle = settings.state.startsWith("idle")
         if (isIdle) {
             await execute(messages, telegram, store)
         } else {
