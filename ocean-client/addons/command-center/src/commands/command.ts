@@ -10,7 +10,9 @@ export enum Commands {
     SetRange = "/setRange",
     SetReinvest = "/setReinvest",
     SetToken = "/setToken",
-    ChangeTokenTo = "/changeTokenTo"
+    ChangeTokenTo = "/changeTokenTo",
+    SetAutoDonation = "/setAutoDonation",
+    SetStableArbSize = "/setStableArbSize",
 }
 
 export abstract class Command {

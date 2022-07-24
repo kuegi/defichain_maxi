@@ -33,6 +33,14 @@ export class Store {
         return this.updateParameter(StoreKey.LMToken, value)
     }
 
+    async updateAutoDonation(value: string): Promise<unknown> {
+        return this.updateParameter(StoreKey.AutoDonation, value)
+    }
+
+    async updateStableArbBatchSize(value: string): Promise<unknown> {
+        return this.updateParameter(StoreKey.StableArbBatchSize, value)
+    }
+
     async fetchSettings(): Promise<StoredSettings> {
 
         let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramChatId)
@@ -101,6 +109,8 @@ enum StoreKey {
     MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
     LMToken = '/defichain-maxi/settings/lm-token',
     Reinvest = '/defichain-maxi/settings/reinvest',
+    AutoDonation = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
+    StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
 
     // command center related keys
     TelegramChatId = '/defichain-maxi/command-center/telegram/chat-id',
