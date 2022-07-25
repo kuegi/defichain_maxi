@@ -242,7 +242,7 @@ export class CommonProgram {
         }
     }
 
-    async sendTxDataToTelegram(tx: CTransaction, telegram: Telegram) {
+    async sendTxDataToTelegram(tx: CTransaction, telegram: Telegram):Promise<void> {
         const message = "Please sign and send :\n" + tx.toHex()
         await telegram.send(message)
     }

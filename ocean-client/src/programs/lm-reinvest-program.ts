@@ -122,9 +122,10 @@ export class LMReinvestProgram extends CommonProgram {
                 //need to swap both
                 console.log("swaping " + amountToSwap + " DFI to " + tokenB.symbol)
                 swap = await this.swap(amountToSwap, 0, +tokenB.id, new BigNumber(999999999), this.prevOutFromTx(swap))
-                if(!this.canSign()) {
-                    await this.sendTxDataToTelegram(swap,telegram)
-                }
+            }
+            if(!this.canSign()) {
+                await this.sendTxDataToTelegram(swap,telegram)
+                await telegram.send("waiting for you to sign and send transactions")
             }
             if (!await this.waitForTx(swap.txId)) {
                 await telegram.send("ERROR: swapping reinvestment failed")
@@ -151,6 +152,7 @@ export class LMReinvestProgram extends CommonProgram {
             ], this.prevOutFromTx(swap))
             if(!this.canSign()) {
                 await this.sendTxDataToTelegram(addTx,telegram)
+                await telegram.send("waiting for you to sign and send transactions")
             }
 
             if (! await this.waitForTx(addTx.txId)) {

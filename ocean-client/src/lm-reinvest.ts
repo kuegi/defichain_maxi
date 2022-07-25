@@ -47,10 +47,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 }
             }
             let pool = await program.getPool(program.lmPair)
-            let balances = await program.getTokenBalances()
             if (!await program.doMaxiChecks(telegram, pool)) {
                 return { statusCode: 500 }
             }
+            let balances = await program.getTokenBalances()
             const DFIinAddress = new BigNumber(balances.get("DFI")?.amount ?? 0)
             let result = true
 
