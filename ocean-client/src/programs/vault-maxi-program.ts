@@ -86,7 +86,7 @@ export class VaultMaxiProgram extends CommonProgram {
         pool: PoolPairData | undefined,
         balances: Map<string, AddressToken>
     ): Promise<boolean> {
-        if (!super.doValidationChecks(telegram)) {
+        if (!super.doValidationChecks(telegram,true)) {
             return false
         }
         if (!vaultcheck) {
@@ -282,12 +282,12 @@ export class VaultMaxiProgram extends CommonProgram {
 
 
     async doAndReportCheck(telegram: Telegram): Promise<boolean> {
-        if (!this.doValidationChecks(telegram)) {
+        if (!this.doValidationChecks(telegram,true)) {
             return false //report already send inside
         }
         var values = new CheckedValues()
 
-        let walletAddress = await this.getAddress()
+        let walletAddress = this.getAddress()
         let vault = await this.getVault()
         let pool = await this.getPool(this.lmPair)
 

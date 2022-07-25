@@ -21,7 +21,7 @@ export class LMReinvestProgram extends CommonProgram {
     async doMaxiChecks(telegram: Telegram,
         pool: PoolPairData | undefined
     ): Promise<boolean> {
-        if (!this.doValidationChecks(telegram)) {
+        if (!this.doValidationChecks(telegram,false)) {
             return false
         }
         if (!pool) {
@@ -37,7 +37,7 @@ export class LMReinvestProgram extends CommonProgram {
     }
 
     async doAndReportCheck(telegram: Telegram): Promise<boolean> {
-        if (!this.doValidationChecks(telegram)) {
+        if (!this.doValidationChecks(telegram,false)) {
             return false //report already send inside
         }
 

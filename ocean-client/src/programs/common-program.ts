@@ -50,11 +50,11 @@ export class CommonProgram {
         return this.account != undefined
     }
 
-    async doValidationChecks(telegram: Telegram): Promise<boolean> {
-        if (!this.script) {
+    async doValidationChecks(telegram: Telegram,needKey:boolean): Promise<boolean> {
+        if (!this.script || (!this.account && needKey)) {
             const message = "Could not initialize wallet. Check your settings! "
                 + this.settings.seed.length + " words in seedphrase,"
-                + "trying vault " + this.settings.vault + " in " + this.settings.address + ". "
+                + "trying address: " + this.settings.address + ". "
             await telegram.send(message)
             console.error(message)
             return false
@@ -62,22 +62,22 @@ export class CommonProgram {
         return true
     }
 
-    async getAddress(): Promise<string> {
+    getAddress(): string {
         return this.script? this.settings.address : "" 
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
-        return new BigNumber(await this.client.address.getBalance(await this.getAddress()))
+        return new BigNumber(await this.client.address.getBalance(this.getAddress()))
     }
 
     async getTokenBalances(): Promise<Map<string, AddressToken>> {
-        const tokens = await this.client.address.listToken(await this.getAddress(), 100)
+        const tokens = await this.client.address.listToken(this.getAddress(), 100)
 
         return new Map(tokens.map(token => [token.symbol, token]))
     }
 
     async getTokenBalance(symbol: String): Promise<AddressToken | undefined> {
-        const tokens = await this.client.address.listToken(await this.getAddress(), 100)
+        const tokens = await this.client.address.listToken(this.getAddress(), 100)
 
         return tokens.find(token => {
             return token.isDAT && token.symbol === symbol
