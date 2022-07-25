@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransactionSegWit, DeFiTransactionConstants, PoolId, Script, ScriptBalances, TokenBalance, TokenBalanceUInt32, Transaction, TransactionSegWit } from "@defichain/jellyfish-transaction";
+import { CTransaction, CTransactionSegWit, DeFiTransactionConstants, fromOPCodes, OP_CODES, OP_DEFI_TX, PoolId, Script, ScriptBalances, TokenBalance, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
@@ -12,6 +12,8 @@ import { Telegram } from "../utils/telegram";
 import { WalletSetup } from "../utils/wallet-setup";
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
+import { SmartBuffer } from 'smart-buffer'
+import { fromAddress } from '@defichain/jellyfish-address'
 
 export enum ProgramState {
     Idle = "idle",
@@ -36,14 +38,20 @@ export class CommonProgram {
         this.walletSetup = walletSetup
     }
 
+    // this.account == undefined means that the seed is not owner of this address -> we cannot sign transactions
+    // this.script == undefined means that the provided address is invalid
     async init(): Promise<boolean> {
         this.account = await this.walletSetup.getAccount(this.settings.address)
-        this.script = await this.account?.getScript()
+        this.script = fromAddress(this.settings.address,this.walletSetup.network.name)?.script //also does validation of the address
         return true
     }
 
+    public canSign(): boolean {
+        return this.account != undefined
+    }
+
     async doValidationChecks(telegram: Telegram): Promise<boolean> {
-        if (!this.account) {
+        if (!this.script) {
             const message = "Could not initialize wallet. Check your settings! "
                 + this.settings.seed.length + " words in seedphrase,"
                 + "trying vault " + this.settings.vault + " in " + this.settings.address + ". "
@@ -55,7 +63,7 @@ export class CommonProgram {
     }
 
     async getAddress(): Promise<string> {
-        return this.account?.getAddress() ?? ""
+        return this.script? this.settings.address : "" 
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
@@ -109,7 +117,7 @@ export class CommonProgram {
         return (await this.client.stats.get()).count.blocks
     }
 
-    async removeLiquidity(poolId: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async removeLiquidity(poolId: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const txn = await this.account!.withTransactionBuilder().liqPool.removeLiquidity({
             script: this.script!,
             tokenId: poolId,
@@ -119,7 +127,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async addLiquidity(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async addLiquidity(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         let txn = await this.account!.withTransactionBuilder().liqPool.addLiquidity({
             from: [{
                 script: this.script!,
@@ -131,7 +139,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async paybackLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async paybackLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const txn = await this.account!.withTransactionBuilder().loans.paybackLoan({
             vaultId: this.settings.vault,
             from: this.script!,
@@ -141,7 +149,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async takeLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async takeLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const txn = await this.account!.withTransactionBuilder().loans.takeLoan({
             vaultId: this.settings.vault,
             to: this.script!,
@@ -151,7 +159,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async depositToVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async depositToVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const txn = await this.account!.withTransactionBuilder().loans.depositToVault({
             vaultId: this.settings.vault,
             from: this.script!,
@@ -164,7 +172,7 @@ export class CommonProgram {
     }
 
 
-    async withdrawFromVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async withdrawFromVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const txn = await this.account!.withTransactionBuilder().loans.withdrawFromVault({
             vaultId: this.settings.vault,
             to: this.script!,
@@ -177,7 +185,7 @@ export class CommonProgram {
     }
 
 
-    async utxoToOwnAccount(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async utxoToOwnAccount(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const balances: ScriptBalances[] = [{ script: this.script!, balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
         const txn = await this.account!.withTransactionBuilder().account.utxosToAccount({
             to: balances
@@ -186,7 +194,7 @@ export class CommonProgram {
     }
 
 
-    async sendDFIToAccount(amount: BigNumber, address: string, prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async sendDFIToAccount(amount: BigNumber, address: string, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const balances: ScriptBalances[] = [{ script: this.account!.addressToScript(address), balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
         const txn = await this.account!.withTransactionBuilder().account.accountToAccount({
             to: balances,
@@ -195,7 +203,7 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         const txn = await this.account!.withTransactionBuilder().dex.poolSwap({
             fromScript: this.script!,
             fromTokenId: fromTokenId,
@@ -207,7 +215,8 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async compositeswap(amount: BigNumber, fromTokenId: number, toTokenId: number, pools: PoolId[], maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransactionSegWit> {
+    async compositeswap(amount: BigNumber, fromTokenId: number, toTokenId: number, pools: PoolId[], maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransaction> {
+        /*
         const txn = await this.account!.withTransactionBuilder().dex.compositeSwap({
             poolSwap: {
                 fromScript: this.script!,
@@ -219,12 +228,108 @@ export class CommonProgram {
             },
             pools: pools
         }, this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        //*/
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_COMPOSITE_SWAP({
+                poolSwap: {
+                    fromScript: this.script!,
+                    fromTokenId: fromTokenId,
+                    fromAmount: amount,
+                    toScript: this.script!,
+                    toTokenId: toTokenId,
+                    maxPrice: maxPrice
+                },
+                pools: pools
+            }),
+            prevout)
     }
 
+    async sendOrCreateDefiTx(opDeFiTx: OP_DEFI_TX, prevout: Prevout | undefined = undefined) : Promise<CTransaction> {
+        const txn = await this.buildDefiTx(opDeFiTx,
+            this.script!,
+            prevout)
+        if (this.canSign()) {
+            //send directly
+            return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
+        } else {
+            return new CTransaction(txn)
+        }
+    }
 
+    protected async buildDefiTx(
+        opDeFiTx: OP_DEFI_TX,
+        changeScript: Script,
+        prevout: Prevout | undefined = undefined,
+        outValue: BigNumber = new BigNumber('0')): Promise<Transaction> {
+        const minFee = outValue.plus(0.001) // see JSDoc above
+        let total = new BigNumber(0)
+        let prevouts: Prevout[]
+        if (prevout === undefined) {
+            //TODO: only use necessary unspent
+            const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 10)
+            prevouts = unspent.map((item): Prevout => {
+                total = total.plus(item.vout.value)
+                return {
+                    txid: item.vout.txid,
+                    vout: item.vout.n,
+                    value: new BigNumber(item.vout.value),
+                    script: {
+                        // TODO(fuxingloh): needs to refactor once jellyfish refactor this.
+                        stack: toOPCodes(SmartBuffer.fromBuffer(Buffer.from(item.script.hex, 'hex')))
+                    },
+                    tokenId: item.vout.tokenId ?? 0x00
+                }
+            })
+        } else {
+            prevouts = [prevout]
+            total = prevout.value
+        }
+        const vin = prevouts.map((prevout: Prevout): Vin => {
+            return {
+                txid: prevout.txid,
+                index: prevout.vout,
+                script: { stack: [] },
+                sequence: 0xffffffff
+            }
+        })
 
-    async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransactionSegWit> {
+        const deFiOut: Vout = {
+            value: outValue,
+            script: {
+                stack: [OP_CODES.OP_RETURN, opDeFiTx]
+            },
+            tokenId: 0x00
+        }
+
+        const change: Vout = {
+            value: total,
+            script: changeScript,
+            tokenId: 0x00
+        }
+
+        const txn: Transaction = {
+            version: DeFiTransactionConstants.Version,
+            vin: vin,
+            vout: [deFiOut, change],
+            lockTime: 0x00000000
+        }
+
+        //no need to estimate, we are fine with minimum fee
+        const fee = calculateFeeP2WPKH(new BigNumber(0.00001), txn)
+        change.value = total.minus(outValue).minus(fee)
+
+        if (this.canSign()) {
+            const signed = await this.account!.signTx(txn, prevouts)
+            if (!signed) {
+                throw new Error("can't sign custom transaction")
+            }
+            return signed
+        } else {
+            return txn
+        }
+    }
+
+    async sendWithPrevout(txn: Transaction, prevout: Prevout | undefined): Promise<CTransaction> {
         if (prevout) {
             const customTx: Transaction = {
                 version: DeFiTransactionConstants.Version,
@@ -232,7 +337,7 @@ export class CommonProgram {
                 vout: txn.vout,
                 lockTime: 0x00000000
             }
-            const fee = calculateFeeP2WPKH(new BigNumber(await this.client.fee.estimate(20)), customTx)
+            const fee = calculateFeeP2WPKH(new BigNumber(0.00001), customTx)
             customTx.vout[1].value = prevout.value.minus(fee)
             let signed = await this.account?.signTx(customTx, [prevout])
             if (!signed) {
@@ -243,7 +348,7 @@ export class CommonProgram {
         return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
     }
 
-    protected prevOutFromTx(tx: CTransactionSegWit): Prevout {
+    protected prevOutFromTx(tx: CTransaction): Prevout {
         return {
             txid: tx.txId,
             vout: 1,
@@ -253,8 +358,8 @@ export class CommonProgram {
         }
     }
 
-    async send(txn: TransactionSegWit, initialWaitTime: number = 0): Promise<CTransactionSegWit> {
-        const ctx = new CTransactionSegWit(txn)
+    async send(txn: Transaction, initialWaitTime: number = 0): Promise<CTransaction> {
+        const ctx = new CTransaction(txn)
         const hex: string = ctx.toHex()
 
         console.log("Sending txId: " + ctx.txId + " with input: " + ctx.vin[0].txid + ":" + ctx.vin[0].index)

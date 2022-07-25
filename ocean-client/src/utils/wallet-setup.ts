@@ -9,6 +9,7 @@ import { WIF } from '@defichain/jellyfish-crypto'
 
 export class WalletSetup {
     readonly url: string
+    readonly network: Network
     readonly client: WhaleApiClient
     readonly wallet: WalletClassic | JellyfishWallet<WhaleWalletAccount, WalletHdNode>
     private account: WhaleWalletAccount | undefined
@@ -16,6 +17,7 @@ export class WalletSetup {
 
     constructor(network: Network, settings: StoredSettings, oceanUrl : string = 'https://ocean.defichain.com') {
         console.log("using ocean at "+oceanUrl)
+        this.network= network
         this.url= oceanUrl
         this.client = new WhaleApiClient({
             url: this.url,
