@@ -42,7 +42,7 @@ export class CommonProgram {
     // this.script == undefined means that the provided address is invalid
     async init(): Promise<boolean> {
         this.account = await this.walletSetup.getAccount(this.settings.address)
-        this.script = fromAddress(this.settings.address,this.walletSetup.network.name)?.script //also does validation of the address
+        this.script = fromAddress(this.settings.address, this.walletSetup.network.name)?.script //also does validation of the address
         return true
     }
 
@@ -50,7 +50,7 @@ export class CommonProgram {
         return this.account != undefined
     }
 
-    async doValidationChecks(telegram: Telegram,needKey:boolean): Promise<boolean> {
+    async doValidationChecks(telegram: Telegram, needKey: boolean): Promise<boolean> {
         if (!this.script || (!this.account && needKey)) {
             const message = "Could not initialize wallet. Check your settings! "
                 + this.settings.seed.length + " words in seedphrase,"
@@ -63,7 +63,7 @@ export class CommonProgram {
     }
 
     getAddress(): string {
-        return this.script? this.settings.address : "" 
+        return this.script ? this.settings.address : ""
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
@@ -127,16 +127,16 @@ export class CommonProgram {
         return this.sendWithPrevout(txn, prevout)
     }
 
-    async addLiquidity(amounts: TokenBalance[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        let txn = await this.account!.withTransactionBuilder().liqPool.addLiquidity({
-            from: [{
-                script: this.script!,
-                balances: amounts
-            }],
-            shareAddress: this.script!
-        }
-            , this.script!)
-        return this.sendWithPrevout(txn, prevout)
+    async addLiquidity(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_POOL_ADD_LIQUIDITY({
+                from: [{
+                    script: this.script!,
+                    balances: amounts
+                }],
+                shareAddress: this.script!
+            }),
+            prevout)
     }
 
     async paybackLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
@@ -160,7 +160,7 @@ export class CommonProgram {
     }
 
     async depositToVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().loans.depositToVault({
+        const txn = await this.account!.withTransactionBuilder().vault.depositToVault({
             vaultId: this.settings.vault,
             from: this.script!,
             tokenAmount: {
@@ -173,7 +173,7 @@ export class CommonProgram {
 
 
     async withdrawFromVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().loans.withdrawFromVault({
+        const txn = await this.account!.withTransactionBuilder().vault.withdrawFromVault({
             vaultId: this.settings.vault,
             to: this.script!,
             tokenAmount: {
@@ -186,49 +186,37 @@ export class CommonProgram {
 
 
     async utxoToOwnAccount(amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const balances: ScriptBalances[] = [{ script: this.script!, balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
-        const txn = await this.account!.withTransactionBuilder().account.utxosToAccount({
-            to: balances
-        }, this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_UTXOS_TO_ACCOUNT({
+                to: [{ script: this.script!, balances: [{ token: 0, amount: amount }] }]
+            }),
+            prevout)
     }
 
 
     async sendDFIToAccount(amount: BigNumber, address: string, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const balances: ScriptBalances[] = [{ script: this.account!.addressToScript(address), balances: [{ token: 0, amount: amount }] }] //DFI has tokenId 0
-        const txn = await this.account!.withTransactionBuilder().account.accountToAccount({
-            to: balances,
-            from: this.script!
-        }, this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_ACCOUNT_TO_ACCOUNT({
+                to: [{ script:  fromAddress(address, this.walletSetup.network.name)!.script, balances: [{ token: 0, amount: amount }] }],
+                from: this.script!
+            }),
+            prevout)
     }
 
     async swap(amount: BigNumber, fromTokenId: number, toTokenId: number, maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().dex.poolSwap({
-            fromScript: this.script!,
-            fromTokenId: fromTokenId,
-            fromAmount: amount,
-            toScript: this.script!,
-            toTokenId: toTokenId,
-            maxPrice: maxPrice
-        }, this.script!)
-        return this.sendWithPrevout(txn, prevout)
-    }
-
-    async compositeswap(amount: BigNumber, fromTokenId: number, toTokenId: number, pools: PoolId[], maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        /*
-        const txn = await this.account!.withTransactionBuilder().dex.compositeSwap({
-            poolSwap: {
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_POOL_SWAP({
                 fromScript: this.script!,
                 fromTokenId: fromTokenId,
                 fromAmount: amount,
                 toScript: this.script!,
                 toTokenId: toTokenId,
                 maxPrice: maxPrice
-            },
-            pools: pools
-        }, this.script!)
-        //*/
+            }),
+            prevout)
+    }
+
+    async compositeswap(amount: BigNumber, fromTokenId: number, toTokenId: number, pools: PoolId[], maxPrice: BigNumber = new BigNumber(999999999), prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         return this.sendOrCreateDefiTx(
             OP_CODES.OP_DEFI_TX_COMPOSITE_SWAP({
                 poolSwap: {
@@ -244,16 +232,19 @@ export class CommonProgram {
             prevout)
     }
 
-    async sendOrCreateDefiTx(opDeFiTx: OP_DEFI_TX, prevout: Prevout | undefined = undefined) : Promise<CTransaction> {
-        const txn = await this.buildDefiTx(opDeFiTx,
-            this.script!,
-            prevout)
+    async sendOrCreateDefiTx(opDeFiTx: OP_DEFI_TX, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
+        const txn = await this.buildDefiTx(opDeFiTx, this.script!, prevout)
         if (this.canSign()) {
             //send directly
             return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
         } else {
             return new CTransaction(txn)
         }
+    }
+
+    async sendTxDataToTelegram(tx: CTransaction, telegram: Telegram) {
+        const message = "Please sign and send :\n" + tx.toHex()
+        await telegram.send(message)
     }
 
     protected async buildDefiTx(
@@ -402,6 +393,12 @@ export class CommonProgram {
         if (startBlock == 0) {
             startBlock = await this.getBlockHeight()
         }
+        let waitingMinutes = 10
+        let waitingBlocks = 10
+        if (!this.canSign()) { //if can't sign myself: wait till timeout of lambda
+            waitingMinutes = 15
+            waitingBlocks = 30
+        }
         const initialTime = 15000
         let start = initialTime
         return await new Promise((resolve) => {
@@ -413,7 +410,7 @@ export class CommonProgram {
                     }
                     resolve(true)
                 }).catch((e) => {
-                    if (start >= 600000) { // 10 min timeout
+                    if (start >= 60000 * waitingMinutes) { // 10 min timeout
                         console.error(e)
                         if (intervalID !== undefined) {
                             clearInterval(intervalID)
@@ -422,7 +419,7 @@ export class CommonProgram {
                     }
                     //also check blockcount
                     this.getBlockHeight().then(block => {
-                        if (block > startBlock + 10) {
+                        if (block > startBlock + waitingBlocks) {
                             console.error("waited 10 blocks for tx. possible a conflict with other UTXOs")
                             if (intervalID !== undefined) {
                                 clearInterval(intervalID)
