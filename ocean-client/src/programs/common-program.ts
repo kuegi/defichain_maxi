@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { CTransaction, CTransactionSegWit, DeFiTransactionConstants, fromOPCodes, OP_CODES, OP_DEFI_TX, PoolId, Script, ScriptBalances, TokenBalance, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
+import { AccountToAccount, CAccountToAccount, CTransaction, CTransactionSegWit, DeFiTransactionConstants, fromOPCodes, OP_CODES, OP_DEFI_TX, PoolId, Script, ScriptBalances, TokenBalance, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
@@ -13,7 +13,7 @@ import { WalletSetup } from "../utils/wallet-setup";
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { SmartBuffer } from 'smart-buffer'
-import { fromAddress } from '@defichain/jellyfish-address'
+import { fromAddress, fromScript } from '@defichain/jellyfish-address'
 
 export enum ProgramState {
     Idle = "idle",
@@ -245,6 +245,30 @@ export class CommonProgram {
     async sendTxDataToTelegram(tx: CTransaction, telegram: Telegram):Promise<void> {
         const message = "Please sign and send :\n" + tx.toHex()
         await telegram.send(message)
+    }
+
+    async signAndSendRawTx(rawData:string): Promise<void> {
+        const txn= new CTransaction(SmartBuffer.fromBuffer(Buffer.from(rawData,'hex')))
+        const defiStack= txn.vout[0].script.stack[1]
+        if(defiStack.type === 'OP_DEFI_TX') {
+            const dftx= (defiStack as OP_DEFI_TX).tx
+            console.log("dftx = "+dftx.name+"("+dftx.type+")")
+            switch(dftx.type) {
+                case CAccountToAccount.OP_CODE:
+                    console.log("got a2a")
+                    const a2a= dftx.data as AccountToAccount
+                    const from= fromScript(a2a.from,this.walletSetup.network.name)?.address
+                    const to= fromScript(a2a.to[0].script,this.walletSetup.network.name)?.address
+                    const amount= a2a.to[0].balances[0].amount
+                    const token= a2a.to[0].balances[0].token
+                    console.log("a2a from: "+from+" to "+to+" : "+amount+"@"+token)
+                //lots of cases here
+            }
+        }
+
+        //todo: probably need prevout: either from data(if ascendant) or getting them from listunspent
+        //const signed= await this.account?.signTx(txn,[])
+        //this.client.rawtx.send({hex:new CTransaction(signed!).toHex()})
     }
 
     protected async buildDefiTx(
