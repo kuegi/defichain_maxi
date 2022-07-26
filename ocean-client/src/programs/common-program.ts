@@ -59,6 +59,7 @@ export class CommonProgram {
             console.error(message)
             return false
         }
+
         return true
     }
 
@@ -236,7 +237,7 @@ export class CommonProgram {
         const txn = await this.buildDefiTx(opDeFiTx, this.script!, prevout)
         if (this.canSign()) {
             //send directly
-            return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
+            return this.send(txn as TransactionSegWit, prevout ? 3000 : 0) //initial wait time when depending on other tx
         } else {
             return new CTransaction(txn)
         }
@@ -247,8 +248,11 @@ export class CommonProgram {
         await telegram.send(message)
     }
 
+    //sample code for wallet how to decode and sign outside txs
     async signAndSendRawTx(rawData:string): Promise<void> {
         const txn= new CTransaction(SmartBuffer.fromBuffer(Buffer.from(rawData,'hex')))
+        
+        //how to get data and show it to the user: 
         const defiStack= txn.vout[0].script.stack[1]
         if(defiStack.type === 'OP_DEFI_TX') {
             const dftx= (defiStack as OP_DEFI_TX).tx
@@ -266,9 +270,28 @@ export class CommonProgram {
             }
         }
 
-        //todo: probably need prevout: either from data(if ascendant) or getting them from listunspent
-        //const signed= await this.account?.signTx(txn,[])
-        //this.client.rawtx.send({hex:new CTransaction(signed!).toHex()})
+        //sign and send to chain
+        if(this.canSign()) {
+            //TODO: when we sign a list of txs, we need to keep the vouts of prev txs and only check unspent if not found there
+            const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 100)
+            const prevouts = txn.vin.map((vin): Prevout => {
+                const item = unspent.find(item => item.vout.txid == vin.txid && item.vout.n == vin.index)
+                if (item) {
+                    return {
+                        txid: item.vout.txid,
+                        vout: item.vout.n,
+                        value: new BigNumber(item.vout.value),
+                        script: {
+                            stack: toOPCodes(SmartBuffer.fromBuffer(Buffer.from(item.script.hex, 'hex')))
+                        },
+                        tokenId: item.vout.tokenId ?? 0x00
+                    }
+                }
+                throw new Error("used input not found");
+            })
+            const signed= await this.account!.signTx(txn,prevouts)
+            this.client.rawtx.send({hex: new CTransactionSegWit(signed).toHex()})
+        }
     }
 
     protected async buildDefiTx(
@@ -344,8 +367,11 @@ export class CommonProgram {
         }
     }
 
-    async sendWithPrevout(txn: Transaction, prevout: Prevout | undefined): Promise<CTransaction> {
+    async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransaction> {
         if (prevout) {
+            if(!this.canSign()) {
+                throw new Error("want to send with prev out, but can't sign. What is happening?!")                
+            }
             const customTx: Transaction = {
                 version: DeFiTransactionConstants.Version,
                 vin: [{ txid: prevout.txid, index: prevout.vout, script: { stack: [] }, sequence: 0xffffffff }],
@@ -354,11 +380,7 @@ export class CommonProgram {
             }
             const fee = calculateFeeP2WPKH(new BigNumber(0.00001), customTx)
             customTx.vout[1].value = prevout.value.minus(fee)
-            let signed = await this.account?.signTx(customTx, [prevout])
-            if (!signed) {
-                throw new Error("can't sign custom transaction")
-            }
-            txn = signed
+            txn = await this.account!.signTx(customTx, [prevout])
         }
         return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
     }
@@ -373,8 +395,8 @@ export class CommonProgram {
         }
     }
 
-    async send(txn: Transaction, initialWaitTime: number = 0): Promise<CTransaction> {
-        const ctx = new CTransaction(txn)
+    async send(txn: TransactionSegWit, initialWaitTime: number = 0): Promise<CTransaction> {
+        const ctx = new CTransactionSegWit(txn)
         const hex: string = ctx.toHex()
 
         console.log("Sending txId: " + ctx.txId + " with input: " + ctx.vin[0].txid + ":" + ctx.vin[0].index)
