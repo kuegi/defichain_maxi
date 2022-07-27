@@ -7,6 +7,7 @@ import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
+import { CTransaction } from "@defichain/jellyfish-transaction/dist";
 
 
 export class LMReinvestProgram extends CommonProgram {
@@ -72,6 +73,7 @@ export class LMReinvestProgram extends CommonProgram {
             return false
         }
 
+        let txsToSign:CTransaction[] = []
         const utxoBalance = await this.getUTXOBalance()
         const tokenBalance = balances.get("DFI")
 
@@ -84,9 +86,7 @@ export class LMReinvestProgram extends CommonProgram {
         if (amountToUse.gt(this.settings.reinvestThreshold) && fromUtxos.gt(0)) {
             console.log("converting " + fromUtxos + " UTXOs to token ")
             const tx = await this.utxoToOwnAccount(fromUtxos)
-            if(!this.canSign()) {
-               await this.sendTxDataToTelegram(tx,telegram)
-            }
+            txsToSign.push(tx)
             prevout = this.prevOutFromTx(tx)
         }
 
@@ -98,9 +98,7 @@ export class LMReinvestProgram extends CommonProgram {
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
                 console.log("donating " + donatedAmount.toFixed(2) + " DFI")
                 const tx = await this.sendDFIToAccount(donatedAmount, DONATION_ADDRESS, prevout)
-                if(!this.canSign()) {
-                    await this.sendTxDataToTelegram(tx,telegram)
-                }
+                txsToSign.push(tx)
                 prevout = this.prevOutFromTx(tx)
 
                 amountToUse = amountToUse.minus(donatedAmount)
@@ -113,19 +111,20 @@ export class LMReinvestProgram extends CommonProgram {
             let swap
             if (+tokenB.id == 0) {
                 swap = await this.swap(amountToSwap, 0, +tokenA.id, new BigNumber(999999999), prevout)
+                txsToSign.push(swap)
             } else {
                 const dusdPool = await this.getPool("DUSD-DFI")
                 swap = await this.compositeswap(amountToSwap, 0, +tokenA.id, [{ id: +dusdPool!.id }, { id: +pool.id }], new BigNumber(999999999), prevout)
-                if(!this.canSign()) {
-                    await this.sendTxDataToTelegram(swap,telegram)
-                }
+                txsToSign.push(swap)
+                
                 //need to swap both
                 console.log("swaping " + amountToSwap + " DFI to " + tokenB.symbol)
                 swap = await this.swap(amountToSwap, 0, +tokenB.id, new BigNumber(999999999), this.prevOutFromTx(swap))
+                txsToSign.push(swap)
             }
             if(!this.canSign()) {
-                await this.sendTxDataToTelegram(swap,telegram)
-                await telegram.send("waiting for you to sign and send transactions")
+                await this.sendTxDataToTelegram(txsToSign,telegram)
+                txsToSign= []
             }
             if (!await this.waitForTx(swap.txId)) {
                 await telegram.send("ERROR: swapping reinvestment failed")
@@ -150,9 +149,10 @@ export class LMReinvestProgram extends CommonProgram {
                 { token: +pool.tokenA.id, amount: usedAssetA },
                 { token: +pool.tokenB.id, amount: usedAssetB },
             ], this.prevOutFromTx(swap))
+            txsToSign.push(addTx)
             if(!this.canSign()) {
-                await this.sendTxDataToTelegram(addTx,telegram)
-                await telegram.send("waiting for you to sign and send transactions")
+                await this.sendTxDataToTelegram(txsToSign,telegram)
+                txsToSign= []
             }
 
             if (! await this.waitForTx(addTx.txId)) {

@@ -1,5 +1,5 @@
 import { BigNumber } from "@defichain/jellyfish-api-core";
-import { AccountToAccount, CAccountToAccount, CTransaction, CTransactionSegWit, DeFiTransactionConstants, fromOPCodes, OP_CODES, OP_DEFI_TX, PoolId, Script, ScriptBalances, TokenBalance, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
+import { AccountToAccount, CAccountToAccount, CTransaction, CTransactionSegWit, DeFiTransactionConstants, OP_CODES, OP_DEFI_TX, PoolId, Script, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
@@ -72,17 +72,15 @@ export class CommonProgram {
     }
 
     async getTokenBalances(): Promise<Map<string, AddressToken>> {
-        const tokens = await this.client.address.listToken(this.getAddress(), 100)
+        const tokens = await this.client.address.listToken(this.getAddress(), 1000)
 
         return new Map(tokens.map(token => [token.symbol, token]))
     }
 
-    async getTokenBalance(symbol: String): Promise<AddressToken | undefined> {
-        const tokens = await this.client.address.listToken(this.getAddress(), 100)
+    async getTokenBalance(symbol: string): Promise<AddressToken | undefined> {
+        const tokens = await this.getTokenBalances()
 
-        return tokens.find(token => {
-            return token.isDAT && token.symbol === symbol
-        })
+        return tokens.get(symbol)
     }
 
     async getVault(): Promise<LoanVaultActive | LoanVaultLiquidated> {
@@ -119,13 +117,13 @@ export class CommonProgram {
     }
 
     async removeLiquidity(poolId: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().liqPool.removeLiquidity({
-            script: this.script!,
-            tokenId: poolId,
-            amount: amount
-        }
-            , this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_POOL_REMOVE_LIQUIDITY({
+                script: this.script!,
+                tokenId: poolId,
+                amount: amount
+            }),
+            prevout)
     }
 
     async addLiquidity(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
@@ -141,48 +139,50 @@ export class CommonProgram {
     }
 
     async paybackLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().loans.paybackLoan({
-            vaultId: this.settings.vault,
-            from: this.script!,
-            tokenAmounts: amounts
-        },
-            this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_PAYBACK_LOAN({
+                vaultId: this.settings.vault,
+                from: this.script!,
+                tokenAmounts: amounts
+            }),
+            prevout)
     }
 
     async takeLoans(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().loans.takeLoan({
-            vaultId: this.settings.vault,
-            to: this.script!,
-            tokenAmounts: amounts
-        },
-            this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_TAKE_LOAN({
+                vaultId: this.settings.vault,
+                to: this.script!,
+                tokenAmounts: amounts
+            }),
+            prevout)
     }
 
     async depositToVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().vault.depositToVault({
-            vaultId: this.settings.vault,
-            from: this.script!,
-            tokenAmount: {
-                token: token,
-                amount: amount
-            }
-        }, this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_DEPOSIT_TO_VAULT({
+                vaultId: this.settings.vault,
+                from: this.script!,
+                tokenAmount: {
+                    token: token,
+                    amount: amount
+                }
+            }),
+            prevout)
     }
 
 
     async withdrawFromVault(token: number, amount: BigNumber, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.account!.withTransactionBuilder().vault.withdrawFromVault({
-            vaultId: this.settings.vault,
-            to: this.script!,
-            tokenAmount: {
-                token: token,
-                amount: amount
-            }
-        }, this.script!)
-        return this.sendWithPrevout(txn, prevout)
+        return this.sendOrCreateDefiTx(
+            OP_CODES.OP_DEFI_TX_WITHDRAW_FROM_VAULT({
+                vaultId: this.settings.vault,
+                to: this.script!,
+                tokenAmount: {
+                    token: token,
+                    amount: amount
+                }
+            }),
+            prevout)
     }
 
 
@@ -198,7 +198,7 @@ export class CommonProgram {
     async sendDFIToAccount(amount: BigNumber, address: string, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
         return this.sendOrCreateDefiTx(
             OP_CODES.OP_DEFI_TX_ACCOUNT_TO_ACCOUNT({
-                to: [{ script:  fromAddress(address, this.walletSetup.network.name)!.script, balances: [{ token: 0, amount: amount }] }],
+                to: [{ script: fromAddress(address, this.walletSetup.network.name)!.script, balances: [{ token: 0, amount: amount }] }],
                 from: this.script!
             }),
             prevout)
@@ -243,54 +243,69 @@ export class CommonProgram {
         }
     }
 
-    async sendTxDataToTelegram(tx: CTransaction, telegram: Telegram):Promise<void> {
-        const message = "Please sign and send :\n" + tx.toHex()
+    async sendTxDataToTelegram(txs: CTransaction[], telegram: Telegram): Promise<void> {
+        let message = "Please sign and send :\n";
+        txs.forEach(tx=> {
+            message+= tx.toHex()+"\n"
+        })
         await telegram.send(message)
     }
 
     //sample code for wallet how to decode and sign outside txs
-    async signAndSendRawTx(rawData:string): Promise<void> {
-        const txn= new CTransaction(SmartBuffer.fromBuffer(Buffer.from(rawData,'hex')))
-        
+    extractCustomData(txn: Transaction): void {
         //how to get data and show it to the user: 
-        const defiStack= txn.vout[0].script.stack[1]
-        if(defiStack.type === 'OP_DEFI_TX') {
-            const dftx= (defiStack as OP_DEFI_TX).tx
-            console.log("dftx = "+dftx.name+"("+dftx.type+")")
-            switch(dftx.type) {
+        const defiStack = txn.vout[0].script.stack[1]
+        if (defiStack.type === 'OP_DEFI_TX') {
+            const dftx = (defiStack as OP_DEFI_TX).tx
+            console.log("dftx = " + dftx.name + "(" + dftx.type + ")")
+            switch (dftx.type) {
                 case CAccountToAccount.OP_CODE:
                     console.log("got a2a")
-                    const a2a= dftx.data as AccountToAccount
-                    const from= fromScript(a2a.from,this.walletSetup.network.name)?.address
-                    const to= fromScript(a2a.to[0].script,this.walletSetup.network.name)?.address
-                    const amount= a2a.to[0].balances[0].amount
-                    const token= a2a.to[0].balances[0].token
-                    console.log("a2a from: "+from+" to "+to+" : "+amount+"@"+token)
+                    const a2a = dftx.data as AccountToAccount
+                    const from = fromScript(a2a.from, this.walletSetup.network.name)?.address
+                    const target = a2a.to.map((to): string =>
+                            fromScript(to.script, this.walletSetup.network.name)?.address +
+                            " [" + to.balances.map(b => b.amount.toFixed(8) + "@" + b.token).join(",") + "]"
+                        ).join("\n")
+                    const amount = a2a.to[0].balances[0].amount
+                    const token = a2a.to[0].balances[0].token
+                    console.log("a2a from: " + from + " to\n" + target)
                 //lots of cases here
             }
         }
+    }
 
-        //sign and send to chain
-        if(this.canSign()) {
-            //TODO: when we sign a list of txs, we need to keep the vouts of prev txs and only check unspent if not found there
-            const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 100)
+    async signAndSendRawTx(rawTxs: string[]): Promise<void> {
+        if (!this.canSign()) {
+            console.error("want me to sign, but I can't sign!")
+            return
+        }
+
+        const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 100)
+        let possiblePrevouts = unspent.map((item): Prevout => {
+            return {
+                txid: item.vout.txid,
+                vout: item.vout.n,
+                value: new BigNumber(item.vout.value),
+                script: {
+                    stack: toOPCodes(SmartBuffer.fromBuffer(Buffer.from(item.script.hex, 'hex')))
+                },
+                tokenId: item.vout.tokenId ?? 0x00
+            }
+        })
+
+        for (let rawTx in rawTxs) {
+            const txn = new CTransaction(SmartBuffer.fromBuffer(Buffer.from(rawTx, 'hex')))
             const prevouts = txn.vin.map((vin): Prevout => {
-                const item = unspent.find(item => item.vout.txid == vin.txid && item.vout.n == vin.index)
-                if (item) {
-                    return {
-                        txid: item.vout.txid,
-                        vout: item.vout.n,
-                        value: new BigNumber(item.vout.value),
-                        script: {
-                            stack: toOPCodes(SmartBuffer.fromBuffer(Buffer.from(item.script.hex, 'hex')))
-                        },
-                        tokenId: item.vout.tokenId ?? 0x00
-                    }
+                const prevoutIdx = possiblePrevouts.findIndex(prevout => prevout.txid == vin.txid && prevout.vout == vin.index)
+                if (prevoutIdx >= 0) {
+                    return possiblePrevouts.splice(prevoutIdx, 1)[0]
                 }
                 throw new Error("used input not found");
             })
-            const signed= await this.account!.signTx(txn,prevouts)
-            this.client.rawtx.send({hex: new CTransactionSegWit(signed).toHex()})
+            const signed = await this.account!.signTx(txn, prevouts)
+            this.client.rawtx.send({ hex: new CTransactionSegWit(signed).toHex() })
+            possiblePrevouts.push(this.prevOutFromTx(txn))
         }
     }
 
@@ -369,8 +384,8 @@ export class CommonProgram {
 
     async sendWithPrevout(txn: TransactionSegWit, prevout: Prevout | undefined): Promise<CTransaction> {
         if (prevout) {
-            if(!this.canSign()) {
-                throw new Error("want to send with prev out, but can't sign. What is happening?!")                
+            if (!this.canSign()) {
+                throw new Error("want to send with prev out, but can't sign. What is happening?!")
             }
             const customTx: Transaction = {
                 version: DeFiTransactionConstants.Version,
