@@ -236,6 +236,16 @@
                   "Resource": {
                     "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*"
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:PutParameter"
+                  ],
+                  "Resource": [{
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/state-reinvest"
+                    }
+                  ]
                 }
               ]
             }
@@ -398,6 +408,16 @@
         "Value": {
           "Ref": "LMPair"
         }
+      }
+    },
+    "reinvestParamState": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "the state of last execution. DO NOT CHANGE THIS VALUE",
+        "Name": "/defichain-maxi/state-reinvest",
+        "Type": "String",
+        "Value": "start"
       }
     }
   }

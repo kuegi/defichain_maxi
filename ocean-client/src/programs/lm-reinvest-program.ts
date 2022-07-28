@@ -10,6 +10,11 @@ import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { CTransaction } from "@defichain/jellyfish-transaction/dist";
 
 
+export enum LMReinvestProgramTransaction {
+    None = "none",
+    AddLiquidity = "addliquidity",
+    Swap = "swap",
+}
 export class LMReinvestProgram extends CommonProgram {
     readonly lmPair: string
 
@@ -22,7 +27,7 @@ export class LMReinvestProgram extends CommonProgram {
     async doMaxiChecks(telegram: Telegram,
         pool: PoolPairData | undefined
     ): Promise<boolean> {
-        if (!this.doValidationChecks(telegram,false)) {
+        if (!this.doValidationChecks(telegram, false)) {
             return false
         }
         if (!pool) {
@@ -38,7 +43,7 @@ export class LMReinvestProgram extends CommonProgram {
     }
 
     async doAndReportCheck(telegram: Telegram): Promise<boolean> {
-        if (!this.doValidationChecks(telegram,false)) {
+        if (!this.doValidationChecks(telegram, false)) {
             return false //report already send inside
         }
 
@@ -68,12 +73,48 @@ export class LMReinvestProgram extends CommonProgram {
         return true
     }
 
+    async addLiquidityWithFullWallet(pool: PoolPairData,
+        balances: Map<String, AddressToken>, telegram: Telegram): Promise<(BigNumber | undefined)[]> {
+        const tokenA = pool.tokenA
+        const tokenB = pool.tokenB
+        const availableA = new BigNumber(balances.get(tokenA.symbol)?.amount ?? 0)
+        let usedAssetB = new BigNumber(balances.get(tokenB.symbol)?.amount ?? 0)
+        let usedAssetA = usedAssetB.multipliedBy(pool.priceRatio.ab)
+        if (usedAssetA.gt(availableA)) { //not enough stocks to fill it -> use full stocks and reduce DUSD
+            usedAssetA = availableA
+            usedAssetB = usedAssetA.multipliedBy(pool.priceRatio.ba)
+        }
+
+        console.log(" adding liquidity " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
+
+        let addTx = await this.addLiquidity([
+            { token: +pool.tokenA.id, amount: usedAssetA },
+            { token: +pool.tokenB.id, amount: usedAssetB },
+        ])
+        let txsToSign: CTransaction[] = []
+        txsToSign.push(addTx)
+        if (!this.canSign()) {
+            await this.sendTxDataToTelegram(txsToSign, telegram)
+            txsToSign = []
+        }
+
+        await this.updateToState(ProgramState.WaitingForTransaction,
+            LMReinvestProgramTransaction.AddLiquidity, addTx.txId)
+        if (! await this.waitForTx(addTx.txId)) {
+            await telegram.send("ERROR: depositing reinvestment failed")
+            console.error("depositing failed")
+            return [undefined, undefined]
+        } else {
+            return [usedAssetA, usedAssetB]
+        }
+    }
+
     async checkAndDoReinvest(pool: PoolPairData, balances: Map<String, AddressToken>, telegram: Telegram): Promise<boolean> {
         if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
             return false
         }
 
-        let txsToSign:CTransaction[] = []
+        let txsToSign: CTransaction[] = []
         const utxoBalance = await this.getUTXOBalance()
         const tokenBalance = balances.get("DFI")
 
@@ -116,16 +157,18 @@ export class LMReinvestProgram extends CommonProgram {
                 const dusdPool = await this.getPool("DUSD-DFI")
                 swap = await this.compositeswap(amountToSwap, 0, +tokenA.id, [{ id: +dusdPool!.id }, { id: +pool.id }], new BigNumber(999999999), prevout)
                 txsToSign.push(swap)
-                
+
                 //need to swap both
                 console.log("swaping " + amountToSwap + " DFI to " + tokenB.symbol)
                 swap = await this.swap(amountToSwap, 0, +tokenB.id, new BigNumber(999999999), this.prevOutFromTx(swap))
                 txsToSign.push(swap)
             }
-            if(!this.canSign()) {
-                await this.sendTxDataToTelegram(txsToSign,telegram)
-                txsToSign= []
+            if (!this.canSign()) {
+                await this.sendTxDataToTelegram(txsToSign, telegram)
+                txsToSign = []
             }
+            await this.updateToState(ProgramState.WaitingForTransaction,
+                LMReinvestProgramTransaction.Swap, swap.txId)
             if (!await this.waitForTx(swap.txId)) {
                 await telegram.send("ERROR: swapping reinvestment failed")
                 console.error("swapping reinvestment failed")
@@ -133,33 +176,9 @@ export class LMReinvestProgram extends CommonProgram {
             }
 
             const updatedPool = await this.getPool(this.lmPair)
-            pool = updatedPool!
             const tokens = await this.getTokenBalances()
-            const availableA = new BigNumber(tokens.get(tokenA.symbol)?.amount ?? 0)
-            let usedAssetB = new BigNumber(tokens.get(tokenB.symbol)?.amount ?? 0)
-            let usedAssetA = usedAssetB.multipliedBy(pool.priceRatio.ab)
-            if (usedAssetA.gt(availableA)) { //not enough stocks to fill it -> use full stocks and reduce DUSD
-                usedAssetA = availableA
-                usedAssetB = usedAssetA.multipliedBy(pool.priceRatio.ba)
-            }
-
-            console.log(" adding liquidity " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
-
-            let addTx = await this.addLiquidity([
-                { token: +pool.tokenA.id, amount: usedAssetA },
-                { token: +pool.tokenB.id, amount: usedAssetB },
-            ], this.prevOutFromTx(swap))
-            txsToSign.push(addTx)
-            if(!this.canSign()) {
-                await this.sendTxDataToTelegram(txsToSign,telegram)
-                txsToSign= []
-            }
-
-            if (! await this.waitForTx(addTx.txId)) {
-                await telegram.send("ERROR: depositing reinvestment failed")
-                console.error("depositing failed")
-                return false
-            } else {
+            const [usedAssetA, usedAssetB] = await this.addLiquidityWithFullWallet(updatedPool!, tokens, telegram)
+            if (usedAssetA !== undefined && usedAssetB !== undefined) {
                 await telegram.send("reinvested " + amountToUse.toFixed(4) + "@DFI"
                     + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)"
                     + "\n in " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " paired with " + usedAssetB.toFixed(8) + "@" + tokenB.symbol)
@@ -169,11 +188,20 @@ export class LMReinvestProgram extends CommonProgram {
                         "Feel free to manually donate anyway.")
                 }
                 console.log("done ")
-                return true
             }
 
         }
 
         return false
+    }
+
+    async updateToState(state: ProgramState, transaction: LMReinvestProgramTransaction, txId: string = ""): Promise<void> {
+        return await this.store.updateToState({
+            state: state,
+            tx: transaction,
+            txId: txId,
+            blockHeight: await this.getBlockHeight(),
+            version: "1"
+        })
     }
 }
