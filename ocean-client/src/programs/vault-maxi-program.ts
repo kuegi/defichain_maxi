@@ -121,6 +121,16 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
 
+        const utxoBalance = await this.getUTXOBalance()
+        if( utxoBalance.lte(1e-4)) { //1 tx is roughly 2e-6 fee, one action mainly 3 tx -> 6e-6 fee. we want at least 10 actions safety -> below 1e-4 we warn
+            const message= "your UTXO balance is running low in "+this.settings.address+", only "+utxoBalance.toFixed(5)+" DFI left. Please replenish to prevent any errors"
+            await telegram.send(message)
+            console.warn(message)
+            if(utxoBalance.lte(0)) {
+                //can't work with no UTXOs
+                return false
+            }
+        }
         // showstoppers checked, now check for warnings or automatic adaptions
 
         if (+vaultcheck.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
@@ -572,6 +582,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(0.99))
             }
         })
+        // TODO: check 50%
         if (!this.isSingleMint) {
             wantedAssetA = additionalLoan.div(BigNumber.sum(oracleA, pool.priceRatio.ba))
             wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
@@ -584,7 +595,8 @@ export class VaultMaxiProgram extends CommonProgram {
                 { token: +pool.tokenB.id, amount: wantedAssetB }
             ]
             //check if enough collateral is there to even take new loan
-            if (dfiDusdCollateralValue.times(vault.loanScheme.minColRatio).div(100).lte(additionalLoan.plus(vault.loanValue))) {
+            //dusdDFI * 2 >= loan+additionLoan * minRatio
+            if (dfiDusdCollateralValue.times(2).lte(additionalLoan.plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))) {
                 console.error("not enough collateral of DFI or DUSD to take more loans")
                 await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
                 return false
@@ -615,7 +627,8 @@ export class VaultMaxiProgram extends CommonProgram {
             }
 
             //check if enough collateral is there to even take new loan
-            if (dfiDusdCollateralValue.minus(wantedAssetB).times(vault.loanScheme.minColRatio).div(100).lte(wantedAssetA.plus(vault.loanValue))) {
+            //dusdDFI-assetB * 2 >= loan+additionLoan * minRatio
+            if (dfiDusdCollateralValue.minus(wantedAssetB).times(2).lte(wantedAssetA.plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))) {
                 console.error("not enough collateral of DFI or DUSD to take more loans")
                 await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
                 return false
