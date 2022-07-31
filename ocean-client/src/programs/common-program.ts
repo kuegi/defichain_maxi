@@ -191,7 +191,8 @@ export class CommonProgram {
             OP_CODES.OP_DEFI_TX_UTXOS_TO_ACCOUNT({
                 to: [{ script: this.script!, balances: [{ token: 0, amount: amount }] }]
             }),
-            prevout)
+            prevout,
+            amount)
     }
 
 
@@ -233,8 +234,8 @@ export class CommonProgram {
             prevout)
     }
 
-    async sendOrCreateDefiTx(opDeFiTx: OP_DEFI_TX, prevout: Prevout | undefined = undefined): Promise<CTransaction> {
-        const txn = await this.buildDefiTx(opDeFiTx, this.script!, prevout)
+    async sendOrCreateDefiTx(opDeFiTx: OP_DEFI_TX, prevout: Prevout | undefined, dftxOut: BigNumber = new BigNumber(0)): Promise<CTransaction> {
+        const txn = await this.buildDefiTx(opDeFiTx, this.script!, prevout, dftxOut)
         if (this.canSign()) {
             //send directly
             return this.send(txn as TransactionSegWit, prevout ? 3000 : 0) //initial wait time when depending on other tx
