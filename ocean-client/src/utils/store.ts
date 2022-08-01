@@ -8,6 +8,7 @@ export interface IStore {
     updateToState(information: ProgramStateInformation): Promise<void>;
     fetchSettings(): Promise<StoredSettings>;
     skipNext(): Promise<void>;
+    clearSkip(): Promise<void>;
 }
 
 export class Store implements IStore {
@@ -39,6 +40,10 @@ export class Store implements IStore {
 
     async skipNext(): Promise<void> {
         await this.storeprovider.skipNext()
+    }
+
+    async clearSkip(): Promise<void> {
+        await this.storeprovider.clearSkip()
     }
 
 }
