@@ -456,7 +456,7 @@ export class CommonProgram {
             startBlock = await this.getBlockHeight()
         }
         let waitingMinutes = 10
-        let waitingBlocks = 10
+        let waitingBlocks = 20
         if (!this.canSign()) { //if can't sign myself: wait till timeout of lambda
             waitingMinutes = 15
             waitingBlocks = 30
