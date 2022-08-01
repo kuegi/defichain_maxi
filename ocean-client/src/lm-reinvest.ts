@@ -7,7 +7,7 @@ import { ProgramStateConverter } from './utils/program-state-converter'
 import { delay, isNullOrEmpty } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
-import { LMReinvestProgram } from './programs/lm-reinvest-program'
+import { LMReinvestProgram, LMReinvestProgramTransaction } from './programs/lm-reinvest-program'
 import { StoreAWSReinvest } from './utils/store_aws_reinvest'
 
 class maxiEvent {
@@ -47,15 +47,59 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 }
             }
             let pool = await program.getPool(program.lmPair)
-            let balances = await program.getTokenBalances()
             if (!await program.doMaxiChecks(telegram, pool)) {
                 return { statusCode: 500 }
             }
+            let balances = await program.getTokenBalances()
             const DFIinAddress = new BigNumber(balances.get("DFI")?.amount ?? 0)
             let result = true
 
+            if (settings.stateInformation.state !== ProgramState.Idle) {
+                const information = settings.stateInformation
+                console.log("last execution stopped state " + information.state)
+                console.log(" at tx " + information.tx)
+                console.log(" with txId " + information.txId)
+                console.log(" on block height " + information.blockHeight)
+
+                if (information.state === ProgramState.WaitingForTransaction || information.txId.length > 0) {
+                    console.log("waiting for tx from previous run")
+                    const resultFromPrevTx = await program.waitForTx(information.txId, information.blockHeight)
+                    balances = await program.getTokenBalances()
+                    pool = await program.getPool(program.lmPair)
+                    console.log(resultFromPrevTx ? "done" : " timed out -> cleanup")
+                    let retryAdd = false
+                    if (!resultFromPrevTx) {
+                        if (information.tx == LMReinvestProgramTransaction.Swap) {
+                            //was waiting for initial, just restart
+                            information.state = ProgramState.Idle
+                        } else {
+                            retryAdd = true
+                        }
+                    } else {
+                        if (information.tx == LMReinvestProgramTransaction.Swap) {
+                            retryAdd = true
+                        } else {
+                            //was waiting for final addLiquidity, now there, so back to idle
+                            information.state = ProgramState.Idle
+                        }
+                    }
+                    if (retryAdd) {
+                        information.state = ProgramState.Idle
+                        const [usedAssetA, usedAssetB] = await program.addLiquidityWithFullWallet(pool!, balances, telegram)
+                        if (usedAssetA !== undefined && usedAssetB !== undefined) {
+                            const tokenA = pool!.tokenA
+                            const tokenB = pool!.tokenB
+                            await telegram.send("invested " + usedAssetA.toFixed(8) + "@" + tokenA.symbol + " paired with " + usedAssetB.toFixed(8) + "@" + tokenB.symbol
+                                + " after timeout in initial try")
+                            console.log("done retry addLiquidity")
+                        }
+                    }
+                    await program.updateToState(information.state, LMReinvestProgramTransaction.None)
+                }
+            }
             console.log("starting with " + DFIinAddress.toFixed(4) + " in address")
             await program.checkAndDoReinvest(pool!, balances, telegram)
+            await program.updateToState(ProgramState.Idle, LMReinvestProgramTransaction.None)
             await telegram.log("executed script with " + DFIinAddress.toFixed(4) + " DFI in address")
             console.log("script done ")
             return { statusCode: result ? 200 : 500 }

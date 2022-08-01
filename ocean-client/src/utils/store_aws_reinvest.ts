@@ -13,6 +13,14 @@ export class StoreAWSReinvest implements IStore {
     }
 
     async updateToState(information: ProgramStateInformation): Promise<void> {
+        const key = StoreKey.State.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const state = {
+            Name: key,
+            Value: ProgramStateConverter.toValue(information),
+            Overwrite: true,
+            Type: 'String'
+        }
+        await this.ssm.putParameter(state).promise()
     }
 
     async skipNext(): Promise<void> {
@@ -30,6 +38,7 @@ export class StoreAWSReinvest implements IStore {
         let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
         let AutoDonationPercentOfReinvestKey = StoreKey.AutoDonationPercentOfReinvest.replace("-maxi", "-maxi" + storePostfix)
         let LMPairKey = StoreKey.LMPair.replace("-maxi", "-maxi" + storePostfix)
+        let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -42,6 +51,7 @@ export class StoreAWSReinvest implements IStore {
                 LMPairKey,
                 ReinvestThreshold,
                 AutoDonationPercentOfReinvestKey,
+                StateKey,
             ]
         }).promise()).Parameters ?? []
 
@@ -63,7 +73,8 @@ export class StoreAWSReinvest implements IStore {
         this.settings.LMPair = this.getValue(LMPairKey, parameters)
         this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
         this.settings.autoDonationPercentOfReinvest = this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? this.settings.autoDonationPercentOfReinvest
-        
+        this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
         return this.settings
@@ -100,5 +111,7 @@ enum StoreKey {
     LMPair = '/defichain-maxi/settings-reinvest/lm-pair',
     ReinvestThreshold = '/defichain-maxi/settings-reinvest/reinvest',
     AutoDonationPercentOfReinvest = '/defichain-maxi/settings-reinvest/auto-donation-percent-of-reinvest',
+
+    State = '/defichain-maxi/state-reinvest',
 
 }

@@ -108,6 +108,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     const resultFromPrevTx = await program.waitForTx(information.txId, information.blockHeight)
                     vault = await program.getVault() as LoanVaultActive
                     balances = await program.getTokenBalances()
+                    pool = await program.getPool(program.lmPair)
                     console.log(resultFromPrevTx ? "done" : " timed out -> cleanup")
                     if (!resultFromPrevTx || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
                         information.state = ProgramState.Error //force cleanup
@@ -122,6 +123,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     result = await program.cleanUp(vault, balances, telegram)
                     vault = await program.getVault() as LoanVaultActive
                     balances = await program.getTokenBalances()
+                    pool = await program.getPool(program.lmPair)
                     //need to get updated vault
                     await telegram.log("executed clean-up part of script " + (result ? "successfully" : "with problems") + ". vault ratio after clean-up " + vault.collateralRatio)
                     if (!result) {
@@ -149,14 +151,6 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 return { statusCode: 200 }
             }
 
-            const oldRatio = +vault.collateralRatio
-            const nextRatio = nextCollateralRatio(vault)
-            const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
-            console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
-                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
-                + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
-                + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
-            let exposureChanged = false
             //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
             if (settings.mainCollateralAsset === "DFI") {
                 const poolApr = (pool?.apr?.total ?? 0) * 100
@@ -170,6 +164,15 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 }
             }
 
+            const oldRatio = +vault.collateralRatio
+            const nextRatio = nextCollateralRatio(vault)
+            const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
+            console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
+                + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
+                + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
+                + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
+            let exposureChanged = false
+            
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
             // no reinvest (or reinvest done and still time left) -> check for increase exposure
@@ -178,6 +181,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     result = await program.removeExposure(vault, pool!, balances, telegram)
                     exposureChanged = true
                     vault = await program.getVault() as LoanVaultActive
+                    balances = await program.getTokenBalances()
                 }
             } else if (usedCollateralRatio.gt(0) && usedCollateralRatio.lt(settings.minCollateralRatio)) {
                 result = await program.decreaseExposure(vault, pool!, telegram)
@@ -218,8 +222,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     if (batchSize > 0) {
                         const changed = await program.checkAndDoStableArb(vault, pool!, batchSize, telegram)
                         exposureChanged = exposureChanged || changed
-                        vault = await program.getVault() as LoanVaultActive
-                        balances = await program.getTokenBalances()
+                        if(changed) {
+                            vault = await program.getVault() as LoanVaultActive
+                            balances = await program.getTokenBalances()
+                        }
                     }
                 }
             }
