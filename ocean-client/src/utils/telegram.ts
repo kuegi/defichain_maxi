@@ -18,6 +18,13 @@ export class Telegram {
         this.prefix = prefix
     }
 
+    async sendWithoutPrefix(message: string): Promise<unknown> {
+        if (isNullOrEmpty(this.chatId) || isNullOrEmpty(this.token)) {
+            return
+        }
+        return this.internalSend(message, this.chatId, this.token, true)
+    }
+
     async send(message: string): Promise<unknown> {
         if (isNullOrEmpty(this.chatId) || isNullOrEmpty(this.token)) {
             return
@@ -32,11 +39,11 @@ export class Telegram {
         return this.internalSend(message, this.logChatId, this.logToken)
     }
 
-    async internalSend(message: string, chatId: string, token: string): Promise<unknown> {
+    async internalSend(message: string, chatId: string, token: string, withoutPrefix = false): Promise<unknown> {
         let endpointUrl = this.endpoint
             .replace('%token', token)
             .replace('%chatId', chatId)
-            .replace('%message', encodeURI(this.prefix + " " + message))
+            .replace('%message', encodeURI(withoutPrefix ? message : this.prefix + " " + message))
 
         const response = await fetch(endpointUrl)
         return await response.json()

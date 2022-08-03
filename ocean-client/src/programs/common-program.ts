@@ -246,10 +246,12 @@ export class CommonProgram {
 
     async sendTxDataToTelegram(txs: CTransaction[], telegram: Telegram): Promise<void> {
         let message = "Please sign and send :\n";
+        await telegram.send(message)
+        message = ""
         txs.forEach(tx=> {
             message+= tx.toHex()+"\n"
         })
-        await telegram.send(message)
+        await telegram.sendWithoutPrefix(message)
     }
 
     //sample code for wallet how to decode and sign outside txs
