@@ -40,6 +40,10 @@ export class StoreConfig implements IStore {
         console.error("skipNext not implemented on config version")
     }
 
+    async clearSkip(): Promise<void> {
+        console.error("clearSkip not implemented on config version")
+    }
+
     async updateToState(information: ProgramStateInformation): Promise<void> {
         fs.writeFileSync(this.statefile, ProgramStateConverter.toValue(information))
     }

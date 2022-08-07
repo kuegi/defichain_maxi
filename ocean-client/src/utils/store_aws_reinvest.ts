@@ -23,8 +23,8 @@ export class StoreAWSReinvest implements IStore {
         await this.ssm.putParameter(state).promise()
     }
 
-    async skipNext(): Promise<void> {
-    }
+    async skipNext(): Promise<void> { }
+    async clearSkip(): Promise<void> { }
 
     async fetchSettings(): Promise<StoredSettings> {
         // first check environment

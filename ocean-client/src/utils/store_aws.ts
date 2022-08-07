@@ -31,7 +31,16 @@ export class StoreAWS implements IStore {
             Overwrite: true,
             Type: 'String'
         }).promise()
+    }
 
+    async clearSkip(): Promise<void> {
+        const key = StoreKey.Skip.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        await this.ssm.putParameter({
+            Name: key,
+            Value: "false",
+            Overwrite: true,
+            Type: 'String'
+        }).promise()
     }
 
     async fetchSettings(): Promise<StoredSettings> {
@@ -111,16 +120,6 @@ export class StoreAWS implements IStore {
         this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
         this.settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
         this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false") === "true"
-        if (this.settings.shouldSkipNext) {
-            //reset to false, so no double skip ever
-            console.log("got skip command, reset to false")
-            await this.ssm.putParameter({
-                Name: SkipKey,
-                Value: "false",
-                Overwrite: true,
-                Type: 'String'
-            }).promise()
-        }
 
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
