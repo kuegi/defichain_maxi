@@ -32,13 +32,18 @@ export class Telegram {
         return this.internalSend(message, this.logChatId, this.logToken)
     }
 
-    async internalSend(message: string, chatId: string, token: string): Promise<unknown> {
+    async internalSend(message: string, chatId: string, token: string,retryCount: number = 0): Promise<void> {
+        if(retryCount >= 3) {
+            return;
+        }
         let endpointUrl = this.endpoint
             .replace('%token', token)
             .replace('%chatId', chatId)
             .replace('%message', encodeURI(this.prefix + " " + message))
 
-        const response = await fetch(endpointUrl)
-        return await response.json()
+        await fetch(endpointUrl).then(response => {return response.json()})
+                            .catch(e => { console.error("error in telegram send: "+e);
+                                          this.internalSend(message,chatId,token, retryCount+1)})
+        return;
     }
 }
