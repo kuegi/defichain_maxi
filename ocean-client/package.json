@@ -6,7 +6,8 @@
         "build-addon": "node build-addon.js",
         "build:vault-maxi": "node build.js",
         "build:lm-reinvest": "node build.js",
-        "build:command-center": "node build-addon.js"
+        "build:command-center": "node build-addon.js",
+        "test": "jest --silent"
     },
     "dependencies": {
         "@defichain/jellyfish-network": "2.50.0",
@@ -22,7 +23,30 @@
         "typescript": "4.6.2"
     },
     "devDependencies": {
+        "@babel/core": "^7.18.10",
+        "@babel/preset-env": "^7.18.10",
+        "@babel/preset-typescript": "^7.18.6",
+        "@types/jest": "^28.1.6",
         "@types/node": "^17.0.41",
-        "@vercel/ncc": "latest"
-    }
+        "@vercel/ncc": "latest",
+        "babel-jest": "^28.1.3",
+        "jest": "^28.1.3",
+        "ts-jest": "^28.0.7"
+    },  
+    "jest": {
+        "moduleFileExtensions": [
+          "js",
+          "json",
+          "ts"
+        ],
+        "testRegex": ".*\\.spec\\.ts$",
+        "transform": {
+          "^.+\\.(t|j)s$": "ts-jest"
+        },
+        "collectCoverageFrom": [
+          "**/*.(t|j)s"
+        ],
+        "coverageDirectory": "../coverage",
+        "testEnvironment": "node"
+      }
 }

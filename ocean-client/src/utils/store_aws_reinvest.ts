@@ -1,5 +1,5 @@
 import SSM from 'aws-sdk/clients/ssm'
-import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
+import { ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 
 // handle AWS Paramter
