@@ -5,8 +5,8 @@ const crypto = require('crypto');
 
 const exec = util.promisify(require('child_process').exec)
 
-fileToBuild = process.env.npm_config_file
-console.log("building addon " + fileToBuild)
+let fileToBuild = process.env.npm_config_file ?? process.env.npm_lifecycle_event
+fileToBuild = fileToBuild?.replace('build:', '')
 
 function handleExec(res) {
     if (res.stderr) {
@@ -43,6 +43,11 @@ async function buildLambda(file) {
         console.log(`sha256 hash: ${hash}`);
     });
 
+}
+
+if (!fileToBuild) {
+    console.log("something went wrong!") 
+    return
 }
 
 buildLambda(fileToBuild).catch(
