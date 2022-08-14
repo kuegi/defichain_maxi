@@ -78,14 +78,22 @@ export async function main(): Promise<Object> {
   const telegram = new Telegram(settings, '[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + ']')
 
   const versionCheck = new VersionCheck(settings, MIN_MAXI_VERSION, MIN_REINVEST_VERSION)
-  if (!versionCheck.isCompatibleWith(AvailableBot.MAXI) || !versionCheck.isCompatibleWith(AvailableBot.REINVEST)) {
+  const outdatedAction = async () => {
     await telegram.send(
-      'Error: Versions are not compatible.\nPlease check your installed versions. You need\nvault-maxi ' +
+      '\nError: Versions are not compatible.\nPlease check your installed versions. You need\nvault-maxi ' +
         versionCheck.join(MIN_MAXI_VERSION) +
         '\nlm-reinvest ' +
         versionCheck.join(MIN_REINVEST_VERSION),
     )
     return { statusCode: 500 }
+  }
+
+  try {
+    if (!versionCheck.isCompatibleWith(AvailableBot.MAXI) || !versionCheck.isCompatibleWith(AvailableBot.REINVEST)) {
+      return outdatedAction()
+    }
+  } catch {
+    return outdatedAction()
   }
 
   let messages = await telegram.getMessages()
