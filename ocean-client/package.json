@@ -3,7 +3,10 @@
     "scripts": {
         "build": "node build.js",
         "build-app": "node build-app.js",
-        "build-addon": "node build-addon.js"
+        "build-addon": "node build-addon.js",
+        "build:vault-maxi": "node build.js",
+        "build:lm-reinvest": "node build.js",
+        "build:command-center": "node build-addon.js"
     },
     "dependencies": {
         "@defichain/jellyfish-network": "2.50.0",
