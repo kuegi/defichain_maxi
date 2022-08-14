@@ -6,13 +6,14 @@ import { createCustomStoredSettings } from './mock/stored-settings.mock'
 describe('VersionCheck', () => {
   let versionCheck: VersionCheck
 
-  function setup(vaultMaxiVersion?: string, reinvestVersion?: string) {
+  function setup(vaultMaxiVersion?: string, reinvestVersion?: string, wrongState?: boolean) {
     const minVaultMaxiVersion = { major: '2', minor: '0' }
     const minReinvestVersion = { major: '1', minor: '0' }
 
     const customStoredSettings: Partial<StoredSettings> = {}
     if (vaultMaxiVersion) customStoredSettings.state = `idle|none||2145914|${vaultMaxiVersion}`
     if (reinvestVersion) customStoredSettings.reinvest = { state: `idle|none||2145835|${reinvestVersion}` }
+    if (wrongState) customStoredSettings.state = 'idle|none||2145914'
 
     versionCheck = new VersionCheck(
       createCustomStoredSettings(customStoredSettings),
@@ -68,6 +69,14 @@ describe('VersionCheck', () => {
     setup(undefined, '1')
 
     expect(versionCheck.isCompatibleWith(AvailableBot.REINVEST)).toBeTruthy()
+  })
+
+  it('should throw error if state has no version', () => {
+    setup(undefined, undefined, true)
+
+    expect(() => {
+      versionCheck.isCompatibleWith(AvailableBot.MAXI)
+    }).toThrowError('no version in state found')
   })
 
   it('should return v2.0 for version major 2 and minor 0', () => {

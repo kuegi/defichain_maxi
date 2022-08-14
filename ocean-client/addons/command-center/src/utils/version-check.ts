@@ -60,6 +60,7 @@ export class VersionCheck {
   private extractVersion(state?: string): string {
     if (!state) return ''
     const components = state.split('|')
+    if (components.length !== 5) throw new Error('no version in state found')
     return components[components.length - 1]
   }
 }
