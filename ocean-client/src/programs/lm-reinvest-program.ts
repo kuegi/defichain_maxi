@@ -8,6 +8,7 @@ import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { CTransaction } from "@defichain/jellyfish-transaction/dist";
+import { VERSION } from "../lm-reinvest";
 
 
 export enum LMReinvestProgramTransaction {
@@ -209,7 +210,7 @@ export class LMReinvestProgram extends CommonProgram {
             tx: transaction,
             txId: txId,
             blockHeight: await this.getBlockHeight(),
-            version: "1"
+            version: VERSION
         })
     }
 }
