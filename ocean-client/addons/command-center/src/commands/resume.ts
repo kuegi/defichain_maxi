@@ -1,15 +1,20 @@
-import { StoreCommand } from "./store-command";
+import { Bot } from '../utils/available-bot'
+import { StoreCommand } from './store-command'
 
 export class Resume extends StoreCommand {
-    
-    static description = "resumes execution of your vault-maxi"
+  static description = 'resumes execution of your vault-maxi'
 
-    successMessage(): string {
-        return "Your vault-maxi will resume normally"
-    }
+  static descriptionFor(bots: Bot[]): string | undefined {
+    if (!bots.includes(Bot.MAXI)) return undefined
+    return this.description
+  }
 
-    doExecution(): Promise<unknown> {
-        console.log("executing resume")
-        return this.store.updateSkip(false)
-    }
+  successMessage(): string {
+    return 'Your vault-maxi will resume normally'
+  }
+
+  doExecution(): Promise<unknown> {
+    console.log('executing resume')
+    return this.store.updateSkip(false)
+  }
 }
