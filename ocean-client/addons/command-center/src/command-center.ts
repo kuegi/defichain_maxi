@@ -1,4 +1,5 @@
-import { CheckMaxi } from './commands/check-maxi'
+import { Bots } from './commands/bots'
+import { Check } from './commands/check'
 import { Command, Commands } from './commands/command'
 import { Execute } from './commands/execute'
 import { Help } from './commands/help'
@@ -9,7 +10,7 @@ import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
 import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
-import { AvailableBot } from './utils/available-bot'
+import { AvailableBots, Bot } from './utils/available-bot'
 import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
@@ -20,7 +21,13 @@ const VERSION = 'v1.0beta'
 const MIN_MAXI_VERSION = { major: '2', minor: '0' }
 const MIN_REINVEST_VERSION = { major: '1', minor: '0' }
 
-async function execute(messages: Message[], telegram: Telegram, store: Store) {
+async function execute(
+  messages: Message[],
+  telegram: Telegram,
+  store: Store,
+  availableBots: AvailableBots,
+  versionCheck: VersionCheck,
+) {
   for (const message of messages) {
     let commandData = message.command.split(' ')
     if (commandData.length == 0) {
@@ -29,10 +36,13 @@ async function execute(messages: Message[], telegram: Telegram, store: Store) {
     let command: Command | undefined
     switch (commandData[0]) {
       case Commands.Help:
-        command = new Help(telegram)
+        command = new Help(telegram, availableBots)
         break
-      case Commands.CheckMaxi:
-        command = new CheckMaxi(telegram)
+      case Commands.Bots:
+        command = new Bots(telegram, availableBots, versionCheck)
+        break
+      case Commands.Check:
+        command = new Check(telegram)
         break
       case Commands.Execute:
         command = new Execute(telegram)
@@ -75,26 +85,28 @@ export async function main(): Promise<Object> {
   const store = new Store()
   const settings = await store.fetchSettings()
 
-  const telegram = new Telegram(settings, '[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + ']')
+  const telegram = new Telegram(settings, '\\[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + ']')
 
   const versionCheck = new VersionCheck(settings, MIN_MAXI_VERSION, MIN_REINVEST_VERSION)
   const outdatedAction = async () => {
     await telegram.send(
       '\nError: Versions are not compatible.\nPlease check your installed versions. You need\nvault-maxi ' +
-        versionCheck.join(MIN_MAXI_VERSION) +
+        VersionCheck.join(MIN_MAXI_VERSION) +
         '\nlm-reinvest ' +
-        versionCheck.join(MIN_REINVEST_VERSION),
+        VersionCheck.join(MIN_REINVEST_VERSION),
     )
     return { statusCode: 500 }
   }
 
   try {
-    if (!versionCheck.isCompatibleWith(AvailableBot.MAXI) || !versionCheck.isCompatibleWith(AvailableBot.REINVEST)) {
+    if (!versionCheck.isCompatibleWith(Bot.MAXI) || !versionCheck.isCompatibleWith(Bot.REINVEST)) {
       return outdatedAction()
     }
   } catch {
     return outdatedAction()
   }
+
+  const availableBots = new AvailableBots(settings)
 
   let messages = await telegram.getMessages()
   messages = messages.filter((message) => {
@@ -111,9 +123,10 @@ export async function main(): Promise<Object> {
       messages = messages.slice(-1)
       console.log('is first run, reduce to', messages.length)
     }
+    // TODO: Krysh: check either for vault-maxi or lm-reinvest if they are currently in idle before executing
     const isIdle = settings.state.startsWith('idle')
     if (isIdle) {
-      await execute(messages, telegram, store)
+      await execute(messages, telegram, store, availableBots, versionCheck)
     } else {
       await telegram.send('Your vault-maxi is busy. Try again later')
     }
