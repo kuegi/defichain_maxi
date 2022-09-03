@@ -1,5 +1,6 @@
 import { getBorderCharacters, table, TableUserConfig } from 'table'
 import { AvailableBots, Bot, BotData } from '../utils/available-bot'
+import { Store } from '../utils/store'
 import { Telegram } from '../utils/telegram'
 import { VersionCheck } from '../utils/version-check'
 import { Command } from './command'
@@ -13,12 +14,16 @@ const config: TableUserConfig = {
 }
 
 export class Bots extends Command {
-  private readonly availableBots: AvailableBots
   private readonly versionCheck: VersionCheck
 
-  constructor(telegram: Telegram, availableBots: AvailableBots, versionCheck: VersionCheck) {
-    super(telegram)
-    this.availableBots = availableBots
+  constructor(
+    telegram: Telegram,
+    store: Store,
+    availableBots: AvailableBots,
+    commandData: string[],
+    versionCheck: VersionCheck,
+  ) {
+    super(telegram, store, availableBots, commandData)
     this.versionCheck = versionCheck
   }
 
@@ -36,8 +41,12 @@ export class Bots extends Command {
     return '```' + table(data, config) + '```'
   }
 
-  successMessage(): string | undefined {
-    return undefined
+  availableFor(): Bot[] {
+    return []
+  }
+
+  isBasicCommand(): boolean {
+    return true
   }
 
   doExecution(): Promise<unknown> {

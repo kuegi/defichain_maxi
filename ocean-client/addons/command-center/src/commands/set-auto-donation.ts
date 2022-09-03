@@ -1,20 +1,34 @@
 import { Bot } from '../utils/available-bot'
-import { isNumber } from '../utils/helpers'
-import { Commands } from './command'
-import { StoreParameterCommand } from './store-parameter-command'
+import { isNumber, multiBotDescriptionFor } from '../utils/helpers'
+import { Command, CommandInfo, Commands } from './command'
 
-export class SetAutoDonation extends StoreParameterCommand {
+export class SetAutoDonation extends Command {
   private percentage?: string
 
-  private static usageMessage: string = Commands.SetAutoDonation + ' 5\nwill result in auto donation % = 5%'
+  static maxi: CommandInfo = {
+    description:
+      'sets given percentage as auto-donation percentage for your vault-maxi. THANKS for using auto-donation feature to support us! (0 deactivates auto-donation functionality)',
+    usage: Commands.SetAutoDonation + ' maxi 5',
+  }
 
-  static description =
-    'sets given percentage as auto-donation percentage. THANKS for using auto-donation feature to support us! (0 deactivates auto-donation functionality)\nexample: ' +
-    SetAutoDonation.usageMessage
+  static reinvest: CommandInfo = {
+    description:
+      'sets given percentage as auto-donation percentage for your lm-reinvest. THANKS for using auto-donation feature to support us! (0 deactivates auto-donation functionality)',
+    usage: Commands.SetAutoDonation + ' reinvest 5',
+  }
 
-  static descriptionFor(bots: Bot[]): string {
-    // TODO: Krysh: multi bot description
-    return this.description
+  static defaultUsage: CommandInfo = {
+    description:
+      'sets given percentage as auto-donation percentage. THANKS for using auto-donation feature to support us! (0 deactivates auto-donation functionality)',
+    usage: Commands.SetAutoDonation + ' 5',
+  }
+
+  static descriptionFor(bots: Bot[]): string | undefined {
+    return multiBotDescriptionFor(bots, SetAutoDonation.maxi, SetAutoDonation.reinvest, SetAutoDonation.defaultUsage)
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI, Bot.REINVEST]
   }
 
   parseCommandData(): void {
@@ -24,7 +38,7 @@ export class SetAutoDonation extends StoreParameterCommand {
   }
 
   validationErrorMessage(): string {
-    return 'Input parameter failed validation. Please use following\n' + SetAutoDonation.usageMessage
+    return 'Input parameter failed validation. Please check how to use this command with ' + Commands.Help
   }
 
   validate(): boolean {
@@ -34,12 +48,14 @@ export class SetAutoDonation extends StoreParameterCommand {
   successMessage(): string | undefined {
     let percentageNumber = +this.percentage!
     return (
-      "Your vault-maxis' auto-donation " +
+      'Your ' +
+      this.bot +
+      "s' auto-donation " +
       (percentageNumber > 0 ? 'is set to ' + this.percentage + '. Thanks for supporting us!' : 'is deactivated')
     )
   }
 
   doExecution(): Promise<unknown> {
-    return this.store.updateAutoDonation(this.percentage!)
+    return this.store.updateAutoDonation(this.percentage!, this.bot)
   }
 }

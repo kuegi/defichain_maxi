@@ -1,5 +1,4 @@
-import { AvailableBots, Bot } from '../utils/available-bot'
-import { Telegram } from '../utils/telegram'
+import { Bot } from '../utils/available-bot'
 import { Bots } from './bots'
 import { Check } from './check'
 import { Command, Commands } from './command'
@@ -13,13 +12,6 @@ import { SetStableArbSize } from './set-stable-arb-size'
 import { Skip } from './skip'
 
 export class Help extends Command {
-  private readonly availableBots: AvailableBots
-
-  constructor(telegram: Telegram, availableBots: AvailableBots) {
-    super(telegram)
-    this.availableBots = availableBots
-  }
-
   private buildLine(command: string, descriptionFunc: (bots: Bot[]) => string | undefined): string {
     const description = descriptionFunc(this.availableBots.getBots())
     if (!description) return ''
@@ -40,6 +32,14 @@ export class Help extends Command {
       this.buildLine(Commands.SetStableArbSize, SetStableArbSize.descriptionFor) +
       this.buildLine(Commands.SetAutoDonation, SetAutoDonation.descriptionFor)
     )
+  }
+
+  availableFor(): Bot[] {
+    return []
+  }
+
+  isBasicCommand(): boolean {
+    return true
   }
 
   successMessage(): string | undefined {

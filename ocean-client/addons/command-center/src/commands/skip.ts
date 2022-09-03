@@ -1,12 +1,16 @@
 import { Bot } from '../utils/available-bot'
-import { StoreCommand } from './store-command'
+import { Command } from './command'
 
-export class Skip extends StoreCommand {
+export class Skip extends Command {
   static description = 'skips one execution of your vault-maxi'
 
   static descriptionFor(bots: Bot[]): string | undefined {
     if (!bots.includes(Bot.MAXI)) return undefined
-    return this.description
+    return Skip.description
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI]
   }
 
   successMessage(): string {

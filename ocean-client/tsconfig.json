@@ -15,5 +15,10 @@
     "include": [
         "src",
         "addons/command-center/src"
+    ],
+    "exclude": [
+        "src/**/*.spec.ts",
+        "src/**/*.mock.ts",
+        "src/**/*.test.ts"
     ]
 }

@@ -1,12 +1,16 @@
 import { Bot } from '../utils/available-bot'
-import { StoreCommand } from './store-command'
+import { Command } from './command'
 
-export class Resume extends StoreCommand {
+export class Resume extends Command {
   static description = 'resumes execution of your vault-maxi'
 
   static descriptionFor(bots: Bot[]): string | undefined {
     if (!bots.includes(Bot.MAXI)) return undefined
-    return this.description
+    return Resume.description
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI]
   }
 
   successMessage(): string {
