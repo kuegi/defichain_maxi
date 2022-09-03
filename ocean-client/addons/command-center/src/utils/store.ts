@@ -1,4 +1,5 @@
 import SSM from 'aws-sdk/clients/ssm'
+import { Bot } from './available-bot'
 
 // handle AWS Paramter
 export class Store {
@@ -25,16 +26,22 @@ export class Store {
     await this.updateParameter(StoreKey.MaxCollateralRatio, max)
   }
 
-  async updateReinvest(value: string): Promise<unknown> {
-    return this.updateParameter(StoreKey.Reinvest, value)
+  async updateReinvest(value: string, bot?: Bot): Promise<unknown> {
+    const key = this.getKeyForBot(StoreKey.Reinvest, StoreKey.LMRReinvest, bot)
+    if (!key) return Promise.reject()
+    return this.updateParameter(key, value)
   }
 
-  async updateToken(value: string): Promise<unknown> {
-    return this.updateParameter(StoreKey.LMToken, value)
+  async updateLMPair(value: string, bot?: Bot): Promise<unknown> {
+    const key = this.getKeyForBot(StoreKey.LMPair, StoreKey.LMRPair, bot)
+    if (!key) return Promise.reject()
+    return this.updateParameter(key, value)
   }
 
-  async updateAutoDonation(value: string): Promise<unknown> {
-    return this.updateParameter(StoreKey.AutoDonation, value)
+  async updateAutoDonation(value: string, bot?: Bot): Promise<unknown> {
+    const key = this.getKeyForBot(StoreKey.AutoDonation, StoreKey.LMRAutoDonation, bot)
+    if (!key) return Promise.reject()
+    return this.updateParameter(key, value)
   }
 
   async updateStableArbBatchSize(value: string): Promise<unknown> {
@@ -47,7 +54,7 @@ export class Store {
     let TelegramUserName = this.extendKey(StoreKey.TelegramUserName)
     let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
     let StateKey = this.extendKey(StoreKey.State)
-    let LMTokenKey = this.extendKey(StoreKey.LMToken)
+    let LMPairKey = this.extendKey(StoreKey.LMPair)
     let LMRStateKey = this.extendKey(StoreKey.LMRState)
 
     //store only allows to get 10 parameters per request
@@ -61,7 +68,7 @@ export class Store {
               TelegramUserName,
               LastExecutedMessageIdKey,
               StateKey,
-              LMTokenKey,
+              LMPairKey,
               LMRStateKey,
             ],
           })
@@ -73,7 +80,7 @@ export class Store {
     this.settings.username = this.getValue(TelegramUserName, parameters)
     this.settings.lastExecutedMessageId = this.getNumberValue(LastExecutedMessageIdKey, parameters)
     this.settings.state = this.getValue(StateKey, parameters)
-    this.settings.LMToken = this.getValue(LMTokenKey, parameters)
+    this.settings.LMPair = this.getValue(LMPairKey, parameters)
     const lmrState = this.getValue(LMRStateKey, parameters)
     if (lmrState) {
       this.settings.reinvest = { state: lmrState }
@@ -109,6 +116,17 @@ export class Store {
   private extendKey(key: StoreKey): string {
     return key.replace('-maxi', '-maxi' + this.postfix)
   }
+
+  private getKeyForBot(maxi: StoreKey, reinvest: StoreKey, bot?: Bot): StoreKey | undefined {
+    switch (bot) {
+      case Bot.MAXI:
+        return maxi
+      case Bot.REINVEST:
+        return reinvest
+      default:
+        undefined
+    }
+  }
 }
 
 enum StoreKey {
@@ -117,7 +135,7 @@ enum StoreKey {
   State = '/defichain-maxi/state',
   MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
   MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
-  LMToken = '/defichain-maxi/settings/lm-token',
+  LMPair = '/defichain-maxi/settings/lm-pair',
   Reinvest = '/defichain-maxi/settings/reinvest',
   AutoDonation = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
   StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
@@ -141,6 +159,6 @@ export class StoredSettings {
   lastExecutedMessageId: number | undefined
   username: string = ''
   state: string = ''
-  LMToken: string = ''
+  LMPair: string = ''
   reinvest: { state: string } | undefined
 }

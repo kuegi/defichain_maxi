@@ -10,6 +10,7 @@ export interface BotData {
   name: string
   version: string
   lastBlock: number
+  isIdle: boolean
 }
 
 export type BotInformation = [Bot, BotData]
@@ -42,6 +43,7 @@ export class AvailableBots {
       name: name,
       version: VersionCheck.extractJoinedVersion(state),
       lastBlock: +components[3],
+      isIdle: state.startsWith('idle'),
     }
   }
 
@@ -53,6 +55,12 @@ export class AvailableBots {
     return this.bots.map((info) => {
       return info[0]
     })
+  }
+
+  getBotDataFor(bot?: Bot): BotData | undefined {
+    return this.bots.find((element) => {
+      return element[0] === bot
+    })?.[1]
   }
 
   isAvailable(bot: Bot): boolean {

@@ -1,20 +1,23 @@
 import { Bot } from '../utils/available-bot'
 import { isNumber } from '../utils/helpers'
-import { Commands } from './command'
-import { StoreParameterCommand } from './store-parameter-command'
+import { Command, Commands } from './command'
 
-export class SetStableArbSize extends StoreParameterCommand {
+export class SetStableArbSize extends Command {
   private batchSize?: string
 
-  private static usageMessage: string = Commands.SetStableArbSize + ' 100\nwill result in stable arb batch size = 100'
+  private static usageMessage: string = Commands.SetStableArbSize + ' 100'
 
   static description =
-    'sets given number as stable arb batch size.\nYour set amount should be available in your vault as collateral and should be able to be withdrawn. Otherwise vault-maxi will reduce this size on execution automatically, no changes to your stored parameter will be performed.\nexample: ' +
+    'sets given number as stable arb batch size.\nYour set amount should be available in your vault as collateral and should be able to be withdrawn. Otherwise vault-maxi will reduce this size on execution automatically, no changes to your stored parameter will be performed.\n' +
     SetStableArbSize.usageMessage
 
   static descriptionFor(bots: Bot[]): string | undefined {
     if (!bots.includes(Bot.MAXI)) return undefined
-    return this.description
+    return SetStableArbSize.description
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI]
   }
 
   parseCommandData(): void {

@@ -1,25 +1,27 @@
 import { Bot } from '../utils/available-bot'
 import { isNumber } from '../utils/helpers'
 import { Check } from './check'
-import { Commands } from './command'
-import { StoreParameterCommand } from './store-parameter-command'
+import { Command, Commands } from './command'
 
-export class SetRange extends StoreParameterCommand {
+export class SetRange extends Command {
   private minCollateralRatio: string | undefined
   private maxCollateralRatio: string | undefined
 
-  private static usageMessage: string =
-    '/setRange 170-175 or /setRange 170 175\nwill result in\nmin-collateral-ratio = 170\nmax-collateral-ratio = 175'
+  private static usageMessage: string = Commands.SetRange + ' 170-175 or ' + Commands.SetRange + ' 170 175'
 
   static description =
     'sets given range as min-collateral-ratio and max-collateral-ratio. After changing range it will automatically execute ' +
     Commands.Check +
-    ' to check if configuration is still valid.\nexample: ' +
+    ' to check if configuration is still valid.\n' +
     SetRange.usageMessage
 
   static descriptionFor(bots: Bot[]): string | undefined {
     if (!bots.includes(Bot.MAXI)) return undefined
-    return this.description
+    return SetRange.description
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI]
   }
 
   parseCommandData(): void {
@@ -51,7 +53,7 @@ export class SetRange extends StoreParameterCommand {
 
   async doExecution(): Promise<unknown> {
     await this.store.updateRange(this.minCollateralRatio!, this.maxCollateralRatio!)
-    let checkMaxi = new Check(this.telegram)
+    let checkMaxi = new Check(this.telegram, this.store, this.availableBots, this.commandData)
     return checkMaxi.execute()
   }
 

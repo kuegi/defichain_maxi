@@ -1,19 +1,35 @@
 import { config, Lambda } from 'aws-sdk'
-import { Bot } from '../utils/available-bot'
-import { functionNameWithPostfix } from '../utils/helpers'
+import { AvailableBots, Bot } from '../utils/available-bot'
+import { functionNameWithPostfix, multiBotDescriptionFor } from '../utils/helpers'
+import { Store } from '../utils/store'
 import { Telegram } from '../utils/telegram'
-import { Command } from './command'
+import { Command, CommandInfo } from './command'
 
 export class Execute extends Command {
   private payload: string
-  private successMessage: string
+  private customSuccessMessage: string
 
-  static description = 'executes your vault-maxi (Lambda function name: ' + functionNameWithPostfix(Bot.MAXI) + ')'
+  static maxi: CommandInfo = {
+    description: 'executes your vault-maxi (Lambda function name: ' + functionNameWithPostfix(Bot.MAXI) + ')',
+    usage: '/execute maxi',
+  }
 
-  constructor(telegram: Telegram, payload: string = '', successMessage: string = 'execution done') {
-    super(telegram)
+  static reinvest: CommandInfo = {
+    description: 'executes your lm-reinvest (Lambda function name: ' + functionNameWithPostfix(Bot.REINVEST) + ')',
+    usage: '/execute reinvest',
+  }
+
+  constructor(
+    telegram: Telegram,
+    store: Store,
+    availableBots: AvailableBots,
+    commandData: string[],
+    payload: string = '',
+    customSuccessMessage?: string,
+  ) {
+    super(telegram, store, availableBots, commandData)
     this.payload = payload
-    this.successMessage = successMessage
+    this.customSuccessMessage = customSuccessMessage ?? 'execution done'
     config.update({
       maxRetries: 0,
       httpOptions: {
@@ -24,8 +40,11 @@ export class Execute extends Command {
   }
 
   static descriptionFor(bots: Bot[]): string | undefined {
-    // TODO: Krysh: multi bot description
-    return this.description
+    return multiBotDescriptionFor(bots, Execute.maxi, Execute.reinvest)
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI, Bot.REINVEST]
   }
 
   doExecution(): Promise<unknown> {
@@ -49,7 +68,7 @@ export class Execute extends Command {
           console.log('returned payload: ' + value.Payload)
           let lambdaResponse = JSON.parse(value.Payload as string)
           if (lambdaResponse.statusCode === 200) {
-            this.telegram.send(this.successMessage)
+            this.telegram.send(this.customSuccessMessage)
           } else {
             this.telegram.send('Triggered execution returned with an error. Please check yourself!')
           }

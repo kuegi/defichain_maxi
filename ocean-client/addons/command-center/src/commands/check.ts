@@ -1,28 +1,27 @@
-import { Command } from './command'
+import { Command, CommandInfo } from './command'
 import { Lambda } from 'aws-sdk'
-import { Telegram } from '../utils/telegram'
-import { functionNameWithPostfix } from '../utils/helpers'
+import { functionNameWithPostfix, multiBotDescriptionFor } from '../utils/helpers'
 import { Bot } from '../utils/available-bot'
 
 export class Check extends Command {
-  static descriptionMaxi =
-    'executes check-setup on your vault-maxi (Lambda function name: ' + functionNameWithPostfix(Bot.MAXI) + ')'
-  static descriptionReinvest =
-    'executes check-setup on your lm-reinvest (Lambda function name: ' + functionNameWithPostfix(Bot.REINVEST) + ')'
+  static maxi: CommandInfo = {
+    description:
+      'executes check-setup on your vault-maxi (Lambda function name: ' + functionNameWithPostfix(Bot.MAXI) + ')',
+    usage: '/check maxi',
+  }
 
-  static usageMaxi = '/check maxi'
-  static usageReinvest = '/check reinvest'
-
-  constructor(telegram: Telegram) {
-    super(telegram)
+  static reinvest: CommandInfo = {
+    description:
+      'executes check-setup on your lm-reinvest (Lambda function name: ' + functionNameWithPostfix(Bot.REINVEST) + ')',
+    usage: '/check reinvest',
   }
 
   static descriptionFor(bots: Bot[]): string | undefined {
-    if (bots.includes(Bot.MAXI) && bots.includes(Bot.REINVEST))
-      return this.descriptionMaxi + '\n' + this.usageMaxi + '\n' + this.descriptionReinvest + '\n' + this.usageReinvest
-    if (bots.includes(Bot.MAXI)) return this.descriptionMaxi
-    if (bots.includes(Bot.REINVEST)) return this.descriptionReinvest
-    return undefined
+    return multiBotDescriptionFor(bots, Check.maxi, Check.reinvest)
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI, Bot.REINVEST]
   }
 
   doExecution(): Promise<unknown> {

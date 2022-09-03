@@ -47,6 +47,7 @@ describe('AvailableBots', () => {
           name: 'maxi',
           version: 'v2.1',
           lastBlock: 2145914,
+          isIdle: true,
         },
       ],
     ])
@@ -58,9 +59,10 @@ describe('AvailableBots', () => {
       [
         Bot.REINVEST,
         {
-          name: 'lm-re',
+          name: 'lm-r',
           version: 'v1.0',
           lastBlock: 2145910,
+          isIdle: true,
         },
       ],
     ])
@@ -75,14 +77,16 @@ describe('AvailableBots', () => {
           name: 'maxi',
           version: 'v2.1',
           lastBlock: 2145914,
+          isIdle: true,
         },
       ],
       [
         Bot.REINVEST,
         {
-          name: 'lm-re',
+          name: 'lm-r',
           version: 'v1.0',
           lastBlock: 2145910,
+          isIdle: true,
         },
       ],
     ])
@@ -101,5 +105,20 @@ describe('AvailableBots', () => {
   it('should return false if vault-maxi is not available', () => {
     setup(TestCase.LM_REINVEST)
     expect(availableBots.isAvailable(Bot.MAXI)).toBeFalsy()
+  })
+
+  it('should return bot data for vault-maxi if vault-maxi exists', () => {
+    setup(TestCase.VAULT_MAXI)
+    expect(availableBots.getBotDataFor(Bot.MAXI)).toStrictEqual({
+      name: 'maxi',
+      version: 'v2.1',
+      lastBlock: 2145914,
+      isIdle: true,
+    })
+  })
+
+  it('should return undefined for vault-maxi if vault-maxi does not exist', () => {
+    setup(TestCase.EMPTY)
+    expect(availableBots.getBotDataFor(Bot.MAXI)).toStrictEqual(undefined)
   })
 })

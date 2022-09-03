@@ -1,4 +1,5 @@
 import fetch from 'cross-fetch'
+import { CommandInfo } from '../commands/command'
 import { Bot } from './available-bot'
 import { StoredSettings } from './store'
 import { Message } from './telegram'
@@ -51,4 +52,21 @@ export async function fetchListOfPoolPairs(): Promise<string[]> {
   return poolpairs.map((poolpair) => {
     return poolpair.symbol.replace('-DUSD', '')
   })
+}
+
+export function multiBotDescriptionFor(
+  bots: Bot[],
+  maxi: CommandInfo,
+  reinvest: CommandInfo,
+  usageInfo?: CommandInfo,
+): string | undefined {
+  if (bots.includes(Bot.MAXI) && bots.includes(Bot.REINVEST) && usageInfo)
+    return usageInfo.description + '\n' + maxi.usage + '\n' + reinvest.usage
+  if (bots.includes(Bot.MAXI) && bots.includes(Bot.REINVEST))
+    return maxi.usage + '\n' + maxi.description + '\n' + reinvest.usage + '\n' + reinvest.description
+  if ((bots.includes(Bot.MAXI) || bots.includes(Bot.REINVEST)) && usageInfo)
+    return usageInfo.description + '\n' + usageInfo.usage
+  if (bots.includes(Bot.MAXI)) return maxi.description
+  if (bots.includes(Bot.REINVEST)) return reinvest.description
+  return undefined
 }
