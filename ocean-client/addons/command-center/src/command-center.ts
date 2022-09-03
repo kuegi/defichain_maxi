@@ -36,37 +36,37 @@ async function execute(
     let command: Command | undefined
     switch (commandData[0]) {
       case Commands.Help:
-        command = new Help(telegram, availableBots)
+        command = new Help(telegram, store, availableBots, commandData)
         break
       case Commands.Bots:
-        command = new Bots(telegram, availableBots, versionCheck)
+        command = new Bots(telegram, store, availableBots, commandData, versionCheck)
         break
       case Commands.Check:
-        command = new Check(telegram)
+        command = new Check(telegram, store, availableBots, commandData)
         break
       case Commands.Execute:
-        command = new Execute(telegram)
+        command = new Execute(telegram, store, availableBots, commandData)
         break
       case Commands.Skip:
-        command = new Skip(telegram, store)
+        command = new Skip(telegram, store, availableBots, commandData)
         break
       case Commands.Resume:
-        command = new Resume(telegram, store)
+        command = new Resume(telegram, store, availableBots, commandData)
         break
       case Commands.RemoveExposure:
-        command = new RemoveExposure(telegram, store)
+        command = new RemoveExposure(telegram, store, availableBots, commandData)
         break
       case Commands.SetRange:
-        command = new SetRange(telegram, store, commandData)
+        command = new SetRange(telegram, store, availableBots, commandData)
         break
       case Commands.SetReinvest:
-        command = new SetReinvest(telegram, store, commandData)
+        command = new SetReinvest(telegram, store, availableBots, commandData)
         break
       case Commands.SetStableArbSize:
-        command = new SetStableArbSize(telegram, store, commandData)
+        command = new SetStableArbSize(telegram, store, availableBots, commandData)
         break
       case Commands.SetAutoDonation:
-        command = new SetAutoDonation(telegram, store, commandData)
+        command = new SetAutoDonation(telegram, store, availableBots, commandData)
         break
       default:
         console.log('ignore ' + message.command)
@@ -123,13 +123,7 @@ export async function main(): Promise<Object> {
       messages = messages.slice(-1)
       console.log('is first run, reduce to', messages.length)
     }
-    // TODO: Krysh: check either for vault-maxi or lm-reinvest if they are currently in idle before executing
-    const isIdle = settings.state.startsWith('idle')
-    if (isIdle) {
-      await execute(messages, telegram, store, availableBots, versionCheck)
-    } else {
-      await telegram.send('Your vault-maxi is busy. Try again later')
-    }
+    await execute(messages, telegram, store, availableBots, versionCheck)
   }
 
   return { statusCode: 200 }

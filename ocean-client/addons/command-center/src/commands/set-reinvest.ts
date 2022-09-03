@@ -1,23 +1,31 @@
 import { Bot } from '../utils/available-bot'
-import { isNumber } from '../utils/helpers'
-import { Check } from './check'
-import { Commands } from './command'
-import { StoreParameterCommand } from './store-parameter-command'
+import { isNumber, multiBotDescriptionFor } from '../utils/helpers'
+import { Command, CommandInfo, Commands } from './command'
 
-export class SetReinvest extends StoreParameterCommand {
+export class SetReinvest extends Command {
   private reinvest: string | undefined
 
-  private static usageMessage: string = '/setReinvest 5\nwill result in\nreinvest = 5'
+  static maxi: CommandInfo = {
+    description: 'sets given value as reinvest for your vault-maxi',
+    usage: Commands.SetReinvest + ' maxi 5',
+  }
 
-  static description =
-    'sets given value as reinvest. After changing reinvest it will automatically execute ' +
-    Commands.Check +
-    ' to check if configuration is still valid.\nexample: ' +
-    SetReinvest.usageMessage
+  static reinvest: CommandInfo = {
+    description: 'sets given value as reinvest for your lm-reinvest',
+    usage: Commands.SetReinvest + ' reinvest 5',
+  }
 
-  static descriptionFor(bots: Bot[]): string {
-    // TODO: Krysh: multi bot description
-    return this.description
+  static defaultUsage: CommandInfo = {
+    description: 'sets given value as reinvest',
+    usage: Commands.SetReinvest + ' 5',
+  }
+
+  static descriptionFor(bots: Bot[]): string | undefined {
+    return multiBotDescriptionFor(bots, SetReinvest.maxi, SetReinvest.reinvest, SetReinvest.defaultUsage)
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI, Bot.REINVEST]
   }
 
   parseCommandData(): void {
@@ -27,7 +35,7 @@ export class SetReinvest extends StoreParameterCommand {
   }
 
   validationErrorMessage(): string {
-    return 'Input parameter failed validation. Please use following\n' + SetReinvest.usageMessage
+    return 'Input parameter failed validation. Please check how to use this command with ' + Commands.Help
   }
 
   validate(): boolean {
@@ -35,12 +43,10 @@ export class SetReinvest extends StoreParameterCommand {
   }
 
   successMessage(): string | undefined {
-    return "Your vault-maxis' reinvest is set to " + this.reinvest
+    return 'Your ' + this.bot + "s' reinvest is set to " + this.reinvest
   }
 
   async doExecution(): Promise<unknown> {
-    await this.store.updateReinvest(this.reinvest!)
-    let checkMaxi = new Check(this.telegram)
-    return checkMaxi.execute()
+    return this.store.updateReinvest(this.reinvest!, this.bot)
   }
 }

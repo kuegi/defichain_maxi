@@ -5,7 +5,7 @@ const defaultStoredSettings: StoredSettings = {
   token: 'some-test-token',
   lastExecutedMessageId: 42,
   username: 'some-test-user',
-  LMToken: 'QQQ-DUSD',
+  LMPair: 'QQQ-DUSD',
   state: '',
   reinvest: undefined,
 }
