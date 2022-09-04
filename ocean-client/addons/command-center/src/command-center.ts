@@ -6,6 +6,7 @@ import { Help } from './commands/help'
 import { RemoveExposure } from './commands/remove-exposure'
 import { Resume } from './commands/resume'
 import { SetAutoDonation } from './commands/set-auto-donation'
+import { SetPair } from './commands/set-pair'
 import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
 import { SetStableArbSize } from './commands/set-stable-arb-size'
@@ -67,6 +68,10 @@ async function execute(
         break
       case Commands.SetAutoDonation:
         command = new SetAutoDonation(telegram, store, availableBots, commandData)
+        break
+      case Commands.SetPair:
+        command = new SetPair(telegram, store, availableBots, commandData)
+        await (command as SetPair).prepare()
         break
       default:
         console.log('ignore ' + message.command)

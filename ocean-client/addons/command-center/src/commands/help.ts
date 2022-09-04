@@ -6,6 +6,7 @@ import { Execute } from './execute'
 import { RemoveExposure } from './remove-exposure'
 import { Resume } from './resume'
 import { SetAutoDonation } from './set-auto-donation'
+import { SetPair } from './set-pair'
 import { SetRange } from './set-range'
 import { SetReinvest } from './set-reinvest'
 import { SetStableArbSize } from './set-stable-arb-size'
@@ -30,7 +31,8 @@ export class Help extends Command {
       this.buildLine(Commands.SetRange, SetRange.descriptionFor) +
       this.buildLine(Commands.SetReinvest, SetReinvest.descriptionFor) +
       this.buildLine(Commands.SetStableArbSize, SetStableArbSize.descriptionFor) +
-      this.buildLine(Commands.SetAutoDonation, SetAutoDonation.descriptionFor)
+      this.buildLine(Commands.SetAutoDonation, SetAutoDonation.descriptionFor) +
+      this.buildLine(Commands.SetPair, SetPair.descriptionFor)
     )
   }
 
