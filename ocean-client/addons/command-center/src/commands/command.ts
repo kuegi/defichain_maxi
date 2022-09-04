@@ -99,6 +99,10 @@ export abstract class Command {
 
     // if we are executing a basic command, we don't need all of those checks
     if (!this.isBasicCommand()) {
+      const availableForBots = this.availableFor()
+      if (availableForBots.length === 1) {
+        this.bot = availableForBots[0]
+      }
       if (this.isUndecided()) {
         return this.telegram.send(
           'Could not find selected bot. Please use `maxi`, `vault-maxi` for vault-maxi and `lm`, `reinvest`, `lm-reinvest` for lm-reinvest',
