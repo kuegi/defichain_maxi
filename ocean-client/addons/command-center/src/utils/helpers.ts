@@ -48,9 +48,9 @@ export function extendForListOfPoolPairs(url: string): string {
 export async function fetchListOfPoolPairs(): Promise<string[]> {
   const response = await fetch(extendForListOfPoolPairs(oceanURL))
   const json = await response.json()
-  let poolpairs = json['data'] as Poolpair[]
+  const poolpairs = json['data'] as Poolpair[]
   return poolpairs.map((poolpair) => {
-    return poolpair.symbol.replace('-DUSD', '')
+    return poolpair.symbol
   })
 }
 
