@@ -19,6 +19,7 @@ export enum Commands {
   SetReinvest = '/setReinvest',
   SetAutoDonation = '/setAutoDonation',
   SetStableArbSize = '/setStableArbSize',
+  SetPair = '/setPair',
 }
 
 export abstract class Command {
