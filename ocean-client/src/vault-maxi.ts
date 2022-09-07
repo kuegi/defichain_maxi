@@ -32,6 +32,7 @@ export const DONATION_MAX_PERCENTAGE = 50
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
+    let blockHeight = 0
     let cleanUpFailed= false
     let ocean = process.env.VAULTMAXI_OCEAN_URL
     let errorCooldown= 60000
@@ -82,7 +83,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings, ocean))
             commonProgram = program
             await program.init()
-
+            blockHeight= await program.getBlockHeight()
+            console.log("starting at block "+blockHeight)
             if (event) {
                 if (event.checkSetup) {
                     let result = await program.doAndReportCheck(telegram)
@@ -249,7 +251,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
             console.log("wrote state")
             const safetyLevel = await program.calcSafetyLevel(vault, pool!, balances)
-            let message = "executed script "
+            let message = "executed script at block "+ blockHeight
             if (exposureChanged) {
                 message += (result ? "successfully" : "with problems")
                     + ".\nvault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
@@ -292,7 +294,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 state: ProgramState.Error,
                 tx: "",
                 txId: commonProgram?.pendingTx ?? "",
-                blockHeight: 0,
+                blockHeight: blockHeight,
                 version: VERSION
             })
             await delay(errorCooldown) // cooldown and not to spam telegram
