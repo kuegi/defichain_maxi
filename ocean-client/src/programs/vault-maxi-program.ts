@@ -54,6 +54,8 @@ export class VaultMaxiProgram extends CommonProgram {
     private mainCollateralAsset: string
     private isSingleMint: boolean
     private readonly keepWalletClean: boolean
+    private negInterestWorkaround: boolean = false
+    private dusdCollValue: BigNumber = new BigNumber(0.99)
 
     constructor(store: IStore, walletSetup: WalletSetup) {
         super(store, walletSetup);
@@ -65,6 +67,15 @@ export class VaultMaxiProgram extends CommonProgram {
 
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
         this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== "false" ?? true
+    }
+
+    async init(): Promise<boolean> {
+        let result = await super.init()
+        const stats = await this.getStats()
+        this.negInterestWorkaround = stats.net.protocolversion == 70030
+        this.dusdCollValue = new BigNumber((await this.getCollateralToken("15")).factor)
+        console.log("protocolVersion " + stats.net.protocolversion + " " + (this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
+        return result
     }
 
     static shouldCleanUpBasedOn(transaction: VaultMaxiProgramTransaction): boolean {
@@ -373,7 +384,14 @@ export class VaultMaxiProgram extends CommonProgram {
                 .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve),
                     pool.tokenB.reserve)) //would be oracleB* pool!.tokenB.reserve but oracleB is always 1 for DUSD as loan
         } else {
-            let oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") //DUSD fallback
+            const collAmount = vault.collateralAmounts.find(coll => coll.symbol == this.assetB)
+            let oracleB
+            if (this.assetB === "DUSD") {
+                const dusdFactor = (await this.getCollateralToken("15")).factor ?? "0.99"
+                oracleB = new BigNumber(dusdFactor)
+            } else {
+                oracleB = new BigNumber(collAmount?.activePrice?.active?.amount ?? "0")
+            }
 
             wantedTokens = neededrepay.times(this.targetCollateral).times(pool.totalLiquidity.token)
                 .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(this.targetCollateral), //additional "times" due to part collateral, part loan
@@ -403,6 +421,20 @@ export class VaultMaxiProgram extends CommonProgram {
         tokens = await this.getTokenBalances()
         console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
 
+
+        let interestA = new BigNumber(0)
+        let interestB = new BigNumber(0)
+        if (this.negInterestWorkaround) {
+            vault = await this.getVault() as LoanVaultActive
+            vault.interestAmounts.forEach(value => {
+                if (value.symbol == this.assetA) {
+                    interestA = new BigNumber(value.amount)
+                }
+                if (value.symbol == this.assetB) {
+                    interestB = new BigNumber(value.amount)
+                }
+            })
+        }
         let paybackTokens: AddressToken[] = []
         let collateralTokens: AddressToken[] = []
 
@@ -410,6 +442,9 @@ export class VaultMaxiProgram extends CommonProgram {
         if (token) {
             if (!this.keepWalletClean) {
                 token.amount = "" + BigNumber.min(token.amount, expectedA)
+            }
+            if (this.negInterestWorkaround && interestA.lt(0)) {
+                token.amount = "" + (interestA.times(1.005).plus(token.amount)) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
             }
             paybackTokens.push(token)
         }
@@ -422,6 +457,9 @@ export class VaultMaxiProgram extends CommonProgram {
             if (this.isSingleMint) {
                 collateralTokens.push(token)
             } else {
+                if (this.negInterestWorkaround && interestB.lt(0)) {
+                    token.amount = "" + (interestB.times(1.005).plus(token.amount)) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
+                }
                 paybackTokens.push(token)
             }
         }
@@ -485,16 +523,37 @@ export class VaultMaxiProgram extends CommonProgram {
         const tokens = await this.getTokenBalances()
         console.log(" removed liq. got tokens: " + Array.from(tokens.values()).map(value => " " + value.amount + "@" + value.symbol))
 
+
+        let interestA = new BigNumber(0)
+        let interestB = new BigNumber(0)
+        if (this.negInterestWorkaround) {
+            vault = await this.getVault() as LoanVaultActive
+            vault.interestAmounts.forEach(value => {
+                if (value.symbol == this.assetA) {
+                    interestA = new BigNumber(value.amount)
+                }
+                if (value.symbol == this.assetB) {
+                    interestB = new BigNumber(value.amount)
+                }
+            })
+        }
+
         let token = tokens.get(this.assetB)
         if (token) {//removing exposure: keep wallet clean
             if (this.isSingleMint) {
                 collateralTokens.push(token)
             } else {
+                if (this.negInterestWorkaround && interestB.lt(0)) {
+                    token.amount = "" + (interestB.times(1.005).plus(token.amount)) //neg interest with the bug is implicitly added to the payback, adding extra buffer to include possible additional blocks -> send in "wanted + negInterest"
+                }
                 paybackTokens.push(token)
             }
         }
         token = tokens.get(this.assetA)
         if (token) { //removing exposure: keep wallet clean
+            if (this.negInterestWorkaround && interestA.lt(0)) {
+                token.amount = "" + (interestA.times(1.005).plus(token.amount)) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
+            }
             paybackTokens.push(token)
         }
 
@@ -516,7 +575,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let waitingTx = undefined
         let used_prevout = prevout
         if (loanTokens.length > 0) {
-            console.log(" paying back tokens " + loanTokens.map(token => " " + token.amount + "@" + token.symbol))
+            console.log(" paying back tokens " + loanTokens.map(token => " " + new BigNumber(token.amount).toFixed(8) + "@" + token.symbol))
             let paybackTokens: TokenBalanceUInt32[] = []
             loanTokens.forEach(addressToken => {
                 paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
@@ -527,7 +586,7 @@ export class VaultMaxiProgram extends CommonProgram {
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
         }
         if (collateralTokens.length > 0) {
-            console.log(" depositing tokens " + collateralTokens.map(token => " " + token.amount + "@" + token.symbol))
+            console.log(" depositing tokens " + collateralTokens.map(token => " " + new BigNumber(token.amount).toFixed(8) + "@" + token.symbol))
             for (const collToken of collateralTokens) {
                 const depositTx = await this.depositToVault(+collToken.id, new BigNumber(collToken.amount), used_prevout)
                 waitingTx = depositTx
@@ -1008,15 +1067,25 @@ export class VaultMaxiProgram extends CommonProgram {
         return false
     }
 
-    async cleanUp(vault: LoanVaultActive, balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
+    async cleanUp(vault: LoanVaultActive, balances: Map<string, AddressToken>, telegram: Telegram, safetyMode: boolean = false): Promise<boolean> {
         let wantedTokens: AddressToken[] = []
         let mainAssetAsLoan = false
+        
         vault.loanAmounts.forEach(loan => {
             if (loan.symbol == this.mainCollateralAsset) {
                 mainAssetAsLoan = true
             }
             let token = balances.get(loan.symbol)
             if (token) {
+                if (this.negInterestWorkaround) {
+                    const interest = new BigNumber(vault.interestAmounts.find(interest => interest.symbol == loan.symbol)?.amount ?? "0")
+                    if (interest.lt(0)) {
+                        token.amount = "" + (interest.times(1.005).plus(token.amount)) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
+                    }
+                }
+                if (safetyMode) {
+                    token.amount = "" + (+token.amount) / 2 //last cleanup failed -> try with half the amount
+                }
                 wantedTokens.push(token)
             }
         })

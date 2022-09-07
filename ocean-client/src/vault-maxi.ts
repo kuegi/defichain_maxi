@@ -26,12 +26,13 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = "v2.1"
+export const VERSION = "v2.2"
 export const DONATION_ADDRESS = "df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07"
 export const DONATION_MAX_PERCENTAGE = 50
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
+    let cleanUpFailed= false
     let ocean = process.env.VAULTMAXI_OCEAN_URL
     let errorCooldown= 60000
     while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
@@ -118,29 +119,38 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     console.log(resultFromPrevTx ? "done" : " timed out -> cleanup")
                     if (!resultFromPrevTx || VaultMaxiProgram.shouldCleanUpBasedOn(information.tx as VaultMaxiProgramTransaction)) {
                         information.state = ProgramState.Error //force cleanup
-                    } else {
+                    } else if (information.state === ProgramState.WaitingForTransaction) {
                         information.state = ProgramState.Idle
                     }
                     await program.updateToState(information.state, VaultMaxiProgramTransaction.None)
                 }
                 // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
                 if (information.state === ProgramState.Error) {
-                    console.log("need to clean up")
-                    result = await program.cleanUp(vault, balances, telegram)
+                    let safetyMode: boolean = cleanUpFailed
+                    console.log("need to clean up " + (safetyMode ? "in safety mode due to previous error" : ""))
+                    cleanUpFailed = true //will be set to false if success
+                    result = await program.cleanUp(vault, balances, telegram, safetyMode)
                     vault = await program.getVault() as LoanVaultActive
                     balances = await program.getTokenBalances()
                     pool = await program.getPool(program.lmPair)
                     //need to get updated vault
                     await telegram.log("executed clean-up part of script " + (result ? "successfully" : "with problems") + ". vault ratio after clean-up " + vault.collateralRatio)
-                    if (!result) {
-                        console.error("Error in cleaning up")
+                    if (!result) { //probably a timeout
+                        console.error("Error in cleaning up, trying again in safetyMode")
                         await telegram.send("There was an error in recovering from a failed state. please check yourself!")
+                        if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {
+                            result = await program.cleanUp(vault, balances, telegram, true)
+                            vault = await program.getVault() as LoanVaultActive
+                            balances = await program.getTokenBalances()
+                            pool = await program.getPool(program.lmPair)
+                        }
                     } else {
                         console.log("cleanup done")
                         await telegram.send("Successfully cleaned up after some error happened")
                     }
-                    //Do not set state to error again, otherwise we risk an endless loop of cleanup-attempts while vault is unmanaged.
-                    await program.updateToState(ProgramState.Idle, VaultMaxiProgramTransaction.None)
+                    cleanUpFailed = !result
+                    //If safety mode, try another cleanup afterwards to clean the whole adress in case of temporary error
+                    await program.updateToState(safetyMode ? ProgramState.Error : ProgramState.Idle, VaultMaxiProgramTransaction.None)
                     console.log("got " + (context.getRemainingTimeInMillis() / 1000).toFixed(1) + " sec left after cleanup")
                     if (context.getRemainingTimeInMillis() < MIN_TIME_PER_ACTION_MS) {
                         return { statusCode: result ? 200 : 500 } //not enough time left, better quit and have a clean run on next invocation

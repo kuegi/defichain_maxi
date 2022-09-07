@@ -2,7 +2,7 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { AccountToAccount, CAccountToAccount, CTransaction, CTransactionSegWit, DeFiTransactionConstants, OP_CODES, OP_DEFI_TX, PoolId, Script, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
+import { CollateralToken, LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
@@ -14,6 +14,7 @@ import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { SmartBuffer } from 'smart-buffer'
 import { fromAddress, fromScript } from '@defichain/jellyfish-address'
+import { StatsData } from "@defichain/whale-api-client/dist/api/stats";
 
 export enum ProgramState {
     Idle = "idle",
@@ -65,6 +66,14 @@ export class CommonProgram {
 
     getAddress(): string {
         return this.script ? this.settings.address : ""
+    }
+
+    async getStats(): Promise<StatsData> {
+        return this.client.stats.get()
+    }
+
+    async getCollateralToken(id: string): Promise<CollateralToken> {
+        return this.client.loan.getCollateralToken(id)
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
