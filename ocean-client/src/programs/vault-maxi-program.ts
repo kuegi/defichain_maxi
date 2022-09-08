@@ -578,20 +578,28 @@ export class VaultMaxiProgram extends CommonProgram {
             console.log(" paying back tokens " + loanTokens.map(token => " " + new BigNumber(token.amount).toFixed(8) + "@" + token.symbol))
             let paybackTokens: TokenBalanceUInt32[] = []
             loanTokens.forEach(addressToken => {
-                paybackTokens.push({ token: +addressToken.id, amount: new BigNumber(addressToken.amount) })
+                let amount= new BigNumber(addressToken.amount)
+                if(amount.gt(0)) {
+                    paybackTokens.push({ token: +addressToken.id, amount: amount })
+                }
             })
-            const paybackTx = await this.paybackLoans(paybackTokens, used_prevout)
-            waitingTx = paybackTx
-            used_prevout = this.prevOutFromTx(waitingTx)
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
+            if(paybackTokens.length > 0) {
+                const paybackTx = await this.paybackLoans(paybackTokens, used_prevout)
+                waitingTx = paybackTx
+                used_prevout = this.prevOutFromTx(waitingTx)
+                await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
+            }
         }
         if (collateralTokens.length > 0) {
             console.log(" depositing tokens " + collateralTokens.map(token => " " + new BigNumber(token.amount).toFixed(8) + "@" + token.symbol))
             for (const collToken of collateralTokens) {
-                const depositTx = await this.depositToVault(+collToken.id, new BigNumber(collToken.amount), used_prevout)
-                waitingTx = depositTx
-                used_prevout = this.prevOutFromTx(waitingTx)
-                await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
+                let amount= new BigNumber(collToken.amount)
+                if(amount.gt(0)) {
+                    const depositTx = await this.depositToVault(+collToken.id, amount, used_prevout)
+                    waitingTx = depositTx
+                    used_prevout = this.prevOutFromTx(waitingTx)
+                    await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
+                }
             }
         }
 
