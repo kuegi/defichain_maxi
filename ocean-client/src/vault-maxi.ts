@@ -251,7 +251,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
             console.log("wrote state")
             const safetyLevel = await program.calcSafetyLevel(vault, pool!, balances)
-            let message = "executed script at block "+ blockHeight
+            let message = "executed script at block "+ blockHeight+" "
             if (exposureChanged) {
                 message += (result ? "successfully" : "with problems")
                     + ".\nvault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
