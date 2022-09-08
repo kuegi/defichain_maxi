@@ -573,6 +573,7 @@ export class VaultMaxiProgram extends CommonProgram {
             return false
         }
         let waitingTx = undefined
+        let triedSomeTx= false
         let used_prevout = prevout
         if (loanTokens.length > 0) {
             console.log(" paying back tokens " + loanTokens.map(token => " " + new BigNumber(token.amount).toFixed(8) + "@" + token.symbol))
@@ -581,9 +582,12 @@ export class VaultMaxiProgram extends CommonProgram {
                 let amount= new BigNumber(addressToken.amount)
                 if(amount.gt(0)) {
                     paybackTokens.push({ token: +addressToken.id, amount: amount })
+                }else {
+                    console.log("negative amount -> not doing anything: "+amount.toFixed(8)+"@"+addressToken.symbol)
                 }
             })
             if(paybackTokens.length > 0) {
+                triedSomeTx = true
                 const paybackTx = await this.paybackLoans(paybackTokens, used_prevout)
                 waitingTx = paybackTx
                 used_prevout = this.prevOutFromTx(waitingTx)
@@ -595,10 +599,13 @@ export class VaultMaxiProgram extends CommonProgram {
             for (const collToken of collateralTokens) {
                 let amount= new BigNumber(collToken.amount)
                 if(amount.gt(0)) {
+                    triedSomeTx = true
                     const depositTx = await this.depositToVault(+collToken.id, amount, used_prevout)
                     waitingTx = depositTx
                     used_prevout = this.prevOutFromTx(waitingTx)
                     await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.PaybackLoan, waitingTx.txId)
+                } else {
+                    console.log("negative amount -> not doing anything: "+amount.toFixed(8)+"@"+collToken.symbol)
                 }
             }
         }
@@ -614,7 +621,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 return true
             }
         } else {
-            return false
+            return !triedSomeTx //didn't even need to do something -> success
         }
     }
 
@@ -1094,7 +1101,9 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (safetyMode) {
                     token.amount = "" + (+token.amount) / 2 //last cleanup failed -> try with half the amount
                 }
-                wantedTokens.push(token)
+                if(+token.amount > 0) {
+                    wantedTokens.push(token)
+                }
             }
         })
         let collTokens: AddressToken[] = []
