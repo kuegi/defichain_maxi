@@ -71,10 +71,9 @@ export class VaultMaxiProgram extends CommonProgram {
 
     async init(): Promise<boolean> {
         let result = await super.init()
-        const stats = await this.getStats()
-        this.negInterestWorkaround = stats.net.protocolversion == 70030
+        this.negInterestWorkaround = true
         this.dusdCollValue = new BigNumber((await this.getCollateralToken("15")).factor)
-        console.log("protocolVersion " + stats.net.protocolversion + " " + (this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
+        console.log((this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
         return result
     }
 
