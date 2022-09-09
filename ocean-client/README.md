@@ -105,10 +105,20 @@ This value overwrites the default seed key parameter to another SecureString par
 ### VAULTMAXI_KEEP_CLEAN
 value: string
 possible values: `"true", "false"`
+default: true
 
 Enabled: keeps your address clean by using commissions (dust) to payback loans and adding liquidity to your pool-pair
 
 Disabled: will not touch commissions (dust), only what is needed by default calculations
+
+### VAULTMAXI_SWAP_REWARDS_TO_MAIN
+value: string
+possible values: `"true", "false"`
+default: true
+
+Enabled: rewards will be swapped to your main collateral asset ("DUSD" if not DFI) before reinvesting
+
+Disabled: rewards will be directly reinvested as DFI
 
 ### VAULTMAXI_OCEAN_URL
 value: string
