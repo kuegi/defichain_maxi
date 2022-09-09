@@ -879,8 +879,32 @@ export class VaultMaxiProgram extends CommonProgram {
             console.log("found DUSD premium against " + target?.symbol+": "+maxRatio.ratio.toFixed(4)+", "+maxRatio.ratio.times(maxRatio.feeOut).toFixed(4)+" after fees")
             maxPrice = 1 / pegReference
         }
+        
         if (coll && target) {
-            const size = BigNumber.min(stableCoinArbBatchSize, coll.amount)
+            const collValue = new BigNumber(coll.activePrice?.active?.amount ?? this.dusdCollValue)
+            let size = BigNumber.min(new BigNumber(stableCoinArbBatchSize).div(collValue), coll.amount) //safetycheck for batchsize was in coins, need to adapt through value
+            let targetValue= this.dusdCollValue
+            if(target.symbol != "DUSD") {
+                targetValue= new BigNumber((await this.getCollateralToken(target.id)).activePrice?.active?.amount ?? "1")
+            }
+            const factorDelta= collValue.minus(targetValue) // > 0 means the new coll is worth less -> need to check that we don't fall too far
+            if(factorDelta.gt(0)) {
+                //check with collValue to not reduce ratio too much
+                const newRatio= new BigNumber(vault.loanValue).div(new BigNumber(vault.collateralValue).minus(size.times(factorDelta)))
+                const newNextRatio= nextLoanValue(vault).div(nextCollateralValue(vault).minus(size.times(factorDelta)))
+                if(BigNumber.min(newRatio,newNextRatio).lt(this.settings.minCollateralRatio/100)) {
+                    const usedColl = newRatio.lt(newNextRatio) ? new BigNumber(vault.collateralValue) : nextCollateralValue(vault)
+                    const usedLoan= newRatio.lt(newNextRatio) ? new BigNumber(vault.loanValue) : nextLoanValue(vault)
+                    size = BigNumber.min(size,usedColl.times(this.settings.minCollateralRatio/100).minus(usedLoan).div(factorDelta))
+                    console.log("reduced size due to collFactor differences: "+collValue.toFixed(2)+" to "+targetValue.toFixed(2)+". size reduced to "+size.toFixed(2))
+                    await telegram.send("stableArb: needed to reduce size due to collValue differences. used size: "+size.toFixed(2))
+                }
+            }
+            if(size.lte(0)) {
+                console.log("size 0 after coll value checks")
+                await telegram.send("stableArb: size zero after collValue checks, no stable arb done")
+                return false
+            }
             console.log("withdrawing " + size.toFixed(2) + "@" + coll.symbol)
             const withdrawTx = await this.withdrawFromVault(+coll.id, size)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.StableArbitrage, withdrawTx.txId)
