@@ -1,9 +1,6 @@
-import { MainNet } from '@defichain/jellyfish-network'
-import { Store } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
-import { ProgramStateConverter } from './utils/program-state-converter'
 import { delay, isNullOrEmpty } from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
@@ -36,7 +33,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
         let commonProgram: CommonProgram | undefined
         try {
-            const program = new LMReinvestProgram(store, new WalletSetup(MainNet, settings, ocean))
+            const program = new LMReinvestProgram(store, new WalletSetup(settings, ocean))
             commonProgram = program
             await program.init()
 

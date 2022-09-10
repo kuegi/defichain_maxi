@@ -255,8 +255,8 @@ export class CommonProgram {
 
     async sendTxDataToTelegram(txs: CTransaction[], telegram: Telegram): Promise<void> {
         let message = "Please sign and send :\n";
-        txs.forEach(tx=> {
-            message+= tx.toHex()+"\n"
+        txs.forEach(tx => {
+            message += tx.toHex() + "\n"
         })
         await telegram.send(message)
     }
@@ -274,9 +274,9 @@ export class CommonProgram {
                     const a2a = dftx.data as AccountToAccount
                     const from = fromScript(a2a.from, this.walletSetup.network.name)?.address
                     const target = a2a.to.map((to): string =>
-                            fromScript(to.script, this.walletSetup.network.name)?.address +
-                            " [" + to.balances.map(b => b.amount.toFixed(8) + "@" + b.token).join(",") + "]"
-                        ).join("\n")
+                        fromScript(to.script, this.walletSetup.network.name)?.address +
+                        " [" + to.balances.map(b => b.amount.toFixed(8) + "@" + b.token).join(",") + "]"
+                    ).join("\n")
                     const amount = a2a.to[0].balances[0].amount
                     const token = a2a.to[0].balances[0].token
                     console.log("a2a from: " + from + " to\n" + target)

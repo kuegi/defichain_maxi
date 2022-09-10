@@ -1,4 +1,3 @@
-import { MainNet } from '@defichain/jellyfish-network'
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
 import { Store } from './utils/store'
@@ -33,9 +32,9 @@ export const DONATION_MAX_PERCENTAGE = 50
 export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log("vault maxi " + VERSION)
     let blockHeight = 0
-    let cleanUpFailed= false
+    let cleanUpFailed = false
     let ocean = process.env.VAULTMAXI_OCEAN_URL
-    let errorCooldown= 60000
+    let errorCooldown = 60000
     while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
         console.log("starting with " + context.getRemainingTimeInMillis() + "ms available")
         let store = new Store()
@@ -44,14 +43,14 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
         const logId = process.env.VAULTMAXI_LOGID ? (" " + process.env.VAULTMAXI_LOGID) : ""
         const telegram = new Telegram(settings, "[Maxi" + settings.paramPostFix + " " + VERSION + logId + "]")
-        
+
 
         let commonProgram: CommonProgram | undefined
         try {
             if (settings.shouldSkipNext) {
                 //reset to false, so no double skip ever
                 console.log("got skip command, reset to false")
-                await store.clearSkip()                
+                await store.clearSkip()
             }
             if (event) {
                 console.log("received event " + JSON.stringify(event))
@@ -80,11 +79,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 await telegram.log(message)
                 return { statusCode: 200 }
             }
-            const program = new VaultMaxiProgram(store, new WalletSetup(MainNet, settings, ocean))
+            const program = new VaultMaxiProgram(store, new WalletSetup(settings, ocean))
             commonProgram = program
             await program.init()
-            blockHeight= await program.getBlockHeight()
-            console.log("starting at block "+blockHeight)
+            blockHeight = await program.getBlockHeight()
+            console.log("starting at block " + blockHeight)
             if (event) {
                 if (event.checkSetup) {
                     let result = await program.doAndReportCheck(telegram)
@@ -190,7 +189,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 + " (" + (program.targetRatio() * 100) + ") pair " + settings.LMPair
                 + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
             let exposureChanged = false
-            
+
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
             // no reinvest (or reinvest done and still time left) -> check for increase exposure
@@ -240,7 +239,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     if (batchSize > 0) {
                         const changed = await program.checkAndDoStableArb(vault, pool!, batchSize, telegram)
                         exposureChanged = exposureChanged || changed
-                        if(changed) {
+                        if (changed) {
                             vault = await program.getVault() as LoanVaultActive
                             balances = await program.getTokenBalances()
                         }
@@ -251,7 +250,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
             console.log("wrote state")
             const safetyLevel = await program.calcSafetyLevel(vault, pool!, balances)
-            let message = "executed script at block "+ blockHeight+" "
+            let message = "executed script at block " + blockHeight + " "
             if (exposureChanged) {
                 message += (result ? "successfully" : "with problems")
                     + ".\nvault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
@@ -270,13 +269,13 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             console.error(e)
             let message = "There was an unexpected error in the script. please check the logs"
             if (e instanceof SyntaxError) {
-                console.info("syntaxError: '"+e.name+"' message: "+e.message)
-                if(e.message == "Unexpected token < in JSON at position 0" ) {
+                console.info("syntaxError: '" + e.name + "' message: " + e.message)
+                if (e.message == "Unexpected token < in JSON at position 0") {
                     message = "There was a error from the ocean api. will try again."
                 }
                 //TODO: do we have to go to error state in this case? or just continue on current state next time?
             }
-            if (e instanceof WhaleClientTimeoutException ) {
+            if (e instanceof WhaleClientTimeoutException) {
                 message = "There was a timeout from the ocean api. will try again."
                 //TODO: do we have to go to error state in this case? or just continue on current state next time?
             }

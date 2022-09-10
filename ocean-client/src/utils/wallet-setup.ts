@@ -1,4 +1,4 @@
-import { Network } from '@defichain/jellyfish-network'
+import { MainNet, Network, TestNet } from '@defichain/jellyfish-network'
 import { JellyfishWallet, WalletHdNode } from "@defichain/jellyfish-wallet";
 import { WalletClassic } from "@defichain/jellyfish-wallet-classic";
 import { Bip32Options, MnemonicHdNodeProvider } from "@defichain/jellyfish-wallet-mnemonic";
@@ -15,8 +15,9 @@ export class WalletSetup {
     private account: WhaleWalletAccount | undefined
     private static NEEDED_SEED_LENGTH = 24
 
-    constructor(network: Network, settings: StoredSettings, oceanUrl : string = 'https://ocean.defichain.com') {
-        console.log("using ocean at "+oceanUrl)
+    constructor(settings: StoredSettings, oceanUrl : string = 'https://ocean.defichain.com') {
+        const network= WalletSetup.guessNetworkFromAddress(settings.address)
+        console.log("using ocean at "+oceanUrl+" on "+network.name)
         this.network= network
         this.url= oceanUrl
         this.client = new WhaleApiClient({
@@ -31,6 +32,17 @@ export class WalletSetup {
             this.wallet = new JellyfishWallet(MnemonicHdNodeProvider.fromWords(settings.seed, this.bip32Options(network)),
                 new WhaleWalletAccountProvider(this.client, network))
         }
+    }
+
+    
+    public static guessNetworkFromAddress(address: string) {
+        if(address.startsWith("df1")) {
+            return MainNet
+        } else if(address.startsWith("tf1")) {
+            return TestNet
+        }
+        console.error("can't guess network from address "+address+" falling back to MainNet")
+        return MainNet
     }
 
     async getAccount(wantedAddress: string): Promise<WhaleWalletAccount | undefined> {
