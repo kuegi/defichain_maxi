@@ -54,6 +54,7 @@ export class VaultMaxiProgram extends CommonProgram {
     private mainCollateralAsset: string
     private isSingleMint: boolean
     private readonly keepWalletClean: boolean
+    private readonly swapRewardsToMainColl: boolean
     private negInterestWorkaround: boolean = false
     private dusdCollValue: BigNumber = new BigNumber(0.99)
 
@@ -67,6 +68,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
         this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
         this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== "false" ?? true
+        this.swapRewardsToMainColl = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== "false" ?? true
     }
 
     async init(): Promise<boolean> {
@@ -334,6 +336,7 @@ export class VaultMaxiProgram extends CommonProgram {
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
+            +  (this.settings.reinvestThreshold ?? -1 >= 0 ? ("\n" +this.swapRewardsToMainColl && this.mainCollateralAsset != "DFI" ? "will swap rewards to "+this.mainCollateralAsset+" before reinvest": "will directly reinvest DFI") : "")
             + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : "auto donation is turned off")
             + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size " + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
@@ -1047,7 +1050,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
                 amountToUse = amountToUse.minus(donatedAmount)
             }
-            if (this.mainCollateralAsset == "DFI") {
+            if (this.mainCollateralAsset == "DFI" || !this.swapRewardsToMainColl) {
                 console.log("depositing " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to vault ")
                 const tx = await this.depositToVault(0, amountToUse, prevout) //DFI is token 0
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
