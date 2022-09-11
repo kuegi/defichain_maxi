@@ -9,7 +9,7 @@ import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
 import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
-import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
+import { DONATION_ADDRESS, DONATION_ADDRESS_TESTNET, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { VERSION } from "../vault-maxi";
 
 
@@ -1041,7 +1041,8 @@ export class VaultMaxiProgram extends CommonProgram {
                 //send donation and reduce amountToUse
                 donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
                 console.log("donating " + donatedAmount.toFixed(2) + " DFI")
-                const tx = await this.sendDFIToAccount(donatedAmount, DONATION_ADDRESS, prevout)
+                const donationAddress = this.walletSetup.isTestnet() ? DONATION_ADDRESS_TESTNET : DONATION_ADDRESS
+                const tx = await this.sendDFIToAccount(donatedAmount, donationAddress, prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
                 prevout = this.prevOutFromTx(tx)
 

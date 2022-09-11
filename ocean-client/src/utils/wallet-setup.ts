@@ -34,6 +34,9 @@ export class WalletSetup {
         }
     }
 
+    public isTestnet(): boolean {
+        return this.network == TestNet
+    }
     
     public static guessNetworkFromAddress(address: string) {
         if(address.startsWith("df1")) {
