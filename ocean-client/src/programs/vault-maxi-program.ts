@@ -225,12 +225,14 @@ export class VaultMaxiProgram extends CommonProgram {
                     if (tokenLoan.activePrice) {
                         oracleA = new BigNumber(tokenLoan.activePrice.active?.amount ?? "0")
                     }
-                    let oracleB = new BigNumber(0.99) //case DUSD
+                    let oracleB = this.dusdCollValue //case DUSD
+                    if(this.assetB !== "DUSD") {
                     vault.collateralAmounts.forEach(coll => {
-                        if (coll.symbol == this.assetB && coll.activePrice?.active != undefined) {
-                            oracleB = new BigNumber(coll.activePrice?.active?.amount ?? "0")
-                        }
-                    })
+                            if (coll.symbol == this.assetB && coll.activePrice?.active != undefined) {
+                                oracleB = new BigNumber(coll.activePrice.active.amount)
+                            }
+                        })
+                    }
 
                     const neededLPtokens = neededrepay.times(safeRatio).times(pool.totalLiquidity.token)
                         .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(safeRatio),
@@ -286,7 +288,9 @@ export class VaultMaxiProgram extends CommonProgram {
             maxRatioDenom = new BigNumber(vault.loanValue).minus(usedAssetB).minus(usedAssetA.multipliedBy(tokenOracle))
         } else {
             const oracleA = new BigNumber(assetALoan.activePrice?.active?.amount ?? "1") //fallback for DUSD
-            const oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") // fallback for DUSD                   
+            const oracleB = this.assetB === "DUSD"  
+                                    ? this.dusdCollValue 
+                                    : new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0") // no oracle -> no value                  
             let usedLpTokens = new BigNumber(lpTokens.amount)
             if (usedAssetA.gt(assetALoan.amount)) {
                 usedAssetA = new BigNumber(assetALoan.amount)
@@ -386,8 +390,7 @@ export class VaultMaxiProgram extends CommonProgram {
             const collAmount = vault.collateralAmounts.find(coll => coll.symbol == this.assetB)
             let oracleB
             if (this.assetB === "DUSD") {
-                const dusdFactor = (await this.getCollateralToken("15")).factor ?? "0.99"
-                oracleB = new BigNumber(dusdFactor)
+                oracleB = this.dusdCollValue
             } else {
                 oracleB = new BigNumber(collAmount?.activePrice?.active?.amount ?? "0")
             }
@@ -656,7 +659,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(BigNumber.min(coll.activePrice?.active?.amount ?? 0, coll.activePrice?.next?.amount ?? 0)))
             }
             if (coll.symbol === "DUSD") {
-                dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(0.99))
+                dfiDusdCollateralValue = dfiDusdCollateralValue.plus(new BigNumber(coll.amount).times(this.dusdCollValue))
             }
         })
         // TODO: check 50%
@@ -679,7 +682,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 return false
             }
         } else {
-            let oracleB = new BigNumber(0.99) //case DUSD
+            let oracleB = this.dusdCollValue //case DUSD
             let assetBInColl = "0"
             vault.collateralAmounts.forEach(coll => {
                 if (coll.symbol == this.assetB) {
@@ -970,8 +973,11 @@ export class VaultMaxiProgram extends CommonProgram {
             wantedTokens = neededrepayForRefRatio
                 .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve), pool.tokenB.reserve)) //would be oracleB* pool!.tokenB.reserve but oracleB is always 1 for DUSD as loan
         } else {
-            oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0.99") //DUSD fallback
-
+            if(this.assetB === "DUSD") {
+                oracleB= this.dusdCollValue
+            } else {
+                oracleB = new BigNumber(vault.collateralAmounts.find(coll => coll.symbol == this.assetB)?.activePrice?.active?.amount ?? "0") //no oracle -> no value
+            }
             wantedTokens = neededrepayForRefRatio.times(referenceRatio / 100)
                 .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(referenceRatio / 100), //additional "times" due to part collateral, part loan
                     oracleB.times(pool.tokenB.reserve)))
