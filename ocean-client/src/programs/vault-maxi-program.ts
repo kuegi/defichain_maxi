@@ -7,7 +7,7 @@ import { IStore } from "../utils/store";
 import { WalletSetup } from "../utils/wallet-setup";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
 import { PoolId, TokenBalanceUInt32 } from "@defichain/jellyfish-transaction";
-import { isNullOrEmpty, nextCollateralValue, nextLoanValue } from "../utils/helpers";
+import { isNullOrEmpty } from "../utils/helpers";
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from "../vault-maxi";
 import { VERSION } from "../vault-maxi";
@@ -90,6 +90,38 @@ export class VaultMaxiProgram extends CommonProgram {
         return this.isSingleMint
     }
 
+
+    nextCollateralValue(vault: LoanVaultActive): BigNumber {
+        let nextCollateral = new BigNumber(0)
+        vault.collateralAmounts.forEach(collateral => {
+            if (collateral.symbol == "DUSD") {
+                nextCollateral= nextCollateral.plus(new BigNumber(collateral.amount).multipliedBy(this.dusdCollValue)) //no oracle price for DUSD
+            } else {
+                nextCollateral= nextCollateral.plus(new BigNumber(collateral.amount).multipliedBy(collateral.activePrice?.next?.amount ?? 0))
+            }
+        })
+        return nextCollateral
+    }
+    
+    
+    nextLoanValue(vault: LoanVaultActive): BigNumber {
+        let nextLoan = new BigNumber(0)
+        vault.loanAmounts.forEach(loan => {
+            if (loan.symbol == "DUSD") {
+                nextLoan = nextLoan.plus(loan.amount) // no oracle for DUSD
+            } else {
+                nextLoan = nextLoan.plus(new BigNumber(loan.amount).multipliedBy(loan.activePrice?.next?.amount ?? 1))
+            }
+        })
+        return nextLoan
+    }
+    
+    nextCollateralRatio(vault: LoanVaultActive): BigNumber {
+        const nextLoan = this.nextLoanValue(vault)
+        return nextLoan.lte(0) ?
+                new BigNumber(-1) : 
+                this.nextCollateralValue(vault).dividedBy(nextLoan).multipliedBy(100).decimalPlaces(0,BigNumber.ROUND_FLOOR)
+    }
 
     async doMaxiChecks(telegram: Telegram,
         vaultcheck: LoanVaultActive | LoanVaultLiquidated,
@@ -355,10 +387,10 @@ export class VaultMaxiProgram extends CommonProgram {
         pool: PoolPairData, telegram: Telegram): Promise<boolean> {
         const neededrepay = BigNumber.max(
             new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).dividedBy(this.targetCollateral)),
-            nextLoanValue(vault).minus(nextCollateralValue(vault).div(this.targetCollateral)))
+            this.nextLoanValue(vault).minus(this.nextCollateralValue(vault).div(this.targetCollateral)))
         if (neededrepay.lte(0) || !pool) {
-            console.error("negative repay or no pool, whats happening? loans:" + vault.loanValue + "/" + nextLoanValue(vault)
-                + " cols:" + vault.collateralValue + "/" + nextCollateralValue(vault) + " target:" + this.targetCollateral)
+            console.error("negative repay or no pool, whats happening? loans:" + vault.loanValue + "/" + this.nextLoanValue(vault)
+                + " cols:" + vault.collateralValue + "/" + this.nextCollateralValue(vault) + " target:" + this.targetCollateral)
             await telegram.send("ERROR: invalid reduce calculation. please check")
             return false
         }
@@ -634,7 +666,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
         const additionalLoan = BigNumber.min(
             new BigNumber(vault.collateralValue).div(this.targetCollateral).minus(vault.loanValue),
-            new BigNumber(nextCollateralValue(vault)).div(this.targetCollateral).minus(nextLoanValue(vault)))
+            new BigNumber(this.nextCollateralValue(vault)).div(this.targetCollateral).minus(this.nextLoanValue(vault)))
 
         let oracleA: BigNumber
         if (this.assetA == "DUSD") {
@@ -893,10 +925,10 @@ export class VaultMaxiProgram extends CommonProgram {
             if(factorDelta.gt(0)) {
                 //check with collValue to not reduce ratio too much
                 const newRatio= new BigNumber(vault.loanValue).div(new BigNumber(vault.collateralValue).minus(size.times(factorDelta)))
-                const newNextRatio= nextLoanValue(vault).div(nextCollateralValue(vault).minus(size.times(factorDelta)))
+                const newNextRatio= this.nextLoanValue(vault).div(this.nextCollateralValue(vault).minus(size.times(factorDelta)))
                 if(BigNumber.min(newRatio,newNextRatio).lt(this.settings.minCollateralRatio/100)) {
-                    const usedColl = newRatio.lt(newNextRatio) ? new BigNumber(vault.collateralValue) : nextCollateralValue(vault)
-                    const usedLoan= newRatio.lt(newNextRatio) ? new BigNumber(vault.loanValue) : nextLoanValue(vault)
+                    const usedColl = newRatio.lt(newNextRatio) ? new BigNumber(vault.collateralValue) : this.nextCollateralValue(vault)
+                    const usedLoan= newRatio.lt(newNextRatio) ? new BigNumber(vault.loanValue) : this.nextLoanValue(vault)
                     size = BigNumber.min(size,usedColl.times(this.settings.minCollateralRatio/100).minus(usedLoan).div(factorDelta))
                     console.log("reduced size due to collFactor differences: "+collValue.toFixed(2)+" to "+targetValue.toFixed(2)+". size reduced to "+size.toFixed(2))
                     await telegram.send("stableArb: needed to reduce size due to collValue differences. used size: "+size.toFixed(2))
@@ -959,7 +991,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
         const neededrepayForRefRatio = BigNumber.max(
             new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).dividedBy(referenceRatio / 100)),
-            nextLoanValue(vault).minus(nextCollateralValue(vault).div(referenceRatio / 100)))
+            this.nextLoanValue(vault).minus(this.nextCollateralValue(vault).div(referenceRatio / 100)))
 
         let oracleA: BigNumber = new BigNumber(0)
         vault.loanAmounts.forEach(loanamount => {

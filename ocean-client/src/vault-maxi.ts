@@ -6,7 +6,7 @@ import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
-import { delay, isNullOrEmpty, nextCollateralRatio, nextCollateralValue, nextLoanValue } from './utils/helpers'
+import { delay, isNullOrEmpty} from './utils/helpers'
 import { BigNumber } from "@defichain/jellyfish-api-core";
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 
@@ -183,7 +183,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             }
 
             const oldRatio = +vault.collateralRatio
-            const nextRatio = nextCollateralRatio(vault)
+            const nextRatio = program.nextCollateralRatio(vault)
             const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
             console.log("starting with " + vault.collateralRatio + " (next: " + nextRatio + ") in vault, target "
                 + settings.minCollateralRatio + " - " + settings.maxCollateralRatio
@@ -215,7 +215,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                     balances = await program.getTokenBalances()
                 }
                 if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {// enough time left -> continue
-                    const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, nextCollateralRatio(vault))
+                    const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, program.nextCollateralRatio(vault))
                     if (+vault.collateralValue < 10) {
                         const message = "less than 10 dollar in the vault. can't work like that"
                         await telegram.send(message)
@@ -229,7 +229,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 }
                 if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS && settings.stableCoinArbBatchSize > 0) {// enough time left -> continue
                     const freeCollateral = BigNumber.min(+vault.collateralValue - (+vault.loanValue * (+vault.loanScheme.minColRatio / 100 + 0.01)),
-                        nextCollateralValue(vault).minus(nextLoanValue(vault).times(+vault.loanScheme.minColRatio / 100 + 0.01)))
+                        program.nextCollateralValue(vault).minus(program.nextLoanValue(vault).times(+vault.loanScheme.minColRatio / 100 + 0.01)))
                     let batchSize = settings.stableCoinArbBatchSize
                     if (freeCollateral.lt(settings.stableCoinArbBatchSize)) {
                         const message = "available collateral from ratio (" + freeCollateral.toFixed(1) + ") is less than batchsize for Arb, please adjust"
@@ -255,7 +255,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             if (exposureChanged) {
                 message += (result ? "successfully" : "with problems")
                     + ".\nvault ratio changed from " + oldRatio + " (next " + nextRatio + ") to "
-                    + vault.collateralRatio + " (next " + nextCollateralRatio(vault) +
+                    + vault.collateralRatio + " (next " + program.nextCollateralRatio(vault) +
                     ")."
             } else {
                 message += "without changes.\nvault ratio " + oldRatio + " next " + nextRatio + "."
