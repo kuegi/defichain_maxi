@@ -21,6 +21,7 @@ const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably o
 export const VERSION = "v1.0"
 
 export async function main(event: botEvent, context: any): Promise<Object> {
+    delay(5000) //triggered with maxi, give maxi headstart
     console.log("testnetBot " + VERSION)
     let blockHeight = 0
     let ocean = process.env.VAULTMAXI_OCEAN_URL
@@ -34,6 +35,11 @@ export async function main(event: botEvent, context: any): Promise<Object> {
         try {
             if (event) {
                 console.log("received event " + JSON.stringify(event))
+            }
+            while(settings.stateInformation.state != ProgramState.Idle) {
+                console.log("not idle, waiting 30 sec")
+                delay(30000)
+                settings = await store.fetchSettings()
             }
             const program = new TestnetBotProgram(store, new WalletSetup(settings, ocean))
             await program.init()

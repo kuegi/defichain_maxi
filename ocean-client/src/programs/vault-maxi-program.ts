@@ -57,10 +57,11 @@ export class VaultMaxiProgram extends CommonProgram {
     private readonly swapRewardsToMainColl: boolean
     private negInterestWorkaround: boolean = false
     private dusdCollValue: BigNumber = new BigNumber(0.99)
+    public readonly dusdTokenId : number
 
     constructor(store: IStore, walletSetup: WalletSetup) {
         super(store, walletSetup);
-
+        this.dusdTokenId = walletSetup.isTestnet()? 11 : 15
         this.lmPair = this.settings.LMPair;
         [this.assetA, this.assetB] = this.lmPair.split("-")
         this.mainCollateralAsset = this.settings.mainCollateralAsset
@@ -74,7 +75,7 @@ export class VaultMaxiProgram extends CommonProgram {
     async init(): Promise<boolean> {
         let result = await super.init()
         this.negInterestWorkaround = true
-        this.dusdCollValue = new BigNumber((await this.getCollateralToken("15")).factor)
+        this.dusdCollValue = new BigNumber((await this.getCollateralToken(""+this.dusdTokenId)).factor)
         console.log((this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
         return result
     }
@@ -372,7 +373,7 @@ export class VaultMaxiProgram extends CommonProgram {
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
-            +  (this.settings.reinvestThreshold ?? -1 >= 0 ? ("\n" +this.swapRewardsToMainColl && this.mainCollateralAsset != "DFI" ? "will swap rewards to "+this.mainCollateralAsset+" before reinvest": "will directly reinvest DFI") : "")
+            +  (this.settings.reinvestThreshold ?? -1 >= 0 ? ("\n" +(this.swapRewardsToMainColl && this.mainCollateralAsset != "DFI" ? " will swap rewards to "+this.mainCollateralAsset+" before reinvest": "will directly reinvest DFI")) : "")
             + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : "auto donation is turned off")
             + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size " + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
@@ -1104,7 +1105,7 @@ export class VaultMaxiProgram extends CommonProgram {
                     return true
                 }
             } else {
-                let mainTokenId = 15 //default DUSD
+                let mainTokenId = this.dusdTokenId //default DUSD
                 vault.collateralAmounts.forEach(coll => {
                     if (coll.symbol == this.mainCollateralAsset) {
                         mainTokenId = +coll.id

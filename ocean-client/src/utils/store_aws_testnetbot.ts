@@ -23,13 +23,15 @@ export class StoreAWSTestnetBot implements IStore {
         let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
 
         let DeFiAddressKey = StoreKey.DeFiAddress
+        let StateKey = StoreKey.State
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
             Names: [
                 StoreKey.TelegramLogsChatId,
                 StoreKey.TelegramLogsToken,
-                DeFiAddressKey
+                DeFiAddressKey,
+                StateKey
             ]
         }).promise()).Parameters ?? []
 
@@ -46,9 +48,11 @@ export class StoreAWSTestnetBot implements IStore {
         this.settings.token = this.getValue(StoreKey.TelegramLogsChatId, parameters)
         this.settings.chatId = this.getValue(StoreKey.TelegramLogsToken, parameters)
         this.settings.address = this.getValue(DeFiAddressKey, parameters)
-
+        this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+        
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
+        console.log("read settings: "+JSON.stringify(this.settings))
         return this.settings
     }
 
@@ -72,10 +76,11 @@ export class StoreAWSTestnetBot implements IStore {
 }
 
 enum StoreKey {
-    TelegramLogsChatId = '/defichain-maxi/telegram/logs/chat-id',
-    TelegramLogsToken = '/defichain-maxi/telegram/logs/token',
+    TelegramLogsChatId = '/defichain-maxi/telegram/notifications/chat-id',
+    TelegramLogsToken = '/defichain-maxi/telegram/notifications/token',
 
-    DeFiAddress = '/defichain-maxi/wallet-reinvest/address',
+    DeFiAddress = '/defichain-maxi/wallet/address',
     DeFiWalletSeed = '/defichain-maxi/wallet/seed',
 
+    State = '/defichain-maxi/state',
 }

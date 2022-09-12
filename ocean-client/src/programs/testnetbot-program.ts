@@ -68,7 +68,7 @@ export class TestnetBotProgram extends CommonProgram {
         const usdtPool = poolData.find(pool => pool.symbol === "DFI-USDT")
         const dusdusdtPool = poolData.find(pool => pool.symbol === "DUSD-USDT")
 
-        if (!dusdPool?.priceRatio.ab || !usdtPool?.priceRatio.ba || !dusdusdtPool?.priceRatio.ba) {
+        if (!dusdPool?.priceRatio.ab || !usdtPool?.priceRatio.ab || !dusdusdtPool?.priceRatio.ba) {
             console.error("couldn't get stable pool data")
             return false
         }
@@ -87,15 +87,24 @@ export class TestnetBotProgram extends CommonProgram {
         console.log("got ratio in: " + ratioIn.toFixed(2) + " out: " + ratioOut.toFixed(2))
 
         let path: PoolId[] | undefined
-        if (ratioIn.gt(1.01)) {
-            path = [{ id: +dusdPool.id }, { id: +dusdusdtPool.id }, { id: +usdtPool.id }]
+        let loops= 1
+        if (ratioIn.gt(1.05)) {
+            loops= ratioIn.toNumber()
+            path = [{ id: +usdtPool.id },{ id: +dusdPool.id }, { id: +dusdusdtPool.id }]
         }
-        if (ratioOut.gt(1.01)) {
-            path = [{ id: +usdtPool.id }, { id: +dusdusdtPool.id }, { id: +dusdPool.id }]
+        if (ratioOut.gt(1.05)) {
+            loops= ratioOut.toNumber()
+            path = [{ id: +dusdusdtPool.id }, { id: +dusdPool.id },{ id: +usdtPool.id }]
         }
         if (path != undefined) {
-            let swap = await this.compositeswap(new BigNumber(100), 0, 0, path, new BigNumber(1).decimalPlaces(8))
-            let result = await this.waitForTx(swap.txId)
+            console.log("trying arbitrage with "+Math.floor(loops)+" loops")
+            let prevout= undefined
+            let swap= undefined
+            for (let i = 0; i < Math.floor(loops); i++) {                
+                swap = await this.compositeswap(new BigNumber(1000), 5, 5, path, new BigNumber(1),prevout)
+                prevout= this.prevOutFromTx(swap)
+            }
+            let result = await this.waitForTx(swap!.txId)
             if (result) {
                 console.log("done arbitrage")
                 telegram.send("done arbitrage")
