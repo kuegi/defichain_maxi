@@ -51,6 +51,10 @@ export class CommonProgram {
         return this.account != undefined
     }
 
+    public isTestNet(): boolean {
+        return this.walletSetup.isTestnet()
+    }
+
     async doValidationChecks(telegram: Telegram, needKey: boolean): Promise<boolean> {
         if (!this.script || (!this.account && needKey)) {
             const message = "Could not initialize wallet. Check your settings! "
