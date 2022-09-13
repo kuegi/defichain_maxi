@@ -74,9 +74,11 @@ export class VaultMaxiProgram extends CommonProgram {
 
     async init(): Promise<boolean> {
         let result = await super.init()
-        this.negInterestWorkaround = true
-        this.dusdCollValue = new BigNumber((await this.getCollateralToken(""+this.dusdTokenId)).factor)
-        console.log((this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
+        const blockheight = await this.getBlockHeight()
+        //workaround before FCE height
+        this.negInterestWorkaround = this.walletSetup.isTestnet() ? blockheight < 1244000 : true
+        this.dusdCollValue = new BigNumber((await this.getCollateralToken("" + this.dusdTokenId)).factor)
+        console.log("initialized at block "+ blockheight + " "+ (this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
         return result
     }
 
