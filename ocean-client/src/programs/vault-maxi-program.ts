@@ -987,11 +987,13 @@ export class VaultMaxiProgram extends CommonProgram {
 
     async sendMotivationalLog(vault: LoanVaultActive, pool: PoolPairData, donatedAmount: BigNumber, telegram: Telegram): Promise<void> {
         if (this.targetCollateral > 2.50) {
+            console.info("target collateral above 250%")
             return //TODO: send message that user could maximize further?
         }
         const referenceRatio = this.targetCollateral < 1.8 ? 250 : 300
         if (!pool?.apr) {
             //no data, not motivation
+            console.warn("no pool apr in motivational log")
             return
         }
 
@@ -1026,6 +1028,7 @@ export class VaultMaxiProgram extends CommonProgram {
         //const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
         const rewardDiff = loanDiff.toNumber() * pool.apr.total
         if (rewardDiff < 100) {
+            console.info("small rewardDiff "+rewardDiff.toFixed(2)+" -> no motivation")
             return //just a testvault, no need to motivate anyone
         }
         let rewardMessage: string
@@ -1100,12 +1103,7 @@ export class VaultMaxiProgram extends CommonProgram {
                     await telegram.send("ERROR: depositing reinvestment failed")
                     console.error("depositing failed")
                     return false
-                } else {
-                    await telegram.send("reinvested " + amountToUse.toFixed(4) + " (" + amountFromBalance.toFixed(4) + " tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation) DFI")
-                    console.log("done ")
-                    await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
-                    return true
-                }
+                } 
             } else {
                 let mainTokenId = this.dusdTokenId //default DUSD
                 vault.collateralAmounts.forEach(coll => {
@@ -1131,20 +1129,20 @@ export class VaultMaxiProgram extends CommonProgram {
                         await telegram.send("ERROR: depositing reinvestment failed")
                         console.error("depositing failed")
                         return false
-                    } else {
-                        await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + this.mainCollateralAsset
-                            + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
-                        console.log("done ")
-                        await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
-                        if(this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
-                            await telegram.send("you activated auto donation, but the reinvested amount was too big to be a reinvest. "+
-                                                "We assume that this was a transfer of funds, so we skipped auto-donation. " + 
-                                                "Feel free to manually donate anyway.")
-                        }
-                        return true
                     }
                 }
             }
+            await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + this.mainCollateralAsset
+                + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
+            console.log("done ")
+            await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
+            if(this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
+                console.log("sending manual donation suggestion")
+                await telegram.send("you activated auto donation, but the reinvested amount was too big to be a reinvest. "+
+                                    "We assume that this was a transfer of funds, so we skipped auto-donation. " + 
+                                    "Feel free to manually donate anyway.")
+            }
+            return true
         }
 
         return false
