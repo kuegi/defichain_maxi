@@ -1095,6 +1095,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
                 amountToUse = amountToUse.minus(donatedAmount)
             }
+            let reinvestToken= "DFI"
             if (this.mainCollateralAsset == "DFI" || !this.swapRewardsToMainColl) {
                 console.log("depositing " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to vault ")
                 const tx = await this.depositToVault(0, amountToUse, prevout) //DFI is token 0
@@ -1111,6 +1112,7 @@ export class VaultMaxiProgram extends CommonProgram {
                         mainTokenId = +coll.id
                     }
                 })
+                reinvestToken= this.mainCollateralAsset
                 console.log("swaping " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to " + this.mainCollateralAsset)
                 const swap = await this.swap(amountToUse, 0, mainTokenId, new BigNumber(999999999), prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
@@ -1132,7 +1134,7 @@ export class VaultMaxiProgram extends CommonProgram {
                     }
                 }
             }
-            await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + this.mainCollateralAsset
+            await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + reinvestToken
                 + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
             console.log("done ")
             await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
