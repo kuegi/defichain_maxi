@@ -27,6 +27,7 @@ const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably o
 
 export const VERSION = "v2.2.1"
 export const DONATION_ADDRESS = "df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07"
+export const DONATION_ADDRESS_TESTNET= "tZ1GuasY57oin5cej1Wp3MA1pAE4y3tmzq"
 export const DONATION_MAX_PERCENTAGE = 50
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
@@ -171,7 +172,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
             if (settings.mainCollateralAsset === "DFI") {
                 const poolApr = (pool?.apr?.total ?? 0) * 100
-                const dusdToken = await program.getLoanToken("15")
+                const dusdToken = await program.getLoanToken(""+program.dusdTokenId)
                 let interest = +vault.loanScheme.interestRate + +dusdToken.interest
                 console.log("DUSD currently has a total interest of " + interest.toFixed(4) + " = " + vault.loanScheme.interestRate + " + " + dusdToken.interest + " vs APR of " + poolApr.toFixed(4))
                 if (interest > poolApr) {

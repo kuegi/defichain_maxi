@@ -57,10 +57,11 @@ export class VaultMaxiProgram extends CommonProgram {
     private readonly swapRewardsToMainColl: boolean
     private negInterestWorkaround: boolean = false
     private dusdCollValue: BigNumber = new BigNumber(0.99)
+    public readonly dusdTokenId : number
 
     constructor(store: IStore, walletSetup: WalletSetup) {
         super(store, walletSetup);
-
+        this.dusdTokenId = walletSetup.isTestnet()? 11 : 15
         this.lmPair = this.settings.LMPair;
         [this.assetA, this.assetB] = this.lmPair.split("-")
         this.mainCollateralAsset = this.settings.mainCollateralAsset
@@ -73,9 +74,11 @@ export class VaultMaxiProgram extends CommonProgram {
 
     async init(): Promise<boolean> {
         let result = await super.init()
-        this.negInterestWorkaround = true
-        this.dusdCollValue = new BigNumber((await this.getCollateralToken("15")).factor)
-        console.log((this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
+        const blockheight = await this.getBlockHeight()
+        //workaround before FCE height
+        this.negInterestWorkaround = this.walletSetup.isTestnet() ? blockheight < 1244000 : true
+        this.dusdCollValue = new BigNumber((await this.getCollateralToken("" + this.dusdTokenId)).factor)
+        console.log("initialized at block "+ blockheight + " "+ (this.negInterestWorkaround ? "using negative interest workaround" : "") + " dusd CollValue is " + this.dusdCollValue.toFixed(3))
         return result
     }
 
@@ -372,7 +375,7 @@ export class VaultMaxiProgram extends CommonProgram {
             + "\n" + (this.keepWalletClean ? "trying to keep the wallet clean" : "ignoring dust and commissions")
             + "\n" + (this.isSingleMint ? ("minting only " + this.assetA) : "minting both assets")
             + "\nmain collateral asset is " + this.mainCollateralAsset
-            +  (this.settings.reinvestThreshold ?? -1 >= 0 ? ("\n" +this.swapRewardsToMainColl && this.mainCollateralAsset != "DFI" ? "will swap rewards to "+this.mainCollateralAsset+" before reinvest": "will directly reinvest DFI") : "")
+            +  (this.settings.reinvestThreshold ?? -1 >= 0 ? ("\n" +(this.swapRewardsToMainColl && this.mainCollateralAsset != "DFI" ? " will swap rewards to "+this.mainCollateralAsset+" before reinvest": "will directly reinvest DFI")) : "")
             + "\n" + (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : "auto donation is turned off")
             + "\n" + (this.settings.stableCoinArbBatchSize > 0 ? "searching for arbitrage with batches of size " + this.settings.stableCoinArbBatchSize : "not searching for stablecoin arbitrage")
             + "\nusing ocean at: " + this.walletSetup.url
@@ -984,11 +987,13 @@ export class VaultMaxiProgram extends CommonProgram {
 
     async sendMotivationalLog(vault: LoanVaultActive, pool: PoolPairData, donatedAmount: BigNumber, telegram: Telegram): Promise<void> {
         if (this.targetCollateral > 2.50) {
+            console.info("target collateral above 250%")
             return //TODO: send message that user could maximize further?
         }
         const referenceRatio = this.targetCollateral < 1.8 ? 250 : 300
         if (!pool?.apr) {
             //no data, not motivation
+            console.warn("no pool apr in motivational log")
             return
         }
 
@@ -1023,6 +1028,7 @@ export class VaultMaxiProgram extends CommonProgram {
         //const loanDiff = (+vault.collateralValue) * (1 / this.targetCollateral - 100 / referenceRatio)
         const rewardDiff = loanDiff.toNumber() * pool.apr.total
         if (rewardDiff < 100) {
+            console.info("small rewardDiff "+rewardDiff.toFixed(2)+" -> no motivation")
             return //just a testvault, no need to motivate anyone
         }
         let rewardMessage: string
@@ -1089,6 +1095,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
                 amountToUse = amountToUse.minus(donatedAmount)
             }
+            let reinvestToken= "DFI"
             if (this.mainCollateralAsset == "DFI" || !this.swapRewardsToMainColl) {
                 console.log("depositing " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to vault ")
                 const tx = await this.depositToVault(0, amountToUse, prevout) //DFI is token 0
@@ -1097,19 +1104,15 @@ export class VaultMaxiProgram extends CommonProgram {
                     await telegram.send("ERROR: depositing reinvestment failed")
                     console.error("depositing failed")
                     return false
-                } else {
-                    await telegram.send("reinvested " + amountToUse.toFixed(4) + " (" + amountFromBalance.toFixed(4) + " tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation) DFI")
-                    console.log("done ")
-                    await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
-                    return true
-                }
+                } 
             } else {
-                let mainTokenId = 15 //default DUSD
+                let mainTokenId = this.dusdTokenId //default DUSD
                 vault.collateralAmounts.forEach(coll => {
                     if (coll.symbol == this.mainCollateralAsset) {
                         mainTokenId = +coll.id
                     }
                 })
+                reinvestToken= this.mainCollateralAsset
                 console.log("swaping " + amountToUse + " (" + amountFromBalance + "+" + fromUtxos + "-" + donatedAmount + ") DFI to " + this.mainCollateralAsset)
                 const swap = await this.swap(amountToUse, 0, mainTokenId, new BigNumber(999999999), prevout)
                 await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
@@ -1128,20 +1131,20 @@ export class VaultMaxiProgram extends CommonProgram {
                         await telegram.send("ERROR: depositing reinvestment failed")
                         console.error("depositing failed")
                         return false
-                    } else {
-                        await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + this.mainCollateralAsset
-                            + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
-                        console.log("done ")
-                        await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
-                        if(this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
-                            await telegram.send("you activated auto donation, but the reinvested amount was too big to be a reinvest. "+
-                                                "We assume that this was a transfer of funds, so we skipped auto-donation. " + 
-                                                "Feel free to manually donate anyway.")
-                        }
-                        return true
                     }
                 }
             }
+            await telegram.send("reinvested " + amountToUse.toFixed(4) + "@" + reinvestToken
+                + " (" + amountFromBalance.toFixed(4) + " DFI tokens, " + fromUtxos.toFixed(4) + " UTXOs, minus " + donatedAmount.toFixed(4) + " donation)")
+            console.log("done ")
+            await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
+            if(this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
+                console.log("sending manual donation suggestion")
+                await telegram.send("you activated auto donation, but the reinvested amount was too big to be a reinvest. "+
+                                    "We assume that this was a transfer of funds, so we skipped auto-donation. " + 
+                                    "Feel free to manually donate anyway.")
+            }
+            return true
         }
 
         return false
