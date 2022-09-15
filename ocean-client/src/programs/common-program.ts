@@ -2,7 +2,7 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { AccountToAccount, CAccountToAccount, CTransaction, CTransactionSegWit, DeFiTransactionConstants, OP_CODES, OP_DEFI_TX, PoolId, Script, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CollateralToken, LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
+import { CollateralToken, LoanToken, LoanVaultActive, LoanVaultLiquidated, LoanVaultTokenAmount } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
@@ -29,6 +29,7 @@ export class CommonProgram {
     protected readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
     private script: Script | undefined
+    private collTokens: CollateralToken[] | undefined
 
     pendingTx: string | undefined
 
@@ -44,6 +45,7 @@ export class CommonProgram {
     async init(): Promise<boolean> {
         this.account = await this.walletSetup.getAccount(this.settings.address)
         this.script = fromAddress(this.settings.address, this.walletSetup.network.name)?.script //also does validation of the address
+        this.collTokens= await this.client.loan.listCollateralToken(100)
         return true
     }
 
@@ -76,8 +78,12 @@ export class CommonProgram {
         return this.client.stats.get()
     }
 
-    async getCollateralToken(id: string): Promise<CollateralToken> {
-        return this.client.loan.getCollateralToken(id)
+    getCollateralToken(id: string): CollateralToken | undefined {
+        return this.collTokens?.find(token => token.token.id == id)
+    }
+
+    getCollateralFactor(id: string): BigNumber {
+        return new BigNumber(this.collTokens?.find(token => token.token.id == id)?.factor ?? 1)
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
