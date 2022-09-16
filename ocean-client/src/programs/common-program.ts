@@ -2,7 +2,7 @@ import { BigNumber } from "@defichain/jellyfish-api-core";
 import { AccountToAccount, CAccountToAccount, CTransaction, CTransactionSegWit, DeFiTransactionConstants, OP_CODES, OP_DEFI_TX, PoolId, Script, TokenBalanceUInt32, toOPCodes, Transaction, TransactionSegWit, Vin, Vout } from "@defichain/jellyfish-transaction";
 import { WhaleApiClient } from "@defichain/whale-api-client";
 import { AddressToken } from "@defichain/whale-api-client/dist/api/address";
-import { CollateralToken, LoanToken, LoanVaultActive, LoanVaultLiquidated } from "@defichain/whale-api-client/dist/api/loan";
+import { CollateralToken, LoanToken, LoanVaultActive, LoanVaultLiquidated, LoanVaultTokenAmount } from "@defichain/whale-api-client/dist/api/loan";
 import { PoolPairData } from "@defichain/whale-api-client/dist/api/poolpairs";
 import { ActivePrice } from "@defichain/whale-api-client/dist/api/prices";
 import { TokenData } from "@defichain/whale-api-client/dist/api/tokens";
@@ -29,6 +29,7 @@ export class CommonProgram {
     protected readonly walletSetup: WalletSetup
     private account: WhaleWalletAccount | undefined
     private script: Script | undefined
+    private collTokens: CollateralToken[] | undefined
 
     pendingTx: string | undefined
 
@@ -44,6 +45,7 @@ export class CommonProgram {
     async init(): Promise<boolean> {
         this.account = await this.walletSetup.getAccount(this.settings.address)
         this.script = fromAddress(this.settings.address, this.walletSetup.network.name)?.script //also does validation of the address
+        this.collTokens= await this.client.loan.listCollateralToken(100)
         return true
     }
 
@@ -76,8 +78,12 @@ export class CommonProgram {
         return this.client.stats.get()
     }
 
-    async getCollateralToken(id: string): Promise<CollateralToken> {
-        return this.client.loan.getCollateralToken(id)
+    getCollateralToken(id: string): CollateralToken | undefined {
+        return this.collTokens?.find(token => token.token.id == id)
+    }
+
+    getCollateralFactor(id: string): BigNumber {
+        return new BigNumber(this.collTokens?.find(token => token.token.id == id)?.factor ?? 1)
     }
 
     async getUTXOBalance(): Promise<BigNumber> {
@@ -347,6 +353,24 @@ export class CommonProgram {
                     tokenId: item.vout.tokenId ?? 0x00
                 }
             })
+            if(total.lt(minFee)) {
+                //take more unspent
+                total= new BigNumber(0)
+                const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 1000)
+                prevouts = unspent.map((item): Prevout => {
+                    total = total.plus(item.vout.value)
+                    return {
+                        txid: item.vout.txid,
+                        vout: item.vout.n,
+                        value: new BigNumber(item.vout.value),
+                        script: {
+                            // TODO(fuxingloh): needs to refactor once jellyfish refactor this.
+                            stack: toOPCodes(SmartBuffer.fromBuffer(Buffer.from(item.script.hex, 'hex')))
+                        },
+                        tokenId: item.vout.tokenId ?? 0x00
+                    }
+                })
+            }
         } else {
             prevouts = [prevout]
             total = prevout.value
@@ -383,6 +407,9 @@ export class CommonProgram {
 
         //no need to estimate, we are fine with minimum fee
         const fee = calculateFeeP2WPKH(new BigNumber(0.00001), txn)
+        if(total.lt(fee.plus(outValue))) {
+            console.error("not enough input to pay fee!")
+        }
         change.value = total.minus(outValue).minus(fee)
 
         if (this.canSign()) {
