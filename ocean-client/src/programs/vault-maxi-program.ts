@@ -689,8 +689,9 @@ export class VaultMaxiProgram extends CommonProgram {
         let loanArray
 
         let dfiDusdCollateralValue = new BigNumber(0)
+        let hasDUSDLoan= vault.loanAmounts.find(loan => loan.symbol === "DUSD") !== undefined
         vault.collateralAmounts.forEach(coll => {
-            if (coll.symbol === "DFI" || coll.symbol === "DUSD") {
+            if (coll.symbol === "DFI" || (!hasDUSDLoan && coll.symbol === "DUSD")) {
                 dfiDusdCollateralValue = dfiDusdCollateralValue.plus(this.getUsedOraclePrice(coll,true).times(coll.amount))
             }
         })
