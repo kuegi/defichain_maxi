@@ -112,7 +112,7 @@
       "Type": "String",
       "MinLength": "42",
       "MaxLength": "42",
-      "AllowedPattern" : "df1[a-zA-Z0-9]*",
+      "AllowedPattern" : "(df1|tf1)[a-zA-Z0-9]*",
       "Description": "Your defichain address to use, must be from the wallet defined by the seed parameter"
     },
     "DeFiVault": {
@@ -511,7 +511,7 @@
         },
         "Code": {
           "S3Bucket": {"Fn::Sub": "defichain-maxi-public-${AWS::Region}"},
-          "S3Key": "vault-maxi-2-2.zip"
+          "S3Key": "vault-maxi-2-3.zip"
         },
         "Runtime": "nodejs16.x",
         "Timeout": 890
