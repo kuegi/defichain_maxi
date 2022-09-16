@@ -353,6 +353,24 @@ export class CommonProgram {
                     tokenId: item.vout.tokenId ?? 0x00
                 }
             })
+            if(total.lt(minFee)) {
+                //take more unspent
+                total= new BigNumber(0)
+                const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 1000)
+                prevouts = unspent.map((item): Prevout => {
+                    total = total.plus(item.vout.value)
+                    return {
+                        txid: item.vout.txid,
+                        vout: item.vout.n,
+                        value: new BigNumber(item.vout.value),
+                        script: {
+                            // TODO(fuxingloh): needs to refactor once jellyfish refactor this.
+                            stack: toOPCodes(SmartBuffer.fromBuffer(Buffer.from(item.script.hex, 'hex')))
+                        },
+                        tokenId: item.vout.tokenId ?? 0x00
+                    }
+                })
+            }
         } else {
             prevouts = [prevout]
             total = prevout.value
@@ -389,6 +407,9 @@ export class CommonProgram {
 
         //no need to estimate, we are fine with minimum fee
         const fee = calculateFeeP2WPKH(new BigNumber(0.00001), txn)
+        if(total.lt(fee.plus(outValue))) {
+            console.error("not enough input to pay fee!")
+        }
         change.value = total.minus(outValue).minus(fee)
 
         if (this.canSign()) {
