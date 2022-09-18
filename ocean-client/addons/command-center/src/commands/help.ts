@@ -38,7 +38,7 @@ export class Help extends Command {
     return []
   }
 
-  isBasicCommand(): boolean {
+  isInfoCommand(): boolean {
     return true
   }
 

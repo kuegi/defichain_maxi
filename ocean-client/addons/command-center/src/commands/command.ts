@@ -37,11 +37,11 @@ export abstract class Command {
     this.commandData = commandData
   }
 
-  protected isUndecided(): boolean {
+  protected isBotUndecided(): boolean {
     return this.bot === undefined
   }
 
-  protected isUnavailable(): boolean {
+  protected isBotUnavailable(): boolean {
     if (!this.bot) return true
     return !this.availableFor().includes(this.bot)
   }
@@ -51,7 +51,7 @@ export abstract class Command {
   }
 
   protected parseBot(): void {
-    if (!this.isUndecided() || this.commandData.length < 2) return
+    if (!this.isBotUndecided() || this.commandData.length < 2) return
     console.log('parseBot', this.commandData)
     switch (this.commandData[1]) {
       case 'maxi':
@@ -87,7 +87,7 @@ export abstract class Command {
     return undefined
   }
 
-  protected isBasicCommand(): boolean {
+  protected isInfoCommand(): boolean {
     return false
   }
 
@@ -98,17 +98,17 @@ export abstract class Command {
     this.parseBot()
 
     // if we are executing a basic command, we don't need all of those checks
-    if (!this.isBasicCommand()) {
+    if (!this.isInfoCommand()) {
       const availableForBots = this.availableFor()
       if (availableForBots.length === 1) {
         this.bot = availableForBots[0]
       }
-      if (this.isUndecided()) {
+      if (this.isBotUndecided()) {
         return this.telegram.send(
           'Could not find selected bot. Please use `maxi`, `vault-maxi` for vault-maxi and `lm`, `reinvest`, `lm-reinvest` for lm-reinvest',
         )
       }
-      if (this.isUnavailable()) {
+      if (this.isBotUnavailable()) {
         return this.telegram.send('This command is not available for selected bot')
       }
       if (this.isBotBusy()) {
@@ -123,7 +123,8 @@ export abstract class Command {
           await this.telegram.send(message)
         }
       })
+    } else {
+      return this.telegram.send(this.validationErrorMessage())
     }
-    return this.telegram.send(this.validationErrorMessage())
   }
 }
