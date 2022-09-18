@@ -7,11 +7,7 @@
           "Label": {
             "default": "Telegram Chat"
           },
-          "Parameters": [
-            "TelegramChatId",
-            "TelegramToken",
-            "TelegramUsername"
-          ]
+          "Parameters": ["TelegramChatId", "TelegramToken", "TelegramUsername"]
         }
       ],
       "ParameterLabels": {
@@ -31,13 +27,13 @@
     "TelegramChatId": {
       "Type": "String",
       "Default": "1234567890",
-      "AllowedPattern" : "-?[0-9]+",
+      "AllowedPattern": "-?[0-9]+",
       "Description": "Telegram chat id to use for commands f.e. 1234567890"
     },
     "TelegramToken": {
       "Type": "String",
       "Default": "1112345576:AAGsample-token-telegram-abcd",
-      "AllowedPattern" : "[0-9]{10}:.*",
+      "AllowedPattern": "[0-9]{10}:.*",
       "Description": "Token of the telegram bot to use for your command center f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
     },
     "TelegramUsername": {
@@ -56,13 +52,9 @@
             {
               "Effect": "Allow",
               "Principal": {
-                "Service": [
-                  "lambda.amazonaws.com"
-                ]
+                "Service": ["lambda.amazonaws.com"]
               },
-              "Action": [
-                "sts:AssumeRole"
-              ]
+              "Action": ["sts:AssumeRole"]
             }
           ]
         },
@@ -75,46 +67,47 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents"
-                  ],
+                  "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
                   "Resource": "*"
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:Describe*",
-                    "ssm:Get*",
-                    "ssm:List*"
-                  ],
-                  "Resource": [ 
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center*"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state-reinvest"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings-reinvest/*"}
+                  "Action": ["ssm:Describe*", "ssm:Get*", "ssm:List*"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center*"
+                    },
+                    { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state" },
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/state-reinvest"
+                    },
+                    { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*" },
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings-reinvest/*"
+                    }
                   ]
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:PutParameter"
-                  ],
-                  "Resource": [ 
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center/last-executed-message-id"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/skip"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*"},
-                    {"Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings-reinvest/*"}
+                  "Action": ["ssm:PutParameter"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center/last-executed-message-id"
+                    },
+                    { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/skip" },
+                    { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*" },
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings-reinvest/*"
+                    }
                   ]
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "lambda:InvokeFunction"
-                  ],
-                  "Resource": {"Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:defichain-vault-maxi*"}
+                  "Action": ["lambda:InvokeFunction"],
+                  "Resource": [
+                    { "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:defichain-vault-maxi*" },
+                    { "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:defichain-lm-reinvest*" }
+                  ]
                 }
               ]
             }
@@ -132,10 +125,7 @@
           {
             "Id": "commandCenterTarget",
             "Arn": {
-              "Fn::GetAtt": [
-                "commandCenterLambda",
-                "Arn"
-              ]
+              "Fn::GetAtt": ["commandCenterLambda", "Arn"]
             }
           }
         ],
@@ -151,10 +141,7 @@
         "Action": "lambda:InvokeFunction",
         "Principal": "events.amazonaws.com",
         "SourceArn": {
-          "Fn::GetAtt": [
-            "commandCenterTrigger",
-            "Arn"
-          ]
+          "Fn::GetAtt": ["commandCenterTrigger", "Arn"]
         }
       }
     },
@@ -164,13 +151,10 @@
         "FunctionName": "defichain-vault-maxi-command-center",
         "Handler": "index.main",
         "Role": {
-          "Fn::GetAtt": [
-            "commandCenterRole",
-            "Arn"
-          ]
+          "Fn::GetAtt": ["commandCenterRole", "Arn"]
         },
         "Code": {
-          "S3Bucket": {"Fn::Sub": "defichain-maxi-public-${AWS::Region}"},
+          "S3Bucket": { "Fn::Sub": "defichain-maxi-public-${AWS::Region}" },
           "S3Key": "command-center-1-0-beta.zip"
         },
         "Runtime": "nodejs14.x",

@@ -22,6 +22,7 @@ export class RemoveExposure extends Command {
 
   async doExecution(): Promise<unknown> {
     let skip = new Skip(this.telegram, this.store, this.availableBots, this.commandData)
+    skip.setBot(this.bot)
     await skip.execute()
 
     console.log('executing remove exposure')
@@ -33,6 +34,7 @@ export class RemoveExposure extends Command {
       '{"overrideSettings":{"ignoreSkip": true, "maxCollateralRatio": "-1"}}',
       'removeExposure execution done',
     )
+    execute.setBot(this.bot)
     return execute.execute()
   }
 }

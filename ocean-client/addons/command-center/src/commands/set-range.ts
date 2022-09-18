@@ -54,6 +54,7 @@ export class SetRange extends Command {
   async doExecution(): Promise<unknown> {
     await this.store.updateRange(this.minCollateralRatio!, this.maxCollateralRatio!)
     let checkMaxi = new Check(this.telegram, this.store, this.availableBots, this.commandData)
+    checkMaxi.setBot(this.bot)
     return checkMaxi.execute()
   }
 

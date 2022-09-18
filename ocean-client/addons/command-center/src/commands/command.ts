@@ -32,9 +32,11 @@ export abstract class Command {
     this.telegram = telegram
     this.store = store
     this.availableBots = availableBots
-    const bots = availableBots.getBots()
-    if (bots.length === 1) this.bot = bots[0]
     this.commandData = commandData
+  }
+
+  public setBot(bot?: Bot): void {
+    this.bot = bot
   }
 
   protected isBotUndecided(): boolean {
@@ -51,24 +53,45 @@ export abstract class Command {
   }
 
   protected parseBot(): void {
-    if (!this.isBotUndecided() || this.commandData.length < 2) return
     console.log('parseBot', this.commandData)
+    let botViaCommandFound = false
     switch (this.commandData[1]) {
       case 'maxi':
       case 'vault-maxi':
         this.bot = Bot.MAXI
+        botViaCommandFound = true
         break
       case 'lm':
       case 'reinvest':
       case 'lm-reinvest':
         this.bot = Bot.REINVEST
+        botViaCommandFound = true
         break
     }
 
-    if (this.bot) {
+    if (botViaCommandFound) {
       this.commandData.splice(1, 1)
       console.log('parseBot', this.commandData)
     }
+  }
+
+  protected doGeneralBotAvailabilityChecks(): void {
+    // check which bots are available, if only one, we try to execute for that one
+    const bots = this.availableBots.getBots()
+    if (bots.length === 1) {
+      console.log('doGeneralBotAvailabilityChecks', 'available bots = ', bots[0])
+      this.bot = bots[0]
+    }
+
+    // if we aren't sure, which bot should be used, but there is only for this command
+    // we try using that bot defined in the command
+    const availableForBots = this.availableFor()
+    if (this.isBotUndecided() && availableForBots.length === 1) {
+      console.log('doGeneralBotAvailabilityChecks', 'command bots = ', availableForBots[0])
+      this.bot = availableForBots[0]
+    }
+
+    console.log('doGeneralBotAvailabilityChecks', 'bot = ', this.bot)
   }
 
   protected parseCommandData(): void {
@@ -95,14 +118,15 @@ export abstract class Command {
   abstract availableFor(): Bot[]
 
   async execute(): Promise<unknown> {
-    this.parseBot()
+    // possibility to be a chained command, therefore bot is set before execution
+    // no need and no possibility to parse bot again
+    if (!this.bot) {
+      this.doGeneralBotAvailabilityChecks()
+      this.parseBot()
+    }
 
     // if we are executing a basic command, we don't need all of those checks
     if (!this.isInfoCommand()) {
-      const availableForBots = this.availableFor()
-      if (availableForBots.length === 1) {
-        this.bot = availableForBots[0]
-      }
       if (this.isBotUndecided()) {
         return this.telegram.send(
           'Could not find selected bot. Please use `maxi`, `vault-maxi` for vault-maxi and `lm`, `reinvest`, `lm-reinvest` for lm-reinvest',
