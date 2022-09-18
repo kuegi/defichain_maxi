@@ -25,10 +25,11 @@ export class Check extends Command {
   }
 
   doExecution(): Promise<unknown> {
+    if (!this.bot) return Promise.reject()
     let lambda = new Lambda()
 
     let params = {
-      FunctionName: functionNameWithPostfix(Bot.MAXI),
+      FunctionName: functionNameWithPostfix(this.bot),
       InvocationType: 'Event',
       LogType: 'None',
       Payload: '{"checkSetup":true}',

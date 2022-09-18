@@ -45,7 +45,7 @@ export class Bots extends Command {
     return []
   }
 
-  isBasicCommand(): boolean {
+  isInfoCommand(): boolean {
     return true
   }
 
