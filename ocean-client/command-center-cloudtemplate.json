@@ -32,9 +32,9 @@
     },
     "TelegramToken": {
       "Type": "String",
-      "Default": "1112345576:AAGsample-token-telegram-abcd",
+      "Default": "1111111111:SampleTelegramBotTokenLooksLikeThis",
       "AllowedPattern": "[0-9]{10}:.*",
-      "Description": "Token of the telegram bot to use for your command center f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+      "Description": "Token of the telegram bot to use for your command center f.e. 1111111111:SampleTelegramBotTokenLooksLikeThis"
     },
     "TelegramUsername": {
       "Type": "String",
