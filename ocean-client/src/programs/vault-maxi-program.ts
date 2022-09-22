@@ -93,6 +93,16 @@ export class VaultMaxiProgram extends CommonProgram {
         return this.isSingleMint
     }
 
+    logVaultData(vault:LoanVaultActive): void {
+        console.log("working with vault "+vault.vaultId+" current Ratio "+vault.collateralRatio+" collValue: "+vault.collateralValue+" loanValue: "+vault.loanValue)
+        const collMsg= vault.collateralAmounts.map(coll => coll.symbol+": "+coll.amount+"@"+(coll.activePrice?.active?.amount ?? 1)+"->"+(coll.activePrice?.next?.amount ?? 1)+" x "+this.getCollateralFactor(coll.id))
+        .reduce((prev,cur) => prev +" | "+cur,"")
+        console.log("collaterals: "+collMsg)
+        const loanMsg= vault.loanAmounts.map(coll => coll.symbol+": "+coll.amount+"@"+(coll.activePrice?.active?.amount ?? 1)+"->"+(coll.activePrice?.next?.amount ?? 1))
+        .reduce((prev,cur) => prev +" | "+cur,"")
+        console.log("loans: "+loanMsg)        
+    }
+
 
     getUsedOraclePrice(token: LoanVaultTokenAmount | undefined, isCollateral: boolean) : BigNumber {
         if(token === undefined) {

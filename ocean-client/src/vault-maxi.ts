@@ -169,6 +169,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 return { statusCode: 200 }
             }
 
+            program.logVaultData(vault)
+
             //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
             if (settings.mainCollateralAsset === "DFI") {
                 const poolApr = (pool?.apr?.total ?? 0) * 100
