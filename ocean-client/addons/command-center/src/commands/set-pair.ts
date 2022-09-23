@@ -35,7 +35,7 @@ export class SetPair extends Command {
   validate(): boolean {
     if (this.pair === undefined) {
       console.log('validate failed')
-      console.log('pair: ' + this.pair)
+      console.log('commandData: ' + this.commandData)
       return false
     }
     return this.listOfPairs.indexOf(this.pair) > -1
