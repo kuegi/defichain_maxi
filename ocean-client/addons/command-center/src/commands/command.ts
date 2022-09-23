@@ -76,6 +76,7 @@ export abstract class Command {
   }
 
   protected doGeneralBotAvailabilityChecks(): void {
+    if (!this.isBotUndecided()) return
     // check which bots are available, if only one, we try to execute for that one
     const bots = this.availableBots.getBots()
     if (bots.length === 1) {
@@ -121,8 +122,8 @@ export abstract class Command {
     // possibility to be a chained command, therefore bot is set before execution
     // no need and no possibility to parse bot again
     if (!this.bot) {
-      this.doGeneralBotAvailabilityChecks()
       this.parseBot()
+      this.doGeneralBotAvailabilityChecks()
     }
 
     // if we are executing a basic command, we don't need all of those checks
