@@ -94,7 +94,7 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     logVaultData(vault:LoanVaultActive): void {
-        console.log("working with vault "+vault.vaultId+" current Ratio "+vault.collateralRatio+" collValue: "+vault.collateralValue+" loanValue: "+vault.loanValue)
+        console.log("working with vault "+vault.vaultId+" state: "+vault.state+" current Ratio "+vault.collateralRatio+" collValue: "+vault.collateralValue+" loanValue: "+vault.loanValue)
         const collMsg= vault.collateralAmounts.map(coll => coll.symbol+": "+coll.amount+"@"+(coll.activePrice?.active?.amount ?? 1)+"->"+(coll.activePrice?.next?.amount ?? 1)+" x "+this.getCollateralFactor(coll.id))
         .reduce((prev,cur) => prev +" | "+cur,"")
         console.log("collaterals: "+collMsg)

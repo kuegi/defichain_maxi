@@ -25,7 +25,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = "v2.3"
+export const VERSION = "v2.3.1"
 export const DONATION_ADDRESS = "df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07"
 export const DONATION_ADDRESS_TESTNET= "tZ1GuasY57oin5cej1Wp3MA1pAE4y3tmzq"
 export const DONATION_MAX_PERCENTAGE = 50
@@ -248,6 +248,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                         }
                     }
                 }
+            }
+            if (vault.state === LoanVaultState.MAY_LIQUIDATE) {
+                console.warn("chain thinks the vault might liquidate, but we had no reason to reduce exposure. There is something wrong. Will remove exposure for safety sake")
+                program.logVaultData(vault)
+                await telegram.send("The chain thinks your vault might get liquidated, but data gave us no reason to change something. There is something wrong so we remove exposure for safety sake.")
+                result = await program.removeExposure(vault, pool!, balances, telegram)
             }
 
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
