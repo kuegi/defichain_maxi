@@ -193,6 +193,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 + ", " + (program.isSingle() ? ("minting only " + program.assetA) : "minting both"))
             let exposureChanged = false
 
+            if (!program.consistencyChecks(vault)) {
+                console.warn("consistency checks failed. will remove exposure")
+                await telegram.send("Consistency checks in ocean data failed. Something is wrong, so will remove exposure to be safe.")
+                settings.maxCollateralRatio = -1
+            }
+
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
             // no reinvest (or reinvest done and still time left) -> check for increase exposure

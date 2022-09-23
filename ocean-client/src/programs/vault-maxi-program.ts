@@ -93,19 +93,43 @@ export class VaultMaxiProgram extends CommonProgram {
         return this.isSingleMint
     }
 
-    logVaultData(vault:LoanVaultActive): void {
-        console.log("working with vault "+vault.vaultId+" state: "+vault.state+" current Ratio "+vault.collateralRatio+" collValue: "+vault.collateralValue+" loanValue: "+vault.loanValue)
-        const collMsg= vault.collateralAmounts.map(coll => coll.symbol+": "+coll.amount+"@"+(coll.activePrice?.active?.amount ?? 1)+"->"+(coll.activePrice?.next?.amount ?? 1)+" x "+this.getCollateralFactor(coll.id))
-        .reduce((prev,cur) => prev +" | "+cur,"")
-        console.log("collaterals: "+collMsg)
-        const loanMsg= vault.loanAmounts.map(coll => coll.symbol+": "+coll.amount+"@"+(coll.activePrice?.active?.amount ?? 1)+"->"+(coll.activePrice?.next?.amount ?? 1))
-        .reduce((prev,cur) => prev +" | "+cur,"")
-        console.log("loans: "+loanMsg)        
+    logVaultData(vault: LoanVaultActive): void {
+        console.log("working with vault " + vault.vaultId + " state: " + vault.state + " current Ratio " + vault.collateralRatio + "(" + vault.informativeRatio + ") collValue: " + vault.collateralValue + " loanValue: " + vault.loanValue)
+        const collMsg = vault.collateralAmounts.map(coll => coll.symbol + ": " + coll.amount + "@" + (coll.activePrice?.active?.amount ?? 1) + "->" + (coll.activePrice?.next?.amount ?? 1) + " x " + this.getCollateralFactor(coll.id))
+            .reduce((prev, cur) => prev + " | " + cur, "")
+        console.log("collaterals: " + collMsg)
+        const loanMsg = vault.loanAmounts.map(coll => coll.symbol + ": " + coll.amount + "@" + (coll.activePrice?.active?.amount ?? 1) + "->" + (coll.activePrice?.next?.amount ?? 1))
+            .reduce((prev, cur) => prev + " | " + cur, "")
+        console.log("loans: " + loanMsg)
     }
 
+    consistencyChecks(vault: LoanVaultActive) {
+        console.log("doing consistency checks")
+        //check calculated active collateral ratio vs. ratio from ocean (to make sure oracle prices match)
+        const collValue = vault.collateralAmounts
+            .map(coll => this.getCollateralFactor(coll.id).times(coll.amount).times(coll.activePrice?.active?.amount ?? 1))
+            .reduce((prev, cur) => prev.plus(cur), new BigNumber(0))
+        const loanValue = vault.loanAmounts
+            .map(coll => new BigNumber(coll.amount).times(coll.activePrice?.active?.amount ?? 1))
+            .reduce((prev, cur) => prev.plus(cur), new BigNumber(0))
+        console.log("calculated values: collValue: " + collValue.toFixed(8) + " loanValue: " + loanValue.toFixed(8) + " ratio: " + collValue.div(loanValue).times(100).toFixed(8))
+        if (loanValue.minus(vault.loanValue).absoluteValue().gt(1)) {
+            console.warn("inconsistency in loanValue: " + loanValue.toFixed(8) + " vs " + vault.loanValue)
+            return false
+        }
+        if (collValue.minus(vault.collateralValue).absoluteValue().gt(1)) {
+            console.warn("inconsistency in collateralValue: " + collValue.toFixed(8) + " vs " + vault.collateralValue)
+            return false
+        }
+        if (collValue.div(loanValue).times(100).minus(vault.informativeRatio).absoluteValue().gt(1)) {
+            console.warn("inconsistency in collRatio: " + collValue.div(loanValue).times(100).toFixed(8) + " vs " + vault.informativeRatio)
+            return false
+        }
+        return true
+    }
 
-    getUsedOraclePrice(token: LoanVaultTokenAmount | undefined, isCollateral: boolean) : BigNumber {
-        if(token === undefined) {
+    getUsedOraclePrice(token: LoanVaultTokenAmount | undefined, isCollateral: boolean): BigNumber {
+        if (token === undefined) {
             return new BigNumber(0)
         }
         if(token.symbol === "DUSD") {
