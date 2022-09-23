@@ -1,38 +1,52 @@
-import { isNumber } from "../utils/helpers";
-import { CheckMaxi } from "./check-maxi";
-import { Commands } from "./command";
-import { StoreParameterCommand } from "./store-parameter-command";
+import { Bot } from '../utils/available-bot'
+import { isNumber, multiBotDescriptionFor } from '../utils/helpers'
+import { Command, CommandInfo, Commands } from './command'
 
-export class SetReinvest extends StoreParameterCommand {
+export class SetReinvest extends Command {
+  private reinvest: string | undefined
 
-    private reinvest: string|undefined
+  static maxi: CommandInfo = {
+    description: 'sets given value as reinvest for your vault-maxi',
+    usage: Commands.SetReinvest + ' maxi 5',
+  }
 
-    private static usageMessage: string = "/setReinvest 5\nwill result in\nreinvest = 5"
+  static reinvest: CommandInfo = {
+    description: 'sets given value as reinvest for your lm-reinvest',
+    usage: Commands.SetReinvest + ' reinvest 5',
+  }
 
-    static description = "sets given value as reinvest. After changing reinvest it will automatically execute " + Commands.CheckMaxi + " to check if configuration is still valid.\nexample: " + SetReinvest.usageMessage
+  static defaultUsage: CommandInfo = {
+    description: 'sets given value as reinvest',
+    usage: Commands.SetReinvest + ' 5',
+  }
 
-    parseCommandData(): void {
-        if (this.commandData.length === 2) {
-            this.reinvest = this.commandData[1]
-        }
+  static descriptionFor(bots: Bot[]): string | undefined {
+    return multiBotDescriptionFor(bots, SetReinvest.maxi, SetReinvest.reinvest, SetReinvest.defaultUsage)
+  }
+
+  availableFor(): Bot[] {
+    return [Bot.MAXI, Bot.REINVEST]
+  }
+
+  parseCommandData(): void {
+    if (this.commandData.length === 2) {
+      this.reinvest = this.commandData[1]
     }
+  }
 
-    validationErrorMessage(): string {
-        return "Input parameter failed validation. Please use following\n" + SetReinvest.usageMessage
-    }
+  validationErrorMessage(): string {
+    return 'Input parameter failed validation. Please check how to use this command with ' + Commands.Help
+  }
 
-    validate(): boolean {
-        return isNumber(this.reinvest)
-    }
+  validate(): boolean {
+    return isNumber(this.reinvest)
+  }
 
-    successMessage(): string | undefined {
-        return "Your vault-maxis' reinvest is set to " + this.reinvest
-    }
+  successMessage(): string | undefined {
+    return 'Your ' + this.bot + "s' reinvest is set to " + this.reinvest
+  }
 
-    async doExecution(): Promise<unknown> {
-        await this.store.updateReinvest(this.reinvest!)
-        let checkMaxi = new CheckMaxi(this.telegram)
-        return checkMaxi.execute()
-    }
-
+  async doExecution(): Promise<unknown> {
+    return this.store.updateReinvest(this.reinvest!, this.bot)
+  }
 }

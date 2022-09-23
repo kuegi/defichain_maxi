@@ -7,10 +7,7 @@
           "Label": {
             "default": "Defichain Wallet information (Don't forget to add your seed parameter as SecureString seperatly)"
           },
-          "Parameters": [
-            "DeFiAddress",
-            "DeFiVault"
-          ]
+          "Parameters": ["DeFiAddress", "DeFiVault"]
         },
         {
           "Label": {
@@ -41,10 +38,7 @@
           "Label": {
             "default": "Monitoring User (Optional but recommended for security)"
           },
-          "Parameters": [
-            "MonitoringUsername",
-            "MonitoringPassword"
-          ]
+          "Parameters": ["MonitoringUsername", "MonitoringPassword"]
         }
       ],
       "ParameterLabels": {
@@ -112,14 +106,14 @@
       "Type": "String",
       "MinLength": "42",
       "MaxLength": "42",
-      "AllowedPattern" : "(df1|tf1)[a-zA-Z0-9]*",
+      "AllowedPattern": "(df1|tf1)[a-zA-Z0-9]*",
       "Description": "Your defichain address to use, must be from the wallet defined by the seed parameter"
     },
     "DeFiVault": {
       "Type": "String",
       "MinLength": "64",
       "MaxLength": "64",
-      "AllowedPattern" : "[a-f0-9]*",
+      "AllowedPattern": "[a-f0-9]*",
       "Description": "The id of your vault on defichain. given dfi address must be owner of the vault"
     },
     "MinCollateralRatio": {
@@ -137,14 +131,14 @@
       "Type": "String",
       "Default": "QQQ-DUSD",
       "MinLength": "6",
-      "AllowedPattern" : "[A-Z.]+-DUSD|DUSD-DFI",
+      "AllowedPattern": "[A-Z.]+-DUSD|DUSD-DFI",
       "Description": "The pair to be used for Liquidity Mining f.e. QQQ-DUSD"
     },
     "MainCollateralAsset": {
       "Type": "String",
       "Default": "DFI",
       "MinLength": "3",
-      "AllowedPattern" : "DFI|DUSD",
+      "AllowedPattern": "DFI|DUSD",
       "Description": "Your main collateral asset. Can be DUSD or DFI"
     },
     "StablecoinArbitrageBatch": {
@@ -165,26 +159,26 @@
     "TelegramNotificationChatId": {
       "Type": "String",
       "Default": "",
-      "AllowedPattern" : "(-?[0-9]+)?",
+      "AllowedPattern": "(-?[0-9]+)?",
       "Description": "telegram chatId to use for notifications (optional) f.e. 1234567890"
     },
     "TelegramNotificationToken": {
       "Type": "String",
       "Default": "",
-      "AllowedPattern" : "([0-9]{10}:.*)?",
-      "Description": "Token of the telegram bot to use for notifications (optional) f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+      "AllowedPattern": "([0-9]{10}:.*)?",
+      "Description": "Token of the telegram bot to use for notifications (optional) f.e. 1111111111:SampleTelegramBotTokenLooksLikeThis"
     },
     "TelegramLogsChatId": {
       "Type": "String",
       "Default": "",
-      "AllowedPattern" : "(-?[0-9]+)?",
+      "AllowedPattern": "(-?[0-9]+)?",
       "Description": "telegram chatId to use for logs (optional) f.e. -1001234567890"
     },
     "TelegramLogsToken": {
       "Type": "String",
       "Default": "",
-      "AllowedPattern" : "([0-9]{10}:.*)?",
-      "Description": "Token of the telegram bot to use for logs (optional) f.e. 1112345576:AAGsample-token-telegram-aqQ6l1b1SM"
+      "AllowedPattern": "([0-9]{10}:.*)?",
+      "Description": "Token of the telegram bot to use for logs (optional) f.e. 1111111111:SampleTelegramBotTokenLooksLikeThis"
     }
   },
   "Rules": {
@@ -324,18 +318,12 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:Describe*"
-                  ],
+                  "Action": ["ssm:Describe*"],
                   "Resource": "*"
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:Get*",
-                    "ssm:List*",
-                    "ssm:PutParameter*"
-                  ],
+                  "Action": ["ssm:Get*", "ssm:List*", "ssm:PutParameter*"],
                   "Resource": [
                     {
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/settings/*"
@@ -344,10 +332,7 @@
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:Get*",
-                    "ssm:List*"
-                  ],
+                  "Action": ["ssm:Get*", "ssm:List*"],
                   "Resource": [
                     {
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/state"
@@ -380,16 +365,9 @@
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "events:ListTargetsByRule",
-                    "events:EnableRule",
-                    "events:DisableRule"
-                  ],
+                  "Action": ["events:ListTargetsByRule", "events:EnableRule", "events:DisableRule"],
                   "Resource": {
-                    "Fn::GetAtt": [
-                      "vaultMaxiTrigger",
-                      "Arn"
-                    ]
+                    "Fn::GetAtt": ["vaultMaxiTrigger", "Arn"]
                   }
                 }
               ]
@@ -407,13 +385,9 @@
             {
               "Effect": "Allow",
               "Principal": {
-                "Service": [
-                  "lambda.amazonaws.com"
-                ]
+                "Service": ["lambda.amazonaws.com"]
               },
-              "Action": [
-                "sts:AssumeRole"
-              ]
+              "Action": ["sts:AssumeRole"]
             }
           ]
         },
@@ -426,32 +400,24 @@
               "Statement": [
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents"
-                  ],
+                  "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
                   "Resource": "*"
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:Describe*",
-                    "ssm:Get*",
-                    "ssm:List*"
-                  ],
+                  "Action": ["ssm:Describe*", "ssm:Get*", "ssm:List*"],
                   "Resource": {
                     "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/*"
                   }
                 },
                 {
                   "Effect": "Allow",
-                  "Action": [
-                    "ssm:PutParameter"
-                  ],
-                  "Resource": [{
+                  "Action": ["ssm:PutParameter"],
+                  "Resource": [
+                    {
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/state"
-                    },{
+                    },
+                    {
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi/skip"
                     }
                   ]
@@ -472,10 +438,7 @@
           {
             "Id": "vaultMaxiTarget",
             "Arn": {
-              "Fn::GetAtt": [
-                "vaultMaxiLambda",
-                "Arn"
-              ]
+              "Fn::GetAtt": ["vaultMaxiLambda", "Arn"]
             }
           }
         ],
@@ -491,10 +454,7 @@
         "Action": "lambda:InvokeFunction",
         "Principal": "events.amazonaws.com",
         "SourceArn": {
-          "Fn::GetAtt": [
-            "vaultMaxiTrigger",
-            "Arn"
-          ]
+          "Fn::GetAtt": ["vaultMaxiTrigger", "Arn"]
         }
       }
     },
@@ -504,13 +464,10 @@
         "FunctionName": "defichain-vault-maxi",
         "Handler": "index.main",
         "Role": {
-          "Fn::GetAtt": [
-            "vaultMaxiRole",
-            "Arn"
-          ]
+          "Fn::GetAtt": ["vaultMaxiRole", "Arn"]
         },
         "Code": {
-          "S3Bucket": {"Fn::Sub": "defichain-maxi-public-${AWS::Region}"},
+          "S3Bucket": { "Fn::Sub": "defichain-maxi-public-${AWS::Region}" },
           "S3Key": "vault-maxi-2-3-1.zip"
         },
         "Runtime": "nodejs16.x",

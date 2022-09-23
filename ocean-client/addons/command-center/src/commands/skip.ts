@@ -1,15 +1,24 @@
-import { StoreCommand } from "./store-command";
+import { Bot } from '../utils/available-bot'
+import { Command } from './command'
 
-export class Skip extends StoreCommand {
-    
-    static description = "skips one execution of your vault-maxi"
+export class Skip extends Command {
+  static description = 'skips one execution of your vault-maxi'
 
-    successMessage(): string {
-        return "Your vault-maxi will skip next execution"
-    }
+  static descriptionFor(bots: Bot[]): string | undefined {
+    if (!bots.includes(Bot.MAXI)) return undefined
+    return Skip.description
+  }
 
-    doExecution(): Promise<unknown> {
-        console.log("executing skip")
-        return this.store.updateSkip()
-    }
+  availableFor(): Bot[] {
+    return [Bot.MAXI]
+  }
+
+  successMessage(): string {
+    return 'Your vault-maxi will skip next execution'
+  }
+
+  doExecution(): Promise<unknown> {
+    console.log('executing skip')
+    return this.store.updateSkip()
+  }
 }
