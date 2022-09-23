@@ -155,7 +155,7 @@
         },
         "Code": {
           "S3Bucket": { "Fn::Sub": "defichain-maxi-public-${AWS::Region}" },
-          "S3Key": "command-center-1-0-beta.zip"
+          "S3Key": "command-center-1-0-rc.zip"
         },
         "Runtime": "nodejs14.x",
         "Timeout": 900
