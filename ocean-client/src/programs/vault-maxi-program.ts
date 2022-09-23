@@ -103,7 +103,7 @@ export class VaultMaxiProgram extends CommonProgram {
         console.log("loans: " + loanMsg)
     }
 
-    consistencyChecks(vault: LoanVaultActive) {
+    consistencyChecks(vault: LoanVaultActive): boolean {
         console.log("doing consistency checks")
         //check calculated active collateral ratio vs. ratio from ocean (to make sure oracle prices match)
         const collValue = vault.collateralAmounts
