@@ -141,14 +141,22 @@ export abstract class Command {
         return this.telegram.send('Your bot (' + this.bot + ') is busy. Try again later')
       }
     }
+    console.log('parsing command data', this.commandData)
     this.parseCommandData()
     if (this.validate()) {
-      return this.doExecution().then(async () => {
-        let message = this.successMessage()
-        if (message !== undefined) {
-          await this.telegram.send(message)
-        }
-      })
+      console.log('command is valid, executing now')
+      return this.doExecution()
+        .then(async () => {
+          let message = this.successMessage()
+          if (message !== undefined) {
+            await this.telegram.send(message)
+          }
+        })
+        .catch(async (e) => {
+          console.log('execution failed')
+          console.log(e)
+          await this.telegram.send('Something went wrong while executing command, please check logs')
+        })
     } else {
       return this.telegram.send(this.validationErrorMessage())
     }

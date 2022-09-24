@@ -42,7 +42,7 @@ export class VersionCheck {
     const realVersion = VersionCheck.split(version)
     const result =
       this.doCheck(realVersion.major, minVersion.major) && this.doCheck(realVersion.minor, minVersion.minor)
-    console.log('  result', result)
+    console.log('  compatible?', result)
 
     return result
   }
