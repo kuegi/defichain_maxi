@@ -43,7 +43,7 @@ export class SetAutoDonation extends Command {
 
   validate(): boolean {
     if (!this.percentage) return false
-    return isNumber(this.percentage) && +this.percentage > 0 && +this.percentage <= 50
+    return isNumber(this.percentage) && +this.percentage >= -1 && +this.percentage <= 50
   }
 
   successMessage(): string | undefined {
