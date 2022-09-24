@@ -52,7 +52,6 @@ export class StoreAWSTestnetBot implements IStore {
         
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
-        console.log("read settings: "+JSON.stringify(this.settings))
         return this.settings
     }
 
