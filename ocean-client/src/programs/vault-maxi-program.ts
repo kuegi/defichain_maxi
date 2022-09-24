@@ -113,11 +113,11 @@ export class VaultMaxiProgram extends CommonProgram {
             .map(coll => new BigNumber(coll.amount).times(coll.activePrice?.active?.amount ?? 1))
             .reduce((prev, cur) => prev.plus(cur), new BigNumber(0))
         console.log("calculated values: collValue: " + collValue.toFixed(8) + " loanValue: " + loanValue.toFixed(8) + " ratio: " + collValue.div(loanValue).times(100).toFixed(8))
-        if (loanValue.minus(vault.loanValue).absoluteValue().gt(1)) {
+        if (loanValue.minus(vault.loanValue).absoluteValue().div(loanValue).gt(0.01)) { // more than 1% difference -> problem
             console.warn("inconsistency in loanValue: " + loanValue.toFixed(8) + " vs " + vault.loanValue)
             return false
         }
-        if (collValue.minus(vault.collateralValue).absoluteValue().gt(1)) {
+        if (collValue.minus(vault.collateralValue).absoluteValue().div(collValue).gt(0.01)) {// more than 1% difference -> problem
             console.warn("inconsistency in collateralValue: " + collValue.toFixed(8) + " vs " + vault.collateralValue)
             return false
         }
