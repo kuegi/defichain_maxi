@@ -1182,7 +1182,16 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (safetyMode) {
                     token.amount = "" + (+token.amount) / 2 //last cleanup failed -> try with half the amount
                 }
-                if (new BigNumber(token.amount).times(loan.activePrice?.active?.amount ?? 1).gte(0.1)) { //do not use balances below 10 cent value -> would just waste fees
+                let enoughValue= true
+                const estimatedValue= new BigNumber(token.amount).times(loan.activePrice?.active?.amount ?? 1)
+                if(token.symbol != "DUSD" && loan.activePrice?.active === undefined ) {
+                    enoughValue= true //no oracle? better pay back cause can't say if its worth anything
+                } else {
+                    //do not use balances below 10 cent value -> would just waste fees
+                    enoughValue= estimatedValue.gte(0.1)
+                }
+                console.log("cleanup "+token.symbol+" estimated "+estimatedValue.toFixed(2)+" USD, will clean: "+enoughValue)
+                if (enoughValue) { 
                     wantedTokens.push(token)
                 }
             }
@@ -1190,8 +1199,11 @@ export class VaultMaxiProgram extends CommonProgram {
         let collTokens: AddressToken[] = []
         if (this.isSingleMint && !mainAssetAsLoan) { //if there is a loan of the main asset, first pay back the loan
             let token = balances.get(this.mainCollateralAsset)
-            if (token && +token.amount > 0.1) { //main collateralAsset is DFI or DUSD. don't cleanup less than 10cent or 0.1 DFI
-                collTokens.push(token)
+            if (token) {
+                console.log("cleanup to collateral "+token.amount+"@"+token.symbol)            
+                if(+token.amount > 0.1) { //main collateralAsset is DFI or DUSD. don't cleanup less than 10cent or 0.1 DFI
+                    collTokens.push(token)
+                }
             }
         }
         if (wantedTokens.length == 0 && collTokens.length == 0) {
