@@ -94,6 +94,7 @@ export class Telegram {
   }
 
   async internalSend(message: string, chatId: string, token: string): Promise<unknown> {
+    console.log(message)
     let endpointUrl = this.endpoint
       .replace('%token', token)
       .replace('%chatId', chatId)

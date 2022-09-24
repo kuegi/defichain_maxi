@@ -87,6 +87,7 @@ function isFirstRun(settings: StoredSettings): boolean {
 }
 
 export async function main(): Promise<Object> {
+  console.log(`running ${VERSION}`)
   const store = new Store()
   const settings = await store.fetchSettings()
 
