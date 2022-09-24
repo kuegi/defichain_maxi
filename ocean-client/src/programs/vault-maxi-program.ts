@@ -1182,7 +1182,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (safetyMode) {
                     token.amount = "" + (+token.amount) / 2 //last cleanup failed -> try with half the amount
                 }
-                if(+token.amount > 0) {
+                if (new BigNumber(token.amount).times(loan.activePrice?.active?.amount ?? 1).gte(0.1)) { //do not use balances below 10 cent value -> would just waste fees
                     wantedTokens.push(token)
                 }
             }
@@ -1190,7 +1190,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let collTokens: AddressToken[] = []
         if (this.isSingleMint && !mainAssetAsLoan) { //if there is a loan of the main asset, first pay back the loan
             let token = balances.get(this.mainCollateralAsset)
-            if (token) {
+            if (token && +token.amount > 0.1) { //main collateralAsset is DFI or DUSD. don't cleanup less than 10cent or 0.1 DFI
                 collTokens.push(token)
             }
         }
