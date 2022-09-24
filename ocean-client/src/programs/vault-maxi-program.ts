@@ -55,6 +55,9 @@ export class VaultMaxiProgram extends CommonProgram {
     private isSingleMint: boolean
     private readonly keepWalletClean: boolean
     private readonly swapRewardsToMainColl: boolean
+    private readonly minValueForCleanup : number = 0.1
+    private readonly maxPercentDiffInConsistencyChecks : number = 1
+
     private negInterestWorkaround: boolean = false
     public readonly dusdTokenId : number
 
@@ -113,15 +116,15 @@ export class VaultMaxiProgram extends CommonProgram {
             .map(coll => new BigNumber(coll.amount).times(coll.activePrice?.active?.amount ?? 1))
             .reduce((prev, cur) => prev.plus(cur), new BigNumber(0))
         console.log("calculated values: collValue: " + collValue.toFixed(8) + " loanValue: " + loanValue.toFixed(8) + " ratio: " + collValue.div(loanValue).times(100).toFixed(8))
-        if (loanValue.minus(vault.loanValue).absoluteValue().gt(1)) {
+        if (loanValue.minus(vault.loanValue).absoluteValue().div(loanValue).gt(this.maxPercentDiffInConsistencyChecks/100)) { // more than 1% difference -> problem
             console.warn("inconsistency in loanValue: " + loanValue.toFixed(8) + " vs " + vault.loanValue)
             return false
         }
-        if (collValue.minus(vault.collateralValue).absoluteValue().gt(1)) {
+        if (collValue.minus(vault.collateralValue).absoluteValue().div(collValue).gt(this.maxPercentDiffInConsistencyChecks/100)) {// more than 1% difference -> problem
             console.warn("inconsistency in collateralValue: " + collValue.toFixed(8) + " vs " + vault.collateralValue)
             return false
         }
-        if (collValue.div(loanValue).times(100).minus(vault.informativeRatio).absoluteValue().gt(1)) {
+        if (collValue.div(loanValue).times(100).minus(vault.informativeRatio).absoluteValue().gt(this.maxPercentDiffInConsistencyChecks)) {
             console.warn("inconsistency in collRatio: " + collValue.div(loanValue).times(100).toFixed(8) + " vs " + vault.informativeRatio)
             return false
         }
@@ -1182,7 +1185,16 @@ export class VaultMaxiProgram extends CommonProgram {
                 if (safetyMode) {
                     token.amount = "" + (+token.amount) / 2 //last cleanup failed -> try with half the amount
                 }
-                if(+token.amount > 0) {
+                let enoughValue= true
+                const estimatedValue= new BigNumber(token.amount).times(loan.activePrice?.active?.amount ?? 1)
+                if(token.symbol != "DUSD" && loan.activePrice?.active === undefined ) {
+                    enoughValue= true //no oracle? better pay back cause can't say if its worth anything
+                } else {
+                    //do not use balances below 10 cent value -> would just waste fees
+                    enoughValue= estimatedValue.gte(this.minValueForCleanup)
+                }
+                console.log("cleanup "+token.symbol+" estimated "+estimatedValue.toFixed(2)+" USD, will clean: "+enoughValue)
+                if (enoughValue) { 
                     wantedTokens.push(token)
                 }
             }
@@ -1191,7 +1203,10 @@ export class VaultMaxiProgram extends CommonProgram {
         if (this.isSingleMint && !mainAssetAsLoan) { //if there is a loan of the main asset, first pay back the loan
             let token = balances.get(this.mainCollateralAsset)
             if (token) {
-                collTokens.push(token)
+                console.log("cleanup to collateral "+token.amount+"@"+token.symbol)            
+                if(+token.amount > this.minValueForCleanup) { //main collateralAsset is DFI or DUSD. don't cleanup less than 10cent or 0.1 DFI
+                    collTokens.push(token)
+                }
             }
         }
         if (wantedTokens.length == 0 && collTokens.length == 0) {
