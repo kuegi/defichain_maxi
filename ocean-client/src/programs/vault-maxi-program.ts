@@ -115,18 +115,32 @@ export class VaultMaxiProgram extends CommonProgram {
         const loanValue = vault.loanAmounts
             .map(coll => new BigNumber(coll.amount).times(coll.activePrice?.active?.amount ?? 1))
             .reduce((prev, cur) => prev.plus(cur), new BigNumber(0))
-        console.log("calculated values: collValue: " + collValue.toFixed(8) + " loanValue: " + loanValue.toFixed(8) + " ratio: " + collValue.div(loanValue).times(100).toFixed(8))
-        if (loanValue.minus(vault.loanValue).absoluteValue().div(loanValue).gt(this.maxPercentDiffInConsistencyChecks/100)) { // more than 1% difference -> problem
-            console.warn("inconsistency in loanValue: " + loanValue.toFixed(8) + " vs " + vault.loanValue)
-            return false
+        const ratio = loanValue.gt(0) ? collValue.div(loanValue).times(100) : new BigNumber(-1)
+        console.log(
+          'calculated values: collValue: ' +
+            collValue.toFixed(8) +
+            ' loanValue: ' +
+            loanValue.toFixed(8) +
+            ' ratio: ' +
+            ratio.toFixed(8),
+        )
+        const percThreshold = this.maxPercentDiffInConsistencyChecks / 100
+        if (loanValue.minus(vault.loanValue).absoluteValue().div(loanValue).gt(percThreshold)) {
+          // more than 1% difference -> problem
+          console.warn('inconsistency in loanValue: ' + loanValue.toFixed(8) + ' vs ' + vault.loanValue)
+          return false
         }
-        if (collValue.minus(vault.collateralValue).absoluteValue().div(collValue).gt(this.maxPercentDiffInConsistencyChecks/100)) {// more than 1% difference -> problem
-            console.warn("inconsistency in collateralValue: " + collValue.toFixed(8) + " vs " + vault.collateralValue)
-            return false
+        if (collValue.minus(vault.collateralValue).absoluteValue().div(collValue).gt(percThreshold)) {
+          // more than 1% difference -> problem
+          console.warn('inconsistency in collateralValue: ' + collValue.toFixed(8) + ' vs ' + vault.collateralValue)
+          return false
         }
-        if (collValue.div(loanValue).times(100).minus(vault.informativeRatio).absoluteValue().gt(this.maxPercentDiffInConsistencyChecks)) {
-            console.warn("inconsistency in collRatio: " + collValue.div(loanValue).times(100).toFixed(8) + " vs " + vault.informativeRatio)
-            return false
+        if (
+          loanValue.gt(collValue.div(100)) && //super low loan (empty or ratio > 10000%) could lead to floating point errors or div by zero -> no need to check consistency anyway
+          ratio.minus(vault.informativeRatio).absoluteValue().gt(this.maxPercentDiffInConsistencyChecks)
+        ) {
+          console.warn('inconsistency in collRatio: ' + ratio.toFixed(8) + ' vs ' + vault.informativeRatio)
+          return false
         }
         return true
     }
