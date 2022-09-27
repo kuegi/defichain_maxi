@@ -34,13 +34,17 @@ export class StoreAWS implements IStore {
     }
 
     async clearSkip(): Promise<void> {
-        const key = StoreKey.Skip.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const key = realParamKey(StoreKey.Skip.replace("-maxi", "-maxi" + this.settings.paramPostFix)
         await this.ssm.putParameter({
             Name: key,
             Value: "false",
             Overwrite: true,
             Type: 'String'
         }).promise()
+    }
+
+    realParamKey(param : string): string {
+        return param.replace("-maxi", "-maxi" + this.settings.paramPostFix)
     }
 
     async fetchSettings(): Promise<StoredSettings> {
@@ -51,18 +55,20 @@ export class StoreAWS implements IStore {
         this.settings.paramPostFix = storePostfix
         let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
 
-        let DeFiAddressKey = StoreKey.DeFiAddress.replace("-maxi", "-maxi" + storePostfix)
-        let DeFiVaultKey = StoreKey.DeFiVault.replace("-maxi", "-maxi" + storePostfix)
-        let MinCollateralRatioKey = StoreKey.MinCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
-        let MaxCollateralRatioKey = StoreKey.MaxCollateralRatio.replace("-maxi", "-maxi" + storePostfix)
-        let ReinvestThreshold = StoreKey.ReinvestThreshold.replace("-maxi", "-maxi" + storePostfix)
-        let AutoDonationPercentOfReinvestKey = StoreKey.AutoDonationPercentOfReinvest.replace("-maxi", "-maxi" + storePostfix)
-        let LMTokenKey = StoreKey.LMToken.replace("-maxi", "-maxi" + storePostfix)
-        let LMPairKey = StoreKey.LMPair.replace("-maxi", "-maxi" + storePostfix)
-        let MainCollAssetKey = StoreKey.MainCollateralAsset.replace("-maxi", "-maxi" + storePostfix)
-        let StateKey = StoreKey.State.replace("-maxi", "-maxi" + storePostfix)
-        let SkipKey = StoreKey.Skip.replace("-maxi", "-maxi" + storePostfix)
-        let StableArbBatchSizeKey = StoreKey.StableArbBatchSize.replace("-maxi", "-maxi" + storePostfix)
+        let DeFiAddressKey = this.realParamKey(StoreKey.DeFiAddress)
+        let DeFiVaultKey = this.realParamKey(StoreKey.DeFiVault)
+        let MinCollateralRatioKey = this.realParamKey(StoreKey.MinCollateralRatio)
+        let MaxCollateralRatioKey = this.realParamKey(StoreKey.MaxCollateralRatio)
+        let ReinvestThreshold = this.realParamKey(StoreKey.ReinvestThreshold)
+        let AutoDonationPercentOfReinvestKey = this.realParamKey(StoreKey.AutoDonationPercentOfReinvest)
+        let LMTokenKey = this.realParamKey(StoreKey.LMToken)
+        let LMPairKey = this.realParamKey(StoreKey.LMPair)
+        let MainCollAssetKey = this.realParamKey(StoreKey.MainCollateralAsset)
+        let StateKey = this.realParamKey(StoreKey.State)
+        let SkipKey = this.realParamKey(StoreKey.Skip)
+        let StableArbBatchSizeKey = this.realParamKey(StoreKey.StableArbBatchSize)
+
+        let HeartBeatKey = this.realParamKey(StoreKey.HeartBeatURL)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
@@ -73,6 +79,7 @@ export class StoreAWS implements IStore {
                 StoreKey.TelegramLogsToken,
                 SkipKey,
                 StableArbBatchSizeKey,
+                HeartBeatKey,
             ]
         }).promise()).Parameters ?? []
 
@@ -121,6 +128,9 @@ export class StoreAWS implements IStore {
         this.settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
         this.settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? "false") === "true"
 
+        //optionals
+        this.settings.heartBeatUrl = this.getOptionalValue(HeartBeatKey, parameters)
+
         let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, " ")
         this.settings.seed = seedList?.trim().split(' ') ?? []
         return this.settings
@@ -146,24 +156,27 @@ export class StoreAWS implements IStore {
 }
 
 enum StoreKey {
-    TelegramNotificationChatId = '/defichain-maxi/telegram/notifications/chat-id',
-    TelegramNotificationToken = '/defichain-maxi/telegram/notifications/token',
-    TelegramLogsChatId = '/defichain-maxi/telegram/logs/chat-id',
-    TelegramLogsToken = '/defichain-maxi/telegram/logs/token',
+  TelegramNotificationChatId = '/defichain-maxi/telegram/notifications/chat-id',
+  TelegramNotificationToken = '/defichain-maxi/telegram/notifications/token',
+  TelegramLogsChatId = '/defichain-maxi/telegram/logs/chat-id',
+  TelegramLogsToken = '/defichain-maxi/telegram/logs/token',
 
-    DeFiAddress = '/defichain-maxi/wallet/address',
-    DeFiVault = '/defichain-maxi/wallet/vault',
-    DeFiWalletSeed = '/defichain-maxi/wallet/seed',
+  DeFiAddress = '/defichain-maxi/wallet/address',
+  DeFiVault = '/defichain-maxi/wallet/vault',
+  DeFiWalletSeed = '/defichain-maxi/wallet/seed',
 
-    MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
-    MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
-    LMToken = '/defichain-maxi/settings/lm-token',
-    LMPair = '/defichain-maxi/settings/lm-pair',
-    MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
-    ReinvestThreshold = '/defichain-maxi/settings/reinvest',
-    StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
-    AutoDonationPercentOfReinvest = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
+  MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
+  MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
+  LMToken = '/defichain-maxi/settings/lm-token',
+  LMPair = '/defichain-maxi/settings/lm-pair',
+  MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
+  ReinvestThreshold = '/defichain-maxi/settings/reinvest',
+  StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
+  AutoDonationPercentOfReinvest = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
 
-    State = '/defichain-maxi/state',
-    Skip = '/defichain-maxi/skip',
+  //optionals
+  HeartBeatURL = '/defichain-maxi/settings/heartbeat-url',
+
+  State = '/defichain-maxi/state',
+  Skip = '/defichain-maxi/skip',
 }

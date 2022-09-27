@@ -25,7 +25,15 @@
         },
         {
           "Label": {
-            "default": "Telegram Notifications (Optional)"
+            "default": "Additional Settings (Optional)"
+          },
+          "Parameters": [
+            "HeartBeatURL"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Telegram Notifications"
           },
           "Parameters": [
             "TelegramNotificationChatId",
@@ -68,6 +76,9 @@
         },
         "AutoDonation": {
           "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
+        },
+        "HeartBeatURL": {
+          "default": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
@@ -155,6 +166,11 @@
       "Type": "Number",
       "Default": 5,
       "Description": "Percent of your rewards that will be automatically donated to the developers. Thanks."
+    },
+    "HeartBeatURL": {
+      "Type": "String",
+      "Default": "",
+      "Description": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
     },
     "TelegramNotificationChatId": {
       "Type": "String",
@@ -496,6 +512,18 @@
         "Type": "String",
         "Value": {
           "Ref": "AutoDonation"
+        }
+      }
+    },
+    "vaultMaxiParamHeartBeatURL": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "URL to call for heartbeat",
+        "Name": "/defichain-maxi/settings/heartbeat-url",
+        "Type": "String",
+        "Value": {
+          "Ref": "HeartBeatURL"
         }
       }
     },
