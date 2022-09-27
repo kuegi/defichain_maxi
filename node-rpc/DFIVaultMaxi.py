@@ -1,5 +1,7 @@
 import json
 import logging
+
+import requests
 import sys
 import os
 from time import sleep
@@ -30,6 +32,7 @@ minReinvest = None
 logToConsole = True
 logToFile = False
 logId = ""
+heartBeatUrl= None
 
 settingsLastModified = 0
 logger = None
@@ -38,10 +41,7 @@ logger = None
 def readSettings(settingsPath):
     global logger, shouldExecute, settingsLastModified, lastBlockSettingsLogged, \
         vaultId, address, minCollateralRatio, maxCollateralRatio, lmPair, minReinvest, mainCollateralAsset, \
-        logToFile, logToConsole, logId, assetA, assetB, targetCollateral, \
-        bigFeePerByte, dusdswapamount, minDFIPremium, minDFIFuturePremium, futurePremiumStep, swapLoopsPerBlock, futureAmount, \
-        dusdamount, stableentries, stableexits, maxPriceTolerance, \
-        usdcPositionsFromSettings, usdtPositionsFromSettings, neededNextPaybackPriceFromSettings, openDUSDNextPositionFromSettings
+        logToFile, logToConsole, logId, assetA, assetB, targetCollateral, heartBeatUrl
 
     lastmodified = os.stat(settingsPath).st_mtime
     if settingsLastModified == lastmodified:
@@ -75,6 +75,8 @@ def readSettings(settingsPath):
         if "logId" in settings:
             logId = settings['logId']
             utils.logId = logId
+        if "heartbeaturl" in settings:
+            heartBeatUrl = settings['heartbeaturl']
         if "telegram" in settings:
             utils.TELEGRAM_TOKEN = settings['telegram']['token']
             utils.TELEGRAM_CHANNEL = settings['telegram']['channel']
@@ -111,10 +113,7 @@ lastBlockSettingsLogged = 0
 def logSettings(scheduledLog=False):
     global shouldExecute, lastBlockSettingsLogged, \
         vaultId, address, minCollateralRatio, maxCollateralRatio, lmPair, minReinvest, mainCollateralAsset, \
-        logToFile, logToConsole, logId, assetA, assetB, targetCollateral, \
-        bigFeePerByte, dusdswapamount, minDFIPremium, minDFIFuturePremium, futurePremiumStep, swapLoopsPerBlock, futureAmount, \
-        dusdamount, stableentries, stableexits, maxPriceTolerance, \
-        usdcPositionsFromSettings, usdtPositionsFromSettings, neededNextPaybackPriceFromSettings, openDUSDNextPositionFromSettings
+        logToFile, logToConsole, logId, assetA, assetB, targetCollateral, heartBeatUrl
 
     vault = rpc("getvault", [vaultId, True])
     lastBlockSettingsLogged = rpc('getblockcount')
@@ -124,6 +123,10 @@ def logSettings(scheduledLog=False):
     reinvestMsg = " will not reinvest"
     if minReinvest is not None:
         reinvestMsg = f" will reinvest when balance goes above {minReinvest} DFI"
+    heartbeatMsg = ""
+    if heartBeatUrl is not None and len(heartBeatUrl) > 0:
+        heartbeatMsg= " sending heartbeat to "+ heartBeatUrl+ "every 120 blocks"
+
     if scheduledLog:
         msg = "still monitoring "
     else:
@@ -131,7 +134,8 @@ def logSettings(scheduledLog=False):
     msg = f"{msg} {vaultId}. with pair {assetA}-{assetB}." \
           f" Vault currently at {vault['collateralRatio']} next {vault['nextCollateralRatio']}, " \
           f"will increase LM above {maxCollateralRatio} and decrease below {minCollateralRatio}," \
-          + singleMintMsg + "," + reinvestMsg
+          + singleMintMsg + "," + reinvestMsg \
+          + heartbeatMsg
     logger.info(msg)
 
     if not logToConsole and not scheduledLog:
@@ -316,7 +320,6 @@ try:
     frozen = False
     lastErrorOnBlock = 0
 
-
     # initial log of settings
     logSettings()
     while assetB == "DUSD" or lmPair == "DUSD-DFI":
@@ -338,7 +341,8 @@ try:
         collateralRatio = min(vault['collateralRatio'], vault['nextCollateralRatio'])
         if nextPriceBlock <= lastheight:
             nextPriceBlock = rpc("getloaninfo")["nextPriceBlock"]
-
+            if heartBeatUrl is not None and len(heartBeatUrl) > 0:
+                requests.get(heartBeatUrl)
             utils.send_telegram_log(
                 f"current ratio {collateralRatio} ( {vault['collateralRatio']}/{vault['nextCollateralRatio']} ), target range: {minCollateralRatio} - {maxCollateralRatio} running on {lmPair} {('singlemint' if isSingleMint else 'minting both')}")
             logger.info(
