@@ -34,7 +34,7 @@ export class StoreAWS implements IStore {
     }
 
     async clearSkip(): Promise<void> {
-        const key = realParamKey(StoreKey.Skip.replace("-maxi", "-maxi" + this.settings.paramPostFix)
+        const key = this.postfixedKey(StoreKey.Skip)
         await this.ssm.putParameter({
             Name: key,
             Value: "false",
@@ -43,7 +43,7 @@ export class StoreAWS implements IStore {
         }).promise()
     }
 
-    realParamKey(param : string): string {
+    postfixedKey(param : string): string {
         return param.replace("-maxi", "-maxi" + this.settings.paramPostFix)
     }
 
@@ -55,20 +55,20 @@ export class StoreAWS implements IStore {
         this.settings.paramPostFix = storePostfix
         let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
 
-        let DeFiAddressKey = this.realParamKey(StoreKey.DeFiAddress)
-        let DeFiVaultKey = this.realParamKey(StoreKey.DeFiVault)
-        let MinCollateralRatioKey = this.realParamKey(StoreKey.MinCollateralRatio)
-        let MaxCollateralRatioKey = this.realParamKey(StoreKey.MaxCollateralRatio)
-        let ReinvestThreshold = this.realParamKey(StoreKey.ReinvestThreshold)
-        let AutoDonationPercentOfReinvestKey = this.realParamKey(StoreKey.AutoDonationPercentOfReinvest)
-        let LMTokenKey = this.realParamKey(StoreKey.LMToken)
-        let LMPairKey = this.realParamKey(StoreKey.LMPair)
-        let MainCollAssetKey = this.realParamKey(StoreKey.MainCollateralAsset)
-        let StateKey = this.realParamKey(StoreKey.State)
-        let SkipKey = this.realParamKey(StoreKey.Skip)
-        let StableArbBatchSizeKey = this.realParamKey(StoreKey.StableArbBatchSize)
+        let DeFiAddressKey = this.postfixedKey(StoreKey.DeFiAddress)
+        let DeFiVaultKey = this.postfixedKey(StoreKey.DeFiVault)
+        let MinCollateralRatioKey = this.postfixedKey(StoreKey.MinCollateralRatio)
+        let MaxCollateralRatioKey = this.postfixedKey(StoreKey.MaxCollateralRatio)
+        let ReinvestThreshold = this.postfixedKey(StoreKey.ReinvestThreshold)
+        let AutoDonationPercentOfReinvestKey = this.postfixedKey(StoreKey.AutoDonationPercentOfReinvest)
+        let LMTokenKey = this.postfixedKey(StoreKey.LMToken)
+        let LMPairKey = this.postfixedKey(StoreKey.LMPair)
+        let MainCollAssetKey = this.postfixedKey(StoreKey.MainCollateralAsset)
+        let StateKey = this.postfixedKey(StoreKey.State)
+        let SkipKey = this.postfixedKey(StoreKey.Skip)
+        let StableArbBatchSizeKey = this.postfixedKey(StoreKey.StableArbBatchSize)
 
-        let HeartBeatKey = this.realParamKey(StoreKey.HeartBeatURL)
+        let HeartBeatKey = this.postfixedKey(StoreKey.HeartBeatURL)
 
         //store only allows to get 10 parameters per request
         let parameters = (await this.ssm.getParameters({
