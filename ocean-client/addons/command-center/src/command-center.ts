@@ -86,7 +86,8 @@ export async function main(): Promise<Object> {
   await store.searchForBots()
   const settings = await store.fetchSettings()
 
-  const telegram = new Telegram(settings, '\\[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + ']')
+  const logId = process.env.VAULTMAXI_LOGID ? ' ' + process.env.VAULTMAXI_LOGID : ''
+  const telegram = new Telegram(settings, '\\[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + logId + ']')
 
   const availableBots = new AvailableBots(settings)
 
