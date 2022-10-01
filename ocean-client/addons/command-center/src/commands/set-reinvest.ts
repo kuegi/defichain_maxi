@@ -1,4 +1,4 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { isNumber, multiBotDescriptionFor } from '../utils/helpers'
 import { Command, CommandInfo, Commands } from './command'
 
@@ -20,12 +20,12 @@ export class SetReinvest extends Command {
     usage: Commands.SetReinvest + ' 5',
   }
 
-  static descriptionFor(bots: Bot[]): string | undefined {
+  static descriptionFor(bots: BotType[]): string | undefined {
     return multiBotDescriptionFor(bots, SetReinvest.maxi, SetReinvest.reinvest, SetReinvest.defaultUsage)
   }
 
-  availableFor(): Bot[] {
-    return [Bot.MAXI, Bot.REINVEST]
+  availableFor(): BotType[] {
+    return [BotType.MAXI, BotType.REINVEST]
   }
 
   parseCommandData(): void {

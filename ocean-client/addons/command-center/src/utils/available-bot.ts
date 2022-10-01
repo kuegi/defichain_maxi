@@ -1,69 +1,61 @@
-import { StoredSettings } from './store'
+import { StoredSettings, StoredState } from './store'
 import { VersionCheck } from './version-check'
 
-export enum Bot {
+export const VAULT_MAXI = 'defichain-vault-maxi'
+export const LM_REINVEST = 'defichain-lm-reinvest'
+
+export enum BotType {
   MAXI = 'vault-maxi',
   REINVEST = 'lm-reinvest',
 }
 
-export interface BotData {
+export interface Bot {
   name: string
+  postfix: string
+  type: BotType
   version: string
   lastBlock: number
   isIdle: boolean
 }
 
-export type BotInformation = [Bot, BotData]
+export type PossibleBot = StoredState
 
 export class AvailableBots {
-  private bots: BotInformation[]
+  private bots: Bot[]
 
   constructor(settings: StoredSettings) {
     this.bots = []
-    const vaultMaxi = AvailableBots.parseVaultMaxi(settings.state)
-    if (vaultMaxi) this.bots.push([Bot.MAXI, vaultMaxi])
-    const lmReinvest = AvailableBots.parseLMReinvest(settings.reinvest)
-    if (lmReinvest) this.bots.push([Bot.REINVEST, lmReinvest])
-  }
-
-  private static parseVaultMaxi(state?: string): BotData | undefined {
-    if (!state) return undefined
-    return this.parseBot('maxi', state)
-  }
-
-  private static parseLMReinvest(reinvest?: { state: string }): BotData | undefined {
-    if (!reinvest || !reinvest.state) return undefined
-    return this.parseBot('lm-r', reinvest.state)
-  }
-
-  private static parseBot(name: string, state: string): BotData | undefined {
-    const components = state.split('|')
-    if (components.length < 5) return undefined
-    return {
-      name: name,
-      version: VersionCheck.extractJoinedVersion(state),
-      lastBlock: +components[3],
-      isIdle: state.startsWith('idle'),
-    }
-  }
-
-  list(): BotInformation[] {
-    return this.bots
-  }
-
-  getBots(): Bot[] {
-    return this.bots.map((info) => {
-      return info[0]
+    settings.states.forEach((state) => {
+      const bot = AvailableBots.parseBot(state)
+      if (bot) this.bots.push(bot)
     })
   }
 
-  getBotDataFor(bot?: Bot): BotData | undefined {
-    return this.bots.find((element) => {
-      return element[0] === bot
-    })?.[1]
+  private static parseBot(state: StoredState): Bot | undefined {
+    const components = state.stateValue.split('|')
+    if (components.length < 5) return undefined
+    return {
+      name: state.name,
+      postfix: state.name.replace(VAULT_MAXI, '').replace(LM_REINVEST, ''),
+      type: state.bot,
+      version: VersionCheck.extractJoinedVersion(state.stateValue),
+      lastBlock: +components[3],
+      isIdle: state.stateValue.startsWith('idle'),
+    }
   }
 
-  isAvailable(bot: Bot): boolean {
-    return this.getBots().includes(bot)
+  list(): Bot[] {
+    return this.bots
+  }
+
+  isAvailable(name: string): boolean {
+    return (
+      this.list().filter((b) => b.name === name).length > 0 ||
+      this.list().filter((b) => AvailableBots.shortBotName(b) === name).length > 0
+    )
+  }
+
+  static shortBotName(bot: Bot): string {
+    return bot.name.replace(VAULT_MAXI, 'maxi').replace(LM_REINVEST, 'lm-r')
   }
 }

@@ -1,4 +1,4 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { isNumber } from '../utils/helpers'
 import { Command, Commands } from './command'
 
@@ -11,13 +11,13 @@ export class SetStableArbSize extends Command {
     'sets given number as stable arb batch size.\nYour set amount should be available in your vault as collateral and should be able to be withdrawn. Otherwise vault-maxi will reduce this size on execution automatically, no changes to your stored parameter will be performed.\n' +
     SetStableArbSize.usageMessage
 
-  static descriptionFor(bots: Bot[]): string | undefined {
-    if (!bots.includes(Bot.MAXI)) return undefined
+  static descriptionFor(bots: BotType[]): string | undefined {
+    if (!bots.includes(BotType.MAXI)) return undefined
     return SetStableArbSize.description
   }
 
-  availableFor(): Bot[] {
-    return [Bot.MAXI]
+  availableFor(): BotType[] {
+    return [BotType.MAXI]
   }
 
   parseCommandData(): void {
@@ -39,6 +39,6 @@ export class SetStableArbSize extends Command {
   }
 
   doExecution(): Promise<unknown> {
-    return this.store.updateStableArbBatchSize(this.batchSize!)
+    return this.store.updateStableArbBatchSize(this.batchSize!, this.bot)
   }
 }

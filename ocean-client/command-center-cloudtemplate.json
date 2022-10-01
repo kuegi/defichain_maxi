@@ -72,7 +72,7 @@
                 },
                 {
                   "Effect": "Allow",
-                  "Action": ["ssm:Describe*", "ssm:Get*", "ssm:List*"],
+                  "Action": ["ssm:Get*", "ssm:List*"],
                   "Resource": [
                     {
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/command-center*"
@@ -84,6 +84,16 @@
                     { "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings/*" },
                     {
                       "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/defichain-maxi*/settings-reinvest/*"
+                    }
+                  ]
+                },
+
+                {
+                  "Effect": "Allow",
+                  "Action": ["ssm:Describe*"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:*"
                     }
                   ]
                 },

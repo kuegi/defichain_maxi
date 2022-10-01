@@ -1,4 +1,4 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { fetchListOfPoolPairs } from '../utils/helpers'
 import { Command, Commands } from './command'
 
@@ -9,8 +9,8 @@ export class SetPair extends Command {
 
   static description = 'Sets given pair as new lm-reinvest pair.\n' + SetPair.usageMessage
 
-  static descriptionFor(bots: Bot[]): string | undefined {
-    if (!bots.includes(Bot.REINVEST)) return undefined
+  static descriptionFor(bots: BotType[]): string | undefined {
+    if (!bots.includes(BotType.REINVEST)) return undefined
     return SetPair.description
   }
 
@@ -18,8 +18,8 @@ export class SetPair extends Command {
     this.listOfPairs = await fetchListOfPoolPairs()
   }
 
-  availableFor(): Bot[] {
-    return [Bot.REINVEST]
+  availableFor(): BotType[] {
+    return [BotType.REINVEST]
   }
 
   parseCommandData(): void {

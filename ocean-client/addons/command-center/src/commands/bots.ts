@@ -1,5 +1,5 @@
 import { getBorderCharacters, table, TableUserConfig } from 'table'
-import { AvailableBots, Bot, BotData } from '../utils/available-bot'
+import { AvailableBots, BotType, Bot } from '../utils/available-bot'
 import { Store } from '../utils/store'
 import { Telegram } from '../utils/telegram'
 import { VersionCheck } from '../utils/version-check'
@@ -14,17 +14,8 @@ const config: TableUserConfig = {
 }
 
 export class Bots extends Command {
-  private readonly versionCheck: VersionCheck
-
-  constructor(
-    telegram: Telegram,
-    store: Store,
-    availableBots: AvailableBots,
-    commandData: string[],
-    versionCheck: VersionCheck,
-  ) {
+  constructor(telegram: Telegram, store: Store, availableBots: AvailableBots, commandData: string[]) {
     super(telegram, store, availableBots, commandData)
-    this.versionCheck = versionCheck
   }
 
   static descriptionFor(): string {
@@ -35,13 +26,13 @@ export class Bots extends Command {
     const data: string[][] = []
     data.push(['bot', 'version', 'block'])
     this.availableBots.list().forEach((info) => {
-      data.push(this.rowFor(info[0], info[1]))
+      data.push(this.rowFor(info))
     })
 
     return '```' + table(data, config) + '```'
   }
 
-  availableFor(): Bot[] {
+  availableFor(): BotType[] {
     return []
   }
 
@@ -53,9 +44,9 @@ export class Bots extends Command {
     return this.telegram.send('\n' + this.listOfBots())
   }
 
-  private rowFor(bot: Bot, data: BotData): string[] {
+  private rowFor(data: Bot): string[] {
     const versionAndCompatibility =
-      data.version + ' ' + (this.versionCheck.isCompatibleWith(bot) ? compatible : notCompatible)
-    return [data.name, versionAndCompatibility, '' + data.lastBlock]
+      data.version + ' ' + (VersionCheck.isCompatibleWith(data.name) ? compatible : notCompatible)
+    return [AvailableBots.shortBotName(data), versionAndCompatibility, '' + data.lastBlock]
   }
 }

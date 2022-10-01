@@ -1,4 +1,4 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { Bots } from './bots'
 import { Check } from './check'
 import { Command, Commands } from './command'
@@ -13,8 +13,8 @@ import { SetStableArbSize } from './set-stable-arb-size'
 import { Skip } from './skip'
 
 export class Help extends Command {
-  private buildLine(command: string, descriptionFunc: (bots: Bot[]) => string | undefined): string {
-    const description = descriptionFunc(this.availableBots.getBots())
+  private buildLine(command: string, descriptionFunc: (bots: BotType[]) => string | undefined): string {
+    const description = descriptionFunc(this.availableBots.list().map((b) => b.type))
     if (!description) return ''
     return '\n' + command + '\n' + description + '\n'
   }
@@ -36,7 +36,7 @@ export class Help extends Command {
     )
   }
 
-  availableFor(): Bot[] {
+  availableFor(): BotType[] {
     return []
   }
 
