@@ -5,9 +5,7 @@ const defaultStoredSettings: StoredSettings = {
   token: 'some-test-token',
   lastExecutedMessageId: 42,
   username: 'some-test-user',
-  LMPair: 'QQQ-DUSD',
-  state: '',
-  reinvest: undefined,
+  states: [],
 }
 
 export function createDefaultStoredSettings(): StoredSettings {

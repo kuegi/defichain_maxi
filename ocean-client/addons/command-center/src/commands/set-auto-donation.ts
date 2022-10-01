@@ -1,4 +1,4 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { isNumber, multiBotDescriptionFor } from '../utils/helpers'
 import { Command, CommandInfo, Commands } from './command'
 
@@ -23,12 +23,12 @@ export class SetAutoDonation extends Command {
     usage: Commands.SetAutoDonation + ' 5',
   }
 
-  static descriptionFor(bots: Bot[]): string | undefined {
+  static descriptionFor(bots: BotType[]): string | undefined {
     return multiBotDescriptionFor(bots, SetAutoDonation.maxi, SetAutoDonation.reinvest, SetAutoDonation.defaultUsage)
   }
 
-  availableFor(): Bot[] {
-    return [Bot.MAXI, Bot.REINVEST]
+  availableFor(): BotType[] {
+    return [BotType.MAXI, BotType.REINVEST]
   }
 
   parseCommandData(): void {

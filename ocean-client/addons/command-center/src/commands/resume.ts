@@ -1,24 +1,24 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { Command } from './command'
 
 export class Resume extends Command {
   static description = 'resumes execution of your vault-maxi'
 
-  static descriptionFor(bots: Bot[]): string | undefined {
-    if (!bots.includes(Bot.MAXI)) return undefined
+  static descriptionFor(bots: BotType[]): string | undefined {
+    if (!bots.includes(BotType.MAXI)) return undefined
     return Resume.description
   }
 
-  availableFor(): Bot[] {
-    return [Bot.MAXI]
+  availableFor(): BotType[] {
+    return [BotType.MAXI]
   }
 
   successMessage(): string {
-    return 'Your vault-maxi will resume normally'
+    return `Your ${this.bot?.name} will resume normally`
   }
 
   doExecution(): Promise<unknown> {
     console.log('executing resume')
-    return this.store.updateSkip(false)
+    return this.store.updateSkip(false, this.bot)
   }
 }

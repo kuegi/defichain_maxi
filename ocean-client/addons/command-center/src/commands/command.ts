@@ -1,6 +1,8 @@
-import { AvailableBots, Bot } from '../utils/available-bot'
+import { MIN_MAXI_VERSION, MIN_REINVEST_VERSION } from '../command-center'
+import { AvailableBots, Bot, BotType } from '../utils/available-bot'
 import { Store } from '../utils/store'
 import { Telegram } from '../utils/telegram'
+import { VersionCheck } from '../utils/version-check'
 
 export interface CommandInfo {
   description: string
@@ -46,31 +48,25 @@ export abstract class Command {
 
   protected isBotUnavailable(): boolean {
     if (!this.bot) return true
-    return !this.availableFor().includes(this.bot)
+    return !this.availableFor().includes(this.bot.type)
   }
 
   protected isBotBusy(): boolean {
-    return !this.availableBots.getBotDataFor(this.bot)?.isIdle
+    return !this.bot?.isIdle
+  }
+
+  protected isBotIncompatible(): boolean {
+    if (!this.bot) return true
+    return !VersionCheck.isCompatibleWith(this.bot.name)
   }
 
   protected parseBot(): void {
     console.log('parseBot', this.commandData)
-    let botViaCommandFound = false
-    switch (this.commandData[1]) {
-      case 'maxi':
-      case 'vault-maxi':
-        this.bot = Bot.MAXI
-        botViaCommandFound = true
-        break
-      case 'lm':
-      case 'reinvest':
-      case 'lm-reinvest':
-        this.bot = Bot.REINVEST
-        botViaCommandFound = true
-        break
-    }
 
-    if (botViaCommandFound) {
+    const filteredBots = this.availableBots.list().filter((b) => AvailableBots.shortBotName(b) === this.commandData[1])
+
+    if (filteredBots.length === 1) {
+      this.bot = filteredBots[0]
       this.commandData.splice(1, 1)
       console.log('parseBot', this.commandData)
     }
@@ -79,7 +75,7 @@ export abstract class Command {
   protected doGeneralBotAvailabilityChecks(): void {
     if (!this.isBotUndecided()) return
     // check which bots are available, if only one, we try to execute for that one
-    const bots = this.availableBots.getBots()
+    const bots = this.availableBots.list()
     if (bots.length === 1) {
       console.log('doGeneralBotAvailabilityChecks', 'available bots = ', bots[0])
       this.bot = bots[0]
@@ -89,8 +85,14 @@ export abstract class Command {
     // we try using that bot defined in the command
     const availableForBots = this.availableFor()
     if (this.isBotUndecided() && availableForBots.length === 1) {
-      console.log('doGeneralBotAvailabilityChecks', 'command bots = ', availableForBots[0])
-      this.bot = availableForBots[0]
+      console.log('doGeneralBotAvailabilityChecks', 'command bot types = ', availableForBots[0])
+      const availableBotsForType = bots.filter((b) => b.type === availableForBots[0])
+      if (availableBotsForType.length === 1) {
+        console.log('doGeneralBotAvailabilityChecks', 'found one bot for this type', availableBotsForType[0])
+        this.bot = availableBotsForType[0]
+      } else {
+        console.log('doGeneralBotAvailabilityChecks', 'could not find exactly one bot for type', availableForBots[0])
+      }
     }
 
     console.log('doGeneralBotAvailabilityChecks', 'bot = ', this.bot)
@@ -117,7 +119,7 @@ export abstract class Command {
   }
 
   abstract doExecution(): Promise<unknown>
-  abstract availableFor(): Bot[]
+  abstract availableFor(): BotType[]
 
   async execute(): Promise<unknown> {
     // possibility to be a chained command, therefore bot is set before execution
@@ -130,15 +132,22 @@ export abstract class Command {
     // if we are executing a basic command, we don't need all of those checks
     if (!this.isInfoCommand()) {
       if (this.isBotUndecided()) {
-        return this.telegram.send(
-          'Could not find selected bot. Please use `maxi`, `vault-maxi` for vault-maxi and `lm`, `reinvest`, `lm-reinvest` for lm-reinvest',
-        )
+        return this.telegram.send('Could not find selected bot. Please use `/bots` to see which bots are available')
       }
       if (this.isBotUnavailable()) {
         return this.telegram.send('This command is not available for selected bot')
       }
+      if (this.isBotIncompatible()) {
+        return await this.telegram.send(
+          `\nError: Versions are not compatible.\nPlease check your installed versions. You have ${
+            this.bot?.version
+          } for your ${this.bot?.type} installed, but you need ${VersionCheck.join(
+            MIN_MAXI_VERSION,
+          )} for vault-maxi and ${VersionCheck.join(MIN_REINVEST_VERSION)} for lm-reinvest.`,
+        )
+      }
       if (this.isBotBusy()) {
-        return this.telegram.send('Your bot (' + this.bot + ') is busy. Try again later')
+        return this.telegram.send('Your bot (' + this.bot?.name + ') is busy. Try again later')
       }
     }
     console.log('parsing command data', this.commandData)

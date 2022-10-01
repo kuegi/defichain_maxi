@@ -1,6 +1,6 @@
 import { config, Lambda } from 'aws-sdk'
-import { AvailableBots, Bot } from '../utils/available-bot'
-import { functionNameWithPostfix, multiBotDescriptionFor } from '../utils/helpers'
+import { AvailableBots, BotType, LM_REINVEST, VAULT_MAXI } from '../utils/available-bot'
+import { multiBotDescriptionFor } from '../utils/helpers'
 import { Store } from '../utils/store'
 import { Telegram } from '../utils/telegram'
 import { Command, CommandInfo } from './command'
@@ -10,12 +10,12 @@ export class Execute extends Command {
   private customSuccessMessage: string
 
   static maxi: CommandInfo = {
-    description: 'executes your vault-maxi (Lambda function name: ' + functionNameWithPostfix(Bot.MAXI) + ')',
+    description: 'executes your vault-maxi (Lambda function name: ' + VAULT_MAXI + ')',
     usage: '/execute maxi',
   }
 
   static reinvest: CommandInfo = {
-    description: 'executes your lm-reinvest (Lambda function name: ' + functionNameWithPostfix(Bot.REINVEST) + ')',
+    description: 'executes your lm-reinvest (Lambda function name: ' + LM_REINVEST + ')',
     usage: '/execute reinvest',
   }
 
@@ -39,25 +39,27 @@ export class Execute extends Command {
     })
   }
 
-  static descriptionFor(bots: Bot[]): string | undefined {
+  static descriptionFor(bots: BotType[]): string | undefined {
     return multiBotDescriptionFor(bots, Execute.maxi, Execute.reinvest)
   }
 
-  availableFor(): Bot[] {
-    return [Bot.MAXI, Bot.REINVEST]
+  availableFor(): BotType[] {
+    return [BotType.MAXI, BotType.REINVEST]
   }
 
-  doExecution(): Promise<unknown> {
+  async doExecution(): Promise<unknown> {
+    if (!this.bot) return Promise.reject()
     let lambda = new Lambda()
 
     let params = {
-      FunctionName: functionNameWithPostfix(Bot.MAXI),
+      FunctionName: this.bot.name,
       InvocationType: 'RequestResponse',
       LogType: 'None',
       Payload: this.payload,
     }
 
     console.log('invoking lambda with params ' + JSON.stringify(params))
+    await this.telegram.send('trying to invoke ' + params.FunctionName)
 
     return lambda
       .invoke(params)

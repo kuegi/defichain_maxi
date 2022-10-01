@@ -1,29 +1,47 @@
 import SSM from 'aws-sdk/clients/ssm'
-import { Bot } from './available-bot'
+import { Bot, BotType, LM_REINVEST, VAULT_MAXI } from './available-bot'
 
 // handle AWS Paramter
 export class Store {
   private ssm: SSM
-  private postfix: string
+  private stateParameters: string[]
   readonly settings: StoredSettings
 
   constructor() {
     this.ssm = new SSM()
-    this.postfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ''
+    this.stateParameters = []
     this.settings = new StoredSettings()
+  }
+
+  async searchForBots(): Promise<void> {
+    const params = {
+      ParameterFilters: [
+        {
+          Key: 'Name',
+          Option: 'Contains',
+          Values: ['state'],
+        },
+      ],
+    }
+    const parameters = await this.ssm.describeParameters(params).promise()
+
+    this.stateParameters =
+      parameters.Parameters?.map((p) => {
+        return p.Name ?? ''
+      }) ?? []
   }
 
   async updateExecutedMessageId(id: number): Promise<unknown> {
     return this.updateParameter(StoreKey.LastExecutedMessageId, '' + id)
   }
 
-  async updateSkip(value: boolean = true): Promise<unknown> {
-    return this.updateParameter(StoreKey.Skip, value ? 'true' : 'false')
+  async updateSkip(value: boolean = true, bot?: Bot): Promise<unknown> {
+    return this.updateParameter(StoreKey.Skip, value ? 'true' : 'false', bot)
   }
 
-  async updateRange(min: string, max: string): Promise<void> {
-    await this.updateParameter(StoreKey.MinCollateralRatio, min)
-    await this.updateParameter(StoreKey.MaxCollateralRatio, max)
+  async updateRange(min: string, max: string, bot?: Bot): Promise<void> {
+    await this.updateParameter(StoreKey.MinCollateralRatio, min, bot)
+    await this.updateParameter(StoreKey.MaxCollateralRatio, max, bot)
   }
 
   async updateReinvest(value: string, bot?: Bot): Promise<unknown> {
@@ -44,54 +62,65 @@ export class Store {
     return this.updateParameter(key, value)
   }
 
-  async updateStableArbBatchSize(value: string): Promise<unknown> {
-    return this.updateParameter(StoreKey.StableArbBatchSize, value)
+  async updateStableArbBatchSize(value: string, bot?: Bot): Promise<unknown> {
+    return this.updateParameter(StoreKey.StableArbBatchSize, value, bot)
   }
 
   async fetchSettings(): Promise<StoredSettings> {
-    let TelegramNotificationChatIdKey = this.extendKey(StoreKey.TelegramChatId)
-    let TelegramNotificationTokenKey = this.extendKey(StoreKey.TelegramToken)
-    let TelegramUserName = this.extendKey(StoreKey.TelegramUserName)
-    let LastExecutedMessageIdKey = this.extendKey(StoreKey.LastExecutedMessageId)
-    let StateKey = this.extendKey(StoreKey.State)
-    let LMPairKey = this.extendKey(StoreKey.LMPair)
-    let LMRStateKey = this.extendKey(StoreKey.LMRState)
-
     //store only allows to get 10 parameters per request
     let parameters =
       (
         await this.ssm
           .getParameters({
             Names: [
-              TelegramNotificationChatIdKey,
-              TelegramNotificationTokenKey,
-              TelegramUserName,
-              LastExecutedMessageIdKey,
-              StateKey,
-              LMPairKey,
-              LMRStateKey,
+              StoreKey.TelegramChatId,
+              StoreKey.TelegramToken,
+              StoreKey.TelegramUserName,
+              StoreKey.LastExecutedMessageId,
             ],
           })
           .promise()
       ).Parameters ?? []
 
-    this.settings.chatId = this.getValue(TelegramNotificationChatIdKey, parameters)
-    this.settings.token = this.getValue(TelegramNotificationTokenKey, parameters)
-    this.settings.username = this.getValue(TelegramUserName, parameters)
-    this.settings.lastExecutedMessageId = this.getNumberValue(LastExecutedMessageIdKey, parameters)
-    this.settings.state = this.getValue(StateKey, parameters)
-    this.settings.LMPair = this.getValue(LMPairKey, parameters)
-    const lmrState = this.getValue(LMRStateKey, parameters)
-    if (lmrState) {
-      this.settings.reinvest = { state: lmrState }
-    }
+    parameters.push(...((await this.ssm.getParameters({ Names: this.stateParameters }).promise()).Parameters ?? []))
+
+    this.settings.chatId = this.getValue(StoreKey.TelegramChatId, parameters)
+    this.settings.token = this.getValue(StoreKey.TelegramToken, parameters)
+    this.settings.username = this.getValue(StoreKey.TelegramUserName, parameters)
+    this.settings.lastExecutedMessageId = this.getNumberValue(StoreKey.LastExecutedMessageId, parameters)
+
+    this.settings.states = parameters
+      .filter((p) => {
+        return this.stateParameters.includes(p.Name ?? '')
+      })
+      .map((state) => {
+        const stateParameter = state.Name ?? ''
+        const stateValue = this.getValue(stateParameter, parameters)
+        const bot = stateParameter.includes('-reinvest') ? BotType.REINVEST : BotType.MAXI
+        const parts = stateParameter.split('/')
+        let name = parts[1]
+        switch (bot) {
+          case BotType.MAXI:
+            name = name.replace('defichain-maxi', VAULT_MAXI)
+            break
+          case BotType.REINVEST:
+            name = name.replace('defichain-maxi', LM_REINVEST)
+            break
+        }
+        return {
+          bot,
+          name,
+          stateParameter,
+          stateValue,
+        }
+      })
 
     return this.settings
   }
 
-  private async updateParameter(key: StoreKey, value: string): Promise<unknown> {
+  private async updateParameter(key: StoreKey, value: string, bot?: Bot): Promise<unknown> {
     const newValue = {
-      Name: this.extendKey(key),
+      Name: this.extendKey(key, bot),
       Value: value,
       Overwrite: true,
       Type: 'String',
@@ -108,20 +137,16 @@ export class Store {
     return value ? +value : undefined
   }
 
-  private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
-    let value = parameters?.find((element) => element.Name === key)?.Value
-    return value ? JSON.parse(value) : undefined
-  }
-
-  private extendKey(key: StoreKey): string {
-    return key.replace('-maxi', '-maxi' + this.postfix)
+  private extendKey(key: StoreKey, bot?: Bot): string {
+    if (!bot) return key
+    return key.replace('-maxi', '-maxi' + bot?.postfix)
   }
 
   private getKeyForBot(maxi: StoreKey, reinvest: StoreKey, bot?: Bot): StoreKey | undefined {
-    switch (bot) {
-      case Bot.MAXI:
+    switch (bot?.type) {
+      case BotType.MAXI:
         return maxi
-      case Bot.REINVEST:
+      case BotType.REINVEST:
         return reinvest
       default:
         undefined
@@ -132,7 +157,6 @@ export class Store {
 enum StoreKey {
   // defichain-maxi related keys
   Skip = '/defichain-maxi/skip',
-  State = '/defichain-maxi/state',
   MaxCollateralRatio = '/defichain-maxi/settings/max-collateral-ratio',
   MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
   LMPair = '/defichain-maxi/settings/lm-pair',
@@ -141,7 +165,6 @@ enum StoreKey {
   StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
 
   // defichain-maxi lm-reinvest related keys
-  LMRState = '/defichain-maxi/state-reinvest',
   LMRPair = '/defichain-maxi/settings-reinvest/lm-pair',
   LMRReinvest = '/defichain-maxi/settings-reinvest/reinvest',
   LMRAutoDonation = '/defichain-maxi/settings-reinvest/auto-donation-percent-of-reinvest',
@@ -153,12 +176,17 @@ enum StoreKey {
   LastExecutedMessageId = '/defichain-maxi/command-center/last-executed-message-id',
 }
 
+export interface StoredState {
+  bot: BotType
+  name: string
+  stateParameter: string
+  stateValue: string
+}
+
 export class StoredSettings {
   chatId: string = ''
   token: string = ''
   lastExecutedMessageId: number | undefined
   username: string = ''
-  state: string = ''
-  LMPair: string = ''
-  reinvest: { state: string } | undefined
+  states: StoredState[] = []
 }

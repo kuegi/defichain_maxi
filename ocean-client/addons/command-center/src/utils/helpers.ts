@@ -1,6 +1,6 @@
 import fetch from 'cross-fetch'
 import { CommandInfo } from '../commands/command'
-import { Bot } from './available-bot'
+import { BotType, LM_REINVEST, VAULT_MAXI } from './available-bot'
 import { StoredSettings } from './store'
 import { Message } from './telegram'
 
@@ -24,16 +24,6 @@ export function checkSafetyOf(message: Message, settings: StoredSettings): boole
   ) // message should not come from a bot
 }
 
-export function functionNameWithPostfix(bot: Bot): string {
-  let postfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ''
-  switch (bot) {
-    case Bot.MAXI:
-      return 'defichain-vault-maxi' + postfix
-    case Bot.REINVEST:
-      return 'defichain-lm-reinvest' + postfix
-  }
-}
-
 export function isNumber(value: string | undefined): boolean {
   if (value === undefined) {
     return false
@@ -55,18 +45,18 @@ export async function fetchListOfPoolPairs(): Promise<string[]> {
 }
 
 export function multiBotDescriptionFor(
-  bots: Bot[],
+  bots: BotType[],
   maxi: CommandInfo,
   reinvest: CommandInfo,
   usageInfo?: CommandInfo,
 ): string | undefined {
-  if (bots.includes(Bot.MAXI) && bots.includes(Bot.REINVEST) && usageInfo)
+  if (bots.includes(BotType.MAXI) && bots.includes(BotType.REINVEST) && usageInfo)
     return usageInfo.description + '\n' + maxi.usage + '\n' + reinvest.usage
-  if (bots.includes(Bot.MAXI) && bots.includes(Bot.REINVEST))
+  if (bots.includes(BotType.MAXI) && bots.includes(BotType.REINVEST))
     return maxi.usage + '\n' + maxi.description + '\n' + reinvest.usage + '\n' + reinvest.description
-  if ((bots.includes(Bot.MAXI) || bots.includes(Bot.REINVEST)) && usageInfo)
+  if ((bots.includes(BotType.MAXI) || bots.includes(BotType.REINVEST)) && usageInfo)
     return usageInfo.description + '\n' + usageInfo.usage
-  if (bots.includes(Bot.MAXI)) return maxi.description
-  if (bots.includes(Bot.REINVEST)) return reinvest.description
+  if (bots.includes(BotType.MAXI)) return maxi.description
+  if (bots.includes(BotType.REINVEST)) return reinvest.description
   return undefined
 }

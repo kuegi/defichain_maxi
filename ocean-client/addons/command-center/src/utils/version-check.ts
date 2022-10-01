@@ -1,4 +1,4 @@
-import { Bot } from './available-bot'
+import { BotType, PossibleBot } from './available-bot'
 import { StoredSettings } from './store'
 
 interface Version {
@@ -10,20 +10,35 @@ export class VersionCheck {
   private readonly settings: StoredSettings
   private readonly minVaultMaxi: Version
   private readonly minReinvest: Version
+  private static instance?: VersionCheck
 
-  constructor(settings: StoredSettings, minVaultMaxi: Version, minReinvest: Version) {
+  private constructor(settings: StoredSettings, minVaultMaxi: Version, minReinvest: Version) {
     this.settings = settings
     this.minVaultMaxi = minVaultMaxi
     this.minReinvest = minReinvest
   }
 
-  isCompatibleWith(bot: Bot): boolean {
-    console.log(`is ${bot} compatible`)
-    switch (bot) {
-      case Bot.MAXI:
-        return this.isEqualOrAbove(VersionCheck.extractVersion(this.settings.state), this.minVaultMaxi)
-      case Bot.REINVEST:
-        return this.isEqualOrAbove(VersionCheck.extractVersion(this.settings.reinvest?.state), this.minReinvest)
+  static initialize(settings: StoredSettings, minVaultMaxi: Version, minReinvest: Version) {
+    VersionCheck.instance = new VersionCheck(settings, minVaultMaxi, minReinvest)
+  }
+
+  static isCompatibleWith(name: string): boolean {
+    if (!VersionCheck.instance) return false
+    console.log(`is ${name} compatible`)
+    const possibleBot = VersionCheck.instance.settings.states.find((state) => {
+      return state.name === name
+    })
+    switch (possibleBot?.bot) {
+      case BotType.MAXI:
+        return VersionCheck.instance.isEqualOrAbove(
+          VersionCheck.extractVersion(possibleBot.stateValue),
+          VersionCheck.instance.minVaultMaxi,
+        )
+      case BotType.REINVEST:
+        return VersionCheck.instance.isEqualOrAbove(
+          VersionCheck.extractVersion(possibleBot.stateValue),
+          VersionCheck.instance.minReinvest,
+        )
       default:
         return false
     }

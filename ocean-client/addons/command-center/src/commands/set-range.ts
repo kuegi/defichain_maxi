@@ -1,4 +1,4 @@
-import { Bot } from '../utils/available-bot'
+import { BotType } from '../utils/available-bot'
 import { isNumber } from '../utils/helpers'
 import { Check } from './check'
 import { Command, Commands } from './command'
@@ -15,13 +15,13 @@ export class SetRange extends Command {
     ' to check if configuration is still valid.\n' +
     SetRange.usageMessage
 
-  static descriptionFor(bots: Bot[]): string | undefined {
-    if (!bots.includes(Bot.MAXI)) return undefined
+  static descriptionFor(bots: BotType[]): string | undefined {
+    if (!bots.includes(BotType.MAXI)) return undefined
     return SetRange.description
   }
 
-  availableFor(): Bot[] {
-    return [Bot.MAXI]
+  availableFor(): BotType[] {
+    return [BotType.MAXI]
   }
 
   parseCommandData(): void {
@@ -52,7 +52,7 @@ export class SetRange extends Command {
   }
 
   async doExecution(): Promise<unknown> {
-    await this.store.updateRange(this.minCollateralRatio!, this.maxCollateralRatio!)
+    await this.store.updateRange(this.minCollateralRatio!, this.maxCollateralRatio!, this.bot)
     let checkMaxi = new Check(this.telegram, this.store, this.availableBots, this.commandData)
     checkMaxi.setBot(this.bot)
     return checkMaxi.execute()

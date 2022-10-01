@@ -1,7 +1,25 @@
-import { Bot } from '../available-bot'
+import { BotType, LM_REINVEST, PossibleBot, VAULT_MAXI } from '../available-bot'
 import { StoredSettings } from '../store'
 import { VersionCheck } from '../version-check'
 import { createCustomStoredSettings } from './mock/stored-settings.mock'
+
+const buildVaultMaxi = (vaultMaxiVersion?: string): PossibleBot => {
+  return {
+    bot: BotType.MAXI,
+    name: VAULT_MAXI,
+    stateParameter: '/defichain-maxi/state',
+    stateValue: `idle|none||2145914|${vaultMaxiVersion}`,
+  }
+}
+
+const buildReinvest = (reinvestVersion?: string): PossibleBot => {
+  return {
+    bot: BotType.REINVEST,
+    name: LM_REINVEST,
+    stateParameter: '/defichain-maxi/state-reinvest',
+    stateValue: `idle|none||2145835|${reinvestVersion}`,
+  }
+}
 
 describe('VersionCheck', () => {
   let versionCheck: VersionCheck
@@ -11,71 +29,75 @@ describe('VersionCheck', () => {
     const minReinvestVersion = { major: '1', minor: '0' }
 
     const customStoredSettings: Partial<StoredSettings> = {}
-    if (vaultMaxiVersion) customStoredSettings.state = `idle|none||2145914|${vaultMaxiVersion}`
-    if (reinvestVersion) customStoredSettings.reinvest = { state: `idle|none||2145835|${reinvestVersion}` }
-    if (wrongState) customStoredSettings.state = 'idle|none||2145914'
+    if (vaultMaxiVersion) customStoredSettings.states = [buildVaultMaxi(vaultMaxiVersion)]
+    if (reinvestVersion) customStoredSettings.states = [buildReinvest(reinvestVersion)]
+    if (wrongState)
+      customStoredSettings.states = [
+        {
+          bot: BotType.MAXI,
+          name: VAULT_MAXI,
+          stateParameter: '/defichain-maxi/state',
+          stateValue: 'idle|none||2145914',
+        },
+      ]
 
-    versionCheck = new VersionCheck(
-      createCustomStoredSettings(customStoredSettings),
-      minVaultMaxiVersion,
-      minReinvestVersion,
-    )
+    VersionCheck.initialize(createCustomStoredSettings(customStoredSettings), minVaultMaxiVersion, minReinvestVersion)
   }
 
-  it('should return compatible for vault-maxi and lm-reinvest versions undefined', () => {
+  it('should return not compatible for vault-maxi and lm-reinvest versions undefined', () => {
     setup()
 
-    expect(versionCheck.isCompatibleWith(Bot.MAXI)).toBeTruthy()
-    expect(versionCheck.isCompatibleWith(Bot.REINVEST)).toBeTruthy()
+    expect(VersionCheck.isCompatibleWith(VAULT_MAXI)).toBeFalsy()
+    expect(VersionCheck.isCompatibleWith(LM_REINVEST)).toBeFalsy()
   })
 
   it('should return not compatible for vault-maxi, if version is v1.9', () => {
     setup('v1.9')
 
-    expect(versionCheck.isCompatibleWith(Bot.MAXI)).toBeFalsy()
+    expect(VersionCheck.isCompatibleWith(VAULT_MAXI)).toBeFalsy()
   })
 
   it('should return compatible for vault-maxi, if version is v2.0', () => {
     setup('v2.0')
 
-    expect(versionCheck.isCompatibleWith(Bot.MAXI)).toBeTruthy()
+    expect(VersionCheck.isCompatibleWith(VAULT_MAXI)).toBeTruthy()
   })
 
   it('should return compatible for vault-maxi, if version is v2.1', () => {
     setup('v2.1')
 
-    expect(versionCheck.isCompatibleWith(Bot.MAXI)).toBeTruthy()
+    expect(VersionCheck.isCompatibleWith(VAULT_MAXI)).toBeTruthy()
   })
 
   it('should return not compatible for lm-reinvest, if version is v0.9', () => {
     setup(undefined, 'v0.9')
 
-    expect(versionCheck.isCompatibleWith(Bot.REINVEST)).toBeFalsy()
+    expect(VersionCheck.isCompatibleWith(LM_REINVEST)).toBeFalsy()
   })
 
   it('should return compatible for lm-reinvest, if version is v1.0', () => {
     setup(undefined, 'v1.0')
 
-    expect(versionCheck.isCompatibleWith(Bot.REINVEST)).toBeTruthy()
+    expect(VersionCheck.isCompatibleWith(LM_REINVEST)).toBeTruthy()
   })
 
   it('should return compatible for lm-reinvest, if version is v1.1', () => {
     setup(undefined, 'v1.1')
 
-    expect(versionCheck.isCompatibleWith(Bot.REINVEST)).toBeTruthy()
+    expect(VersionCheck.isCompatibleWith(LM_REINVEST)).toBeTruthy()
   })
 
   it('should return compatible for lm-reinvest, if version is 1', () => {
     setup(undefined, '1')
 
-    expect(versionCheck.isCompatibleWith(Bot.REINVEST)).toBeTruthy()
+    expect(VersionCheck.isCompatibleWith(LM_REINVEST)).toBeTruthy()
   })
 
   it('should throw error if state has no version', () => {
     setup(undefined, undefined, true)
 
     expect(() => {
-      versionCheck.isCompatibleWith(Bot.MAXI)
+      VersionCheck.isCompatibleWith(VAULT_MAXI)
     }).toThrowError('no version in state found')
   })
 

@@ -1,12 +1,34 @@
-import { AvailableBots, Bot } from '../available-bot'
+import { AvailableBots, BotType, PossibleBot } from '../available-bot'
 import { StoredSettings } from '../store'
 import { createCustomStoredSettings } from './mock/stored-settings.mock'
 
 enum TestCase {
   EMPTY,
   VAULT_MAXI,
+  VAULT_MAXI_EXTENSION,
   LM_REINVEST,
   ALL,
+}
+
+const testMaxi: PossibleBot = {
+  bot: BotType.MAXI,
+  name: 'defichain-vault-maxi',
+  stateParameter: '/defichain-maxi/state',
+  stateValue: `idle|none||2145914|v2.1`,
+}
+
+const testMaxiWithExtension: PossibleBot = {
+  bot: BotType.MAXI,
+  name: 'defichain-vault-maxi-test',
+  stateParameter: '/defichain-maxi-test/state',
+  stateValue: `idle|none||2145914|v2.1`,
+}
+
+const testReinvest: PossibleBot = {
+  bot: BotType.REINVEST,
+  name: 'defichain-lm-reinvest',
+  stateParameter: '/defichain-maxi/reinvest',
+  stateValue: `idle|none||2145910|1`,
 }
 
 describe('AvailableBots', () => {
@@ -19,14 +41,16 @@ describe('AvailableBots', () => {
       case TestCase.EMPTY:
         break
       case TestCase.VAULT_MAXI:
-        customStoredSettings.state = `idle|none||2145914|v2.1`
+        customStoredSettings.states = [testMaxi]
+        break
+      case TestCase.VAULT_MAXI_EXTENSION:
+        customStoredSettings.states = [testMaxiWithExtension]
         break
       case TestCase.LM_REINVEST:
-        customStoredSettings.reinvest = { state: `idle|none||2145910|1` }
+        customStoredSettings.states = [testReinvest]
         break
       case TestCase.ALL:
-        customStoredSettings.state = `idle|none||2145914|v2.1`
-        customStoredSettings.reinvest = { state: `idle|none||2145910|1` }
+        customStoredSettings.states = [testMaxi, testMaxiWithExtension, testReinvest]
         break
     }
 
@@ -41,84 +65,68 @@ describe('AvailableBots', () => {
   it('should list vault-maxi, if vault-maxi is available', () => {
     setup(TestCase.VAULT_MAXI)
     expect(availableBots.list()).toStrictEqual([
-      [
-        Bot.MAXI,
-        {
-          name: 'maxi',
-          version: 'v2.1',
-          lastBlock: 2145914,
-          isIdle: true,
-        },
-      ],
+      {
+        name: 'defichain-vault-maxi',
+        type: BotType.MAXI,
+        version: 'v2.1',
+        lastBlock: 2145914,
+        isIdle: true,
+      },
     ])
   })
 
   it('should list lm-reinvest, if lm-reinvest is available', () => {
     setup(TestCase.LM_REINVEST)
     expect(availableBots.list()).toStrictEqual([
-      [
-        Bot.REINVEST,
-        {
-          name: 'lm-r',
-          version: 'v1.0',
-          lastBlock: 2145910,
-          isIdle: true,
-        },
-      ],
+      {
+        name: 'defichain-lm-reinvest',
+        type: BotType.REINVEST,
+        version: 'v1.0',
+        lastBlock: 2145910,
+        isIdle: true,
+      },
     ])
   })
 
   it('should list all bots, if all are available', () => {
     setup(TestCase.ALL)
     expect(availableBots.list()).toStrictEqual([
-      [
-        Bot.MAXI,
-        {
-          name: 'maxi',
-          version: 'v2.1',
-          lastBlock: 2145914,
-          isIdle: true,
-        },
-      ],
-      [
-        Bot.REINVEST,
-        {
-          name: 'lm-r',
-          version: 'v1.0',
-          lastBlock: 2145910,
-          isIdle: true,
-        },
-      ],
+      {
+        name: 'defichain-vault-maxi',
+        type: BotType.MAXI,
+        version: 'v2.1',
+        lastBlock: 2145914,
+        isIdle: true,
+      },
+      {
+        name: 'defichain-vault-maxi-test',
+        type: BotType.MAXI,
+        version: 'v2.1',
+        lastBlock: 2145914,
+        isIdle: true,
+      },
+      {
+        name: 'defichain-lm-reinvest',
+        type: BotType.REINVEST,
+        version: 'v1.0',
+        lastBlock: 2145910,
+        isIdle: true,
+      },
     ])
-  })
-
-  it('should return all bots, if all are available', () => {
-    setup(TestCase.ALL)
-    expect(availableBots.getBots()).toStrictEqual([Bot.MAXI, Bot.REINVEST])
   })
 
   it('should return true if vault-maxi is available', () => {
     setup(TestCase.VAULT_MAXI)
-    expect(availableBots.isAvailable(Bot.MAXI)).toBeTruthy()
+    expect(availableBots.isAvailable('maxi')).toBeTruthy()
+  })
+
+  it('should return true if maxi-test is available', () => {
+    setup(TestCase.VAULT_MAXI_EXTENSION)
+    expect(availableBots.isAvailable('maxi-test')).toBeTruthy()
   })
 
   it('should return false if vault-maxi is not available', () => {
     setup(TestCase.LM_REINVEST)
-    expect(availableBots.isAvailable(Bot.MAXI)).toBeFalsy()
-  })
-
-  it('should return bot data for vault-maxi if vault-maxi exists', () => {
-    setup(TestCase.VAULT_MAXI)
-    expect(availableBots.getBotDataFor(Bot.MAXI)).toStrictEqual({
-      name: 'maxi',
-      version: 'v2.1',
-      lastBlock: 2145914,
-      isIdle: true,
-    })
-  })
-
-  it('should return undefined for vault-maxi if vault-maxi does not exist', () => {
-    setup(TestCase.EMPTY)
-    expect(availableBots.getBotDataFor(Bot.MAXI)).toStrictEqual(undefined)
+    expect(availableBots.isAvailable('maxi')).toBeFalsy()
   })
 })

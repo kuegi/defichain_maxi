@@ -11,7 +11,7 @@ import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
 import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
-import { AvailableBots, Bot } from './utils/available-bot'
+import { AvailableBots, BotType } from './utils/available-bot'
 import { checkSafetyOf } from './utils/helpers'
 import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
@@ -19,16 +19,10 @@ import { VersionCheck } from './utils/version-check'
 
 const VERSION = 'v1.0-rc'
 
-const MIN_MAXI_VERSION = { major: '2', minor: '0' }
-const MIN_REINVEST_VERSION = { major: '1', minor: '0' }
+export const MIN_MAXI_VERSION = { major: '2', minor: '0' }
+export const MIN_REINVEST_VERSION = { major: '1', minor: '0' }
 
-async function execute(
-  messages: Message[],
-  telegram: Telegram,
-  store: Store,
-  availableBots: AvailableBots,
-  versionCheck: VersionCheck,
-) {
+async function execute(messages: Message[], telegram: Telegram, store: Store, availableBots: AvailableBots) {
   for (const message of messages) {
     let commandData = message.command.split(' ')
     if (commandData.length == 0) {
@@ -40,7 +34,7 @@ async function execute(
         command = new Help(telegram, store, availableBots, commandData)
         break
       case Commands.Bots:
-        command = new Bots(telegram, store, availableBots, commandData, versionCheck)
+        command = new Bots(telegram, store, availableBots, commandData)
         break
       case Commands.Check:
         command = new Check(telegram, store, availableBots, commandData)
@@ -89,30 +83,14 @@ function isFirstRun(settings: StoredSettings): boolean {
 export async function main(): Promise<Object> {
   console.log(`running ${VERSION}`)
   const store = new Store()
+  await store.searchForBots()
   const settings = await store.fetchSettings()
 
   const telegram = new Telegram(settings, '\\[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + ']')
 
-  const versionCheck = new VersionCheck(settings, MIN_MAXI_VERSION, MIN_REINVEST_VERSION)
-  const outdatedAction = async () => {
-    await telegram.send(
-      '\nError: Versions are not compatible.\nPlease check your installed versions. You need\nvault-maxi ' +
-        VersionCheck.join(MIN_MAXI_VERSION) +
-        '\nlm-reinvest ' +
-        VersionCheck.join(MIN_REINVEST_VERSION),
-    )
-    return { statusCode: 500 }
-  }
-
-  try {
-    if (!versionCheck.isCompatibleWith(Bot.MAXI) || !versionCheck.isCompatibleWith(Bot.REINVEST)) {
-      return outdatedAction()
-    }
-  } catch {
-    return outdatedAction()
-  }
-
   const availableBots = new AvailableBots(settings)
+
+  VersionCheck.initialize(settings, MIN_MAXI_VERSION, MIN_REINVEST_VERSION)
 
   let messages = await telegram.getMessages()
   messages = messages.filter((message) => {
@@ -129,7 +107,7 @@ export async function main(): Promise<Object> {
       messages = messages.slice(-1)
       console.log('is first run, reduce to', messages.length)
     }
-    await execute(messages, telegram, store, availableBots, versionCheck)
+    await execute(messages, telegram, store, availableBots)
   }
 
   return { statusCode: 200 }
