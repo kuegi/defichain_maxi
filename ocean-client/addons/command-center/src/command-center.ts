@@ -13,6 +13,7 @@ import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
 import { AvailableBots, BotType } from './utils/available-bot'
 import { checkSafetyOf } from './utils/helpers'
+import { SetupCheck } from './utils/setup-check'
 import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
 import { VersionCheck } from './utils/version-check'
@@ -21,6 +22,10 @@ const VERSION = 'v1.0-rc'
 
 export const MIN_MAXI_VERSION = { major: '2', minor: '0' }
 export const MIN_REINVEST_VERSION = { major: '1', minor: '0' }
+
+interface CommandCenterEvent {
+  checkSetup?: boolean
+}
 
 async function execute(messages: Message[], telegram: Telegram, store: Store, availableBots: AvailableBots) {
   for (const message of messages) {
@@ -80,7 +85,7 @@ function isFirstRun(settings: StoredSettings): boolean {
   return settings.lastExecutedMessageId === 0
 }
 
-export async function main(): Promise<Object> {
+export async function main(event: CommandCenterEvent): Promise<Object> {
   console.log(`running ${VERSION}`)
   const store = new Store()
   await store.searchForBots()
@@ -88,6 +93,11 @@ export async function main(): Promise<Object> {
 
   const logId = process.env.VAULTMAXI_LOGID ? ' ' + process.env.VAULTMAXI_LOGID : ''
   const telegram = new Telegram(settings, '\\[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + logId + ']')
+
+  if (event && event.checkSetup) {
+    await SetupCheck.with(settings, telegram)
+    return { statusCode: 200 }
+  }
 
   const availableBots = new AvailableBots(settings)
 

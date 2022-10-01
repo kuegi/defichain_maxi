@@ -129,7 +129,7 @@ export class Store {
   }
 
   private getValue(key: string, parameters: SSM.ParameterList): string {
-    return parameters?.find((element) => element.Name === key)?.Value as string
+    return (parameters?.find((element) => element.Name === key)?.Value as string).trim()
   }
 
   private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {
