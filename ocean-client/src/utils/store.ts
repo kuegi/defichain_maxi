@@ -49,21 +49,29 @@ export class Store implements IStore {
 }
 
 export class StoredSettings {
-    paramPostFix: string = ""
-    chatId: string = ""
-    token: string = ""
-    logChatId: string = ""
-    logToken: string = ""
-    address: string = ""
-    vault: string = ""
-    seed: string[] = []
-    minCollateralRatio: number = 200
-    maxCollateralRatio: number = 250
-    LMPair: string = "GLD-DUSD"
-    mainCollateralAsset: string = "DFI"
-    stableCoinArbBatchSize: number = -1
-    reinvestThreshold: number | undefined
-    autoDonationPercentOfReinvest: number = 0
-    stateInformation: ProgramStateInformation = { state: ProgramState.Idle, tx: '', txId: '', blockHeight: 0, version: undefined }
-    shouldSkipNext: boolean = false
+  paramPostFix: string = ''
+  chatId: string = ''
+  token: string = ''
+  logChatId: string = ''
+  logToken: string = ''
+  address: string = ''
+  vault: string = ''
+  seed: string[] = []
+  minCollateralRatio: number = 200
+  maxCollateralRatio: number = 250
+  LMPair: string = 'GLD-DUSD'
+  mainCollateralAsset: string = 'DFI'
+  stableCoinArbBatchSize: number = -1
+  reinvestThreshold: number | undefined
+  autoDonationPercentOfReinvest: number = 0
+  stateInformation: ProgramStateInformation = {
+    state: ProgramState.Idle,
+    tx: '',
+    txId: '',
+    blockHeight: 0,
+    version: undefined,
+  }
+  shouldSkipNext: boolean = false
+
+  heartBeatUrl: string | undefined
 }

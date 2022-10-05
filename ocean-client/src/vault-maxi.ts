@@ -36,6 +36,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
     let cleanUpFailed = false
     let ocean = process.env.VAULTMAXI_OCEAN_URL
     let errorCooldown = 60000
+    let heartBeatSent= false
     while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
         console.log("starting with " + context.getRemainingTimeInMillis() + "ms available")
         let store = new Store()
@@ -96,6 +97,18 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             let balances = await program.getTokenBalances()
             if (!await program.doMaxiChecks(telegram, vaultcheck, pool, balances)) {
                 return { statusCode: 500 }
+            }
+
+            //real execution starts here, so doing heartbeat here, but only once per trigger
+            if (!heartBeatSent && settings.heartBeatUrl !== undefined) {
+              heartBeatSent = true
+              try {
+                console.log('sending heartbeat to ' + settings.heartBeatUrl)
+                await fetch(settings.heartBeatUrl)
+              } catch (e) {
+                console.error('error sending heartbeat: ' + e)
+                await telegram.send('Error sending heartbeat. please check logs and adapt settings')
+              }
             }
 
             let result = true
