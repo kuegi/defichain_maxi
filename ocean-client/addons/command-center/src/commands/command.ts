@@ -91,7 +91,7 @@ export abstract class Command {
         console.log('doGeneralBotAvailabilityChecks', 'found one bot for this type', availableBotsForType[0])
         this.bot = availableBotsForType[0]
       } else {
-        console.log('doGeneralBotAvailabilityChecks', 'could not find exactly one bot for type', availableForBots[0])
+        console.warn('doGeneralBotAvailabilityChecks', 'could not find exactly one bot for type', availableForBots[0])
       }
     }
 
