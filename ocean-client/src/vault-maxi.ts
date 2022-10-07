@@ -207,11 +207,19 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             let exposureChanged = false
 
             if (!program.consistencyChecks(vault)) {
+                //maybe just temporary, try again
+                await delay(15000)                  
+                console.warn("consistency checks failed. maybe just a temporary caching topic. will try again")  
+                vault = await program.getVault() as LoanVaultActive
+                balances = await program.getTokenBalances()
+                pool = await program.getPool(program.lmPair)
+            }
+            if (!program.consistencyChecks(vault)) {
                 console.warn("consistency checks failed. will remove exposure")
                 await telegram.send("Consistency checks in ocean data failed. Something is wrong, so will remove exposure to be safe.")
                 settings.maxCollateralRatio = -1
             }
-
+            
             //first check for removeExposure, then decreaseExposure
             // if no decrease necessary: check for reinvest (as a reinvest would probably trigger an increase exposure, do reinvest first)
             // no reinvest (or reinvest done and still time left) -> check for increase exposure
@@ -273,6 +281,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 program.logVaultData(vault)
                 await telegram.send("The chain thinks your vault might get liquidated, but data gave us no reason to change something. There is something wrong so we remove exposure for safety sake.")
                 result = await program.removeExposure(vault, pool!, balances, telegram)
+                if(!result) {
+                    vault = await program.getVault() as LoanVaultActive
+                    balances = await program.getTokenBalances()
+                    await program.cleanUp(vault,balances,telegram)
+                }
             }
 
             await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
