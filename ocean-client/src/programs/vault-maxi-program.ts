@@ -741,6 +741,9 @@ export class VaultMaxiProgram extends CommonProgram {
 
         let dfiDusdCollateralValue = new BigNumber(0)
         let hasDUSDLoan= vault.loanAmounts.find(loan => loan.symbol === "DUSD") !== undefined
+        if (this.mainCollateralAsset === 'DFI') {
+          hasDUSDLoan = true //if not yet, it will try to take dusd loans
+        }
         vault.collateralAmounts.forEach(coll => {
             if (coll.symbol === "DFI" || (!hasDUSDLoan && coll.symbol === "DUSD")) {
                 dfiDusdCollateralValue = dfiDusdCollateralValue.plus(this.getUsedOraclePrice(coll,true).times(coll.amount))
@@ -785,10 +788,13 @@ export class VaultMaxiProgram extends CommonProgram {
 
             //check if enough collateral is there to even take new loan
             //dusdDFI-assetB * 2 >= loan+additionLoan * minRatio
-            if (dfiDusdCollateralValue.minus(wantedAssetB).times(2).lte(wantedAssetA.plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))) {
-                console.error("not enough collateral of DFI or DUSD to take more loans")
-                await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
-                return false
+            if (
+              dfiDusdCollateralValue.minus(wantedAssetB.times(oracleB)).times(2)
+                .lte(wantedAssetA.times(oracleA).plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))
+            ) {
+              console.error('not enough collateral of DFI or DUSD to take more loans')
+              await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
+              return false
             }
             const withdrawTx = await this.withdrawFromVault(+pool.tokenB.id, wantedAssetB)
             await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, withdrawTx.txId)
