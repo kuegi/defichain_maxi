@@ -213,11 +213,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
                 vault = await program.getVault() as LoanVaultActive
                 balances = await program.getTokenBalances()
                 pool = await program.getPool(program.lmPair)
-            }
-            if (!program.consistencyChecks(vault)) {
-                console.warn("consistency checks failed. will remove exposure")
-                await telegram.send("Consistency checks in ocean data failed. Something is wrong, so will remove exposure to be safe.")
-                settings.maxCollateralRatio = -1
+                if (!program.consistencyChecks(vault)) {
+                    console.warn("consistency checks failed. will remove exposure")
+                    await telegram.send("Consistency checks in ocean data failed. Something is wrong, so will remove exposure to be safe.")
+                    settings.maxCollateralRatio = -1
+                }
             }
             
             //first check for removeExposure, then decreaseExposure
