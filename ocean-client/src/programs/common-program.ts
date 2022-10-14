@@ -454,9 +454,10 @@ export class CommonProgram {
     async send(txn: TransactionSegWit, initialWaitTime: number = 0): Promise<CTransaction> {
         const ctx = new CTransactionSegWit(txn)
         const hex: string = ctx.toHex()
-
-        console.log("Sending txId: " + ctx.txId + " with input: " + ctx.vin[0].txid + ":" + ctx.vin[0].index)
-        let start = initialWaitTime
+        const startBlock= await this.getBlockHeight()
+        let currentBlock= startBlock
+        console.log("Block "+startBlock+", sending txId: " + ctx.txId + " with input: " + ctx.vin[0].txid + ":" + ctx.vin[0].index)
+        let retries = 0
         const waitTime = 10000
         const txId: string = await new Promise((resolve, error) => {
             let intervalID: NodeJS.Timeout
@@ -468,7 +469,7 @@ export class CommonProgram {
                     this.pendingTx = ctx.txId
                     resolve(txId)
                 }).catch((e) => {
-                    if (start >= waitTime * 5) {
+                    if (retries >= 5) {
                         if (intervalID !== undefined) {
                             clearInterval(intervalID)
                         }
@@ -480,13 +481,30 @@ export class CommonProgram {
                 })
             }
             setTimeout(() => {
-                sendTransaction()
+                //setup contiuous interval, will be cleared once the transaction is successfully sent
                 intervalID = setInterval(() => {
-                    start += waitTime
-                    sendTransaction()
-                }, waitTime)
+                    retries += 1
+                    if(retries >= 3 && currentBlock <= startBlock) {
+                        // something fishy, only continue after at least one block was minted
+                        this.getBlockHeight().then(height => {
+                            currentBlock = height
+                            if(currentBlock <= startBlock) {
+                                console.log("multiple failed attempts, waiting for a new block before retrying.")
+                                retries -= 1 //skip retry
+                            } else {
+                                sendTransaction()
+                            }
+                        })
+                    } else { //first retries go without change
+                        sendTransaction()
+                    }                    
+                }, waitTime) 
+
+                //send first try (retries are done in interval)               
+                sendTransaction()
             }, initialWaitTime)
         })
+        console.log("Transaction sent")
         return ctx
     }
 
