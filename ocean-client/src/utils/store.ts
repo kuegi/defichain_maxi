@@ -4,48 +4,45 @@ import { StoreAWS } from './store_aws'
 import { StoreConfig } from './store_config'
 
 export interface IStore {
-    readonly settings: StoredSettings;
-    updateToState(information: ProgramStateInformation): Promise<void>;
-    fetchSettings(): Promise<StoredSettings>;
-    skipNext(): Promise<void>;
-    clearSkip(): Promise<void>;
+  readonly settings: StoredSettings
+  updateToState(information: ProgramStateInformation): Promise<void>
+  fetchSettings(): Promise<StoredSettings>
+  skipNext(): Promise<void>
+  clearSkip(): Promise<void>
 }
 
 export class Store implements IStore {
+  public get settings(): StoredSettings {
+    return this.storeprovider.settings
+  }
 
-    public get settings(): StoredSettings {
-        return this.storeprovider.settings;
+  private storeprovider: IStore
+
+  constructor() {
+    var aws_execution_env = process.env.AWS_EXECUTION_ENV
+    if (process.env.LOG_ENV == 'TRUE') console.log(process.env)
+    if (aws_execution_env) {
+      this.storeprovider = new StoreAWS()
+    } else {
+      this.storeprovider = new StoreConfig()
     }
+  }
 
-    private storeprovider: IStore;
+  async updateToState(information: ProgramStateInformation): Promise<void> {
+    await this.storeprovider.updateToState(information)
+  }
 
+  async fetchSettings(): Promise<StoredSettings> {
+    return await this.storeprovider.fetchSettings()
+  }
 
-    constructor() {
-        var aws_execution_env = process.env.AWS_EXECUTION_ENV
-        if (process.env.LOG_ENV == 'TRUE') console.log(process.env)
-        if (aws_execution_env) {
-            this.storeprovider = new StoreAWS();
-        } else {
-            this.storeprovider = new StoreConfig();
-        }
-    }
+  async skipNext(): Promise<void> {
+    await this.storeprovider.skipNext()
+  }
 
-    async updateToState(information: ProgramStateInformation): Promise<void> {
-        await this.storeprovider.updateToState(information)
-    }
-
-    async fetchSettings(): Promise<StoredSettings> {
-        return await this.storeprovider.fetchSettings()
-    }
-
-    async skipNext(): Promise<void> {
-        await this.storeprovider.skipNext()
-    }
-
-    async clearSkip(): Promise<void> {
-        await this.storeprovider.clearSkip()
-    }
-
+  async clearSkip(): Promise<void> {
+    await this.storeprovider.clearSkip()
+  }
 }
 
 export class StoredSettings {
