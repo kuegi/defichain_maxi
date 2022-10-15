@@ -31,6 +31,7 @@ export class SendProgramm extends CommonProgram {
 
     if (utxoBalance.toNumber() < this.threshold) {
       console.log('Treshold not reached')
+      await telegram.log('threshold not reached.')
       return true
     }
 
@@ -51,7 +52,8 @@ export class SendProgramm extends CommonProgram {
       return false
     }
 
-    await telegram.send('send ' + utxoBalance.toFixed(4) + '@DFI' + ' to ' + this.toAddress)
+    await telegram.log('send ' + utxoBalance.toFixed(4) + '@UTXO to ' + this.toAddress)
+    await telegram.send('send ' + utxoBalance.toFixed(4) + '@UTXO to ' + this.toAddress)
 
     return true
   }
