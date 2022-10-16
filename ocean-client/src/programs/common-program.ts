@@ -23,7 +23,6 @@ import {
   LoanToken,
   LoanVaultActive,
   LoanVaultLiquidated,
-  LoanVaultTokenAmount,
 } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
@@ -50,7 +49,7 @@ export class CommonProgram {
   protected readonly client: WhaleApiClient
   protected readonly walletSetup: WalletSetup
   private account: WhaleWalletAccount | undefined
-  private script: Script | undefined
+  protected script: Script | undefined
   private collTokens: CollateralToken[] | undefined
 
   pendingTx: string | undefined
