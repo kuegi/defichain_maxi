@@ -9,29 +9,18 @@ import BigNumber from 'bignumber.js'
 export class SendDFIProgramm extends CommonProgram {
   readonly toAddress: string
   readonly threshold: number
+  readonly sendAll: boolean
 
   constructor(store: IStore, walletSetup: WalletSetup) {
     super(store, walletSetup)
     this.toAddress = this.settings.toAddress
     this.threshold = this.settings.sendThreshold ?? 1
+    this.sendAll = this.settings.sendAll
   }
 
   async doChecks(telegram: Telegram): Promise<boolean> {
     if (!this.doValidationChecks(telegram, false)) {
       return false
-    }
-
-    const utxoBalance = await this.getUTXOBalance()
-    if (utxoBalance.lte(1e-4)) {
-      //1 tx is roughly 2e-6 fee, one action mainly 3 tx -> 6e-6 fee. we want at least 10 actions safety -> below 1e-4 we warn
-      const message =
-        'your UTXO balance is running low in ' +
-        this.settings.address +
-        ', only ' +
-        utxoBalance.toFixed(5) +
-        ' DFI left. Please replenish to prevent any errors'
-      await telegram.send(message)
-      console.warn(message)
     }
 
     return true
@@ -49,7 +38,13 @@ export class SendDFIProgramm extends CommonProgram {
     console.log('dfi: ' + dfiBalance)
 
     const fromBalance = new BigNumber(dfiBalance)
-    const fromUtxos = utxoBalance.isGreaterThan(1) ? utxoBalance.minus(1) : new BigNumber(0)
+
+    let fromUtxos: BigNumber
+    if (this.sendAll) {
+      fromUtxos = utxoBalance
+    } else {
+      fromUtxos = utxoBalance.isGreaterThan(1) ? utxoBalance.minus(1) : new BigNumber(0)
+    }
     let amountToUse = fromUtxos.plus(fromBalance)
     console.log('amountToUse: ' + amountToUse)
 
@@ -86,7 +81,12 @@ export class SendDFIProgramm extends CommonProgram {
       await telegram.send('ERROR: decodedFromAddress is undefined')
       return false
     }
-    const txn = await account?.withTransactionBuilder()?.utxo.sendAll(decodedToAddress.script)
+    let txn: TransactionSegWit | undefined
+    if (this.sendAll) {
+      txn = await account?.withTransactionBuilder()?.utxo.sendAll(decodedToAddress.script)
+    } else {
+      txn = await account?.withTransactionBuilder()?.utxo.send(amountToUse, decodedToAddress.script, this.script!)
+    }
 
     if (txn === undefined) {
       await telegram.send('ERROR: transactionSegWit is undefined')
@@ -98,8 +98,8 @@ export class SendDFIProgramm extends CommonProgram {
       return false
     }
 
-    await telegram.log('send ' + utxoBalance.toFixed(4) + '@UTXO to ' + this.toAddress)
-    await telegram.send('send ' + utxoBalance.toFixed(4) + '@UTXO to ' + this.toAddress)
+    await telegram.log('send ' + amountToUse.toFixed(4) + '@UTXO to ' + this.toAddress)
+    await telegram.send('send ' + amountToUse.toFixed(4) + '@UTXO to ' + this.toAddress)
 
     return true
   }

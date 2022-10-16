@@ -29,6 +29,7 @@ export class StoreAWSSendDFI implements IStore {
     let DeFiFromAddressKey = StoreKey.DeFiFromAddress.replace('-maxi', '-maxi' + storePostfix)
     let DeFiToAddressKey = StoreKey.DeFiToAddress.replace('-maxi', '-maxi' + storePostfix)
     let SendThreshold = StoreKey.SendThreshold.replace('-maxi', '-maxi' + storePostfix)
+    let SendAll = StoreKey.SendAll.replace('-maxi', '-maxi' + storePostfix)
 
     //store only allows to get 10 parameters per request
     let parameters =
@@ -43,6 +44,7 @@ export class StoreAWSSendDFI implements IStore {
               DeFiFromAddressKey,
               DeFiToAddressKey,
               SendThreshold,
+              SendAll,
             ],
           })
           .promise()
@@ -67,6 +69,7 @@ export class StoreAWSSendDFI implements IStore {
     this.settings.address = this.getValue(DeFiFromAddressKey, parameters)
     this.settings.toAddress = this.getValue(DeFiToAddressKey, parameters)
     this.settings.sendThreshold = this.getNumberValue(SendThreshold, parameters)
+    this.settings.sendAll = this.getBooleanValue(SendAll, parameters) ?? false
 
     let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, ' ')
     this.settings.seed = seedList?.trim().split(' ') ?? []
@@ -81,6 +84,11 @@ export class StoreAWSSendDFI implements IStore {
     let value = parameters?.find((element) => element.Name === key)?.Value
     return value ? +value : undefined
   }
+
+  private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
+    let value = parameters?.find((element) => element.Name === key)?.Value
+    return value ? JSON.parse(value) : undefined
+  }
 }
 
 enum StoreKey {
@@ -94,4 +102,5 @@ enum StoreKey {
   DeFiToAddress = '/defichain-maxi/wallet-send/toAddress',
 
   SendThreshold = '/defichain-maxi/settings-send/threshold',
+  SendAll = '/defichain-maxi/settings-send/sendall',
 }

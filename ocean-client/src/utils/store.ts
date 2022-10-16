@@ -62,6 +62,7 @@ export class StoredSettings {
   stableCoinArbBatchSize: number = -1
   reinvestThreshold: number | undefined
   sendThreshold: number | undefined
+  sendAll: boolean = false
   autoDonationPercentOfReinvest: number = 0
   stateInformation: ProgramStateInformation = {
     state: ProgramState.Idle,
