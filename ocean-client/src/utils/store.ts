@@ -52,6 +52,7 @@ export class StoredSettings {
   logChatId: string = ''
   logToken: string = ''
   address: string = ''
+  toAddress: string = ''
   vault: string = ''
   seed: string[] = []
   minCollateralRatio: number = 200
@@ -60,6 +61,7 @@ export class StoredSettings {
   mainCollateralAsset: string = 'DFI'
   stableCoinArbBatchSize: number = -1
   reinvestThreshold: number | undefined
+  sendThreshold: number | undefined
   autoDonationPercentOfReinvest: number = 0
   stateInformation: ProgramStateInformation = {
     state: ProgramState.Idle,
