@@ -60,6 +60,7 @@ export class StoredSettings {
   mainCollateralAsset: string = 'DFI'
   stableCoinArbBatchSize: number = -1
   reinvestThreshold: number | undefined
+  reinvestPattern: string | undefined
   autoDonationPercentOfReinvest: number = 0
   stateInformation: ProgramStateInformation = {
     state: ProgramState.Idle,

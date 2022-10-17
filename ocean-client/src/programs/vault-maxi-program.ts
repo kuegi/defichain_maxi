@@ -8,14 +8,18 @@ import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
-import { IStore } from '../utils/store'
 import { WalletSetup } from '../utils/wallet-setup'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
-import { PoolId, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
+import { fromAddress } from '@defichain/jellyfish-address'
+import { PoolId, Script, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
 import { isNullOrEmpty } from '../utils/helpers'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
+
 import { DONATION_ADDRESS, DONATION_ADDRESS_TESTNET, DONATION_MAX_PERCENTAGE } from '../vault-maxi'
 import { VERSION } from '../vault-maxi'
+import { IStore } from '../utils/store'
+import { Token } from 'aws-sdk/clients/cloudwatchlogs'
+import { TokenData } from '@defichain/whale-api-client/dist/api/tokens'
 
 export enum VaultMaxiProgramTransaction {
   None = 'none',
@@ -59,6 +63,28 @@ export class CheckedValues {
   }
 }
 
+class ReinvestTarget {
+  tokenName: string
+  percent: number | undefined
+  targetAddress: string | undefined
+  targetScript: Script | undefined
+  isCollateral: boolean
+
+  constructor(
+    tokenName: string,
+    percent: number | undefined,
+    isCollateral: boolean,
+    targetAddress: string | undefined = undefined,
+    targetScript: Script | undefined = undefined,
+  ) {
+    this.tokenName = tokenName
+    this.percent = percent
+    this.isCollateral = isCollateral
+    this.targetAddress = targetAddress
+    this.targetScript = targetScript
+  }
+}
+
 export class VaultMaxiProgram extends CommonProgram {
   private targetCollateral: number
   readonly lmPair: string
@@ -74,6 +100,8 @@ export class VaultMaxiProgram extends CommonProgram {
   private negInterestWorkaround: boolean = false
   public readonly dusdTokenId: number
 
+  private reinvestTargets: ReinvestTarget[] = []
+
   constructor(store: IStore, walletSetup: WalletSetup) {
     super(store, walletSetup)
     this.dusdTokenId = walletSetup.isTestnet() ? 11 : 15
@@ -85,6 +113,66 @@ export class VaultMaxiProgram extends CommonProgram {
     this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
     this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== 'false' ?? true
     this.swapRewardsToMainColl = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== 'false' ?? true
+  }
+
+  async initReinvestTargets() {
+    let pattern = this.settings.reinvestPattern
+    if (pattern === undefined || pattern === '') {
+      //no pattern provided? pattern = "<mainCollateralAsset>" if should swap, else "DFI"
+      pattern = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== 'false' ?? true ? this.mainCollateralAsset : 'DFI'
+    }
+    // sample reinvest:
+    // DFI:10:df1cashOutAddress DFI BTC:10 SPY:20 GLD:20
+    // -> send 10% of DFI to address
+    // swap 10% to BTC (will be added to vault cause its collateral)
+    // swap 20% to SPY
+    // swap 20% to GLD
+    // rest (40%) as DFI into vault
+
+    // DFI:50 DFI::df1cashoutAddress BTC:20:df1otherAddress DUSD
+    // 50% in DFI in vault
+    // 20% swapped to BTC and send to otherAddress
+    // rest (30%) is split to
+    //  15% send to cashout as DFI
+    //  15% swapped to DUSD and reinvested
+
+    let totalPercent = 0
+    let targetsWithNoPercent = 0
+    pattern?.split(' ').forEach((target) => {
+      const parts = target.split(':')
+      const tokenName = parts[0]
+      const percent = parts.length > 1 ? parts[1] : ''
+      const address = parts.length > 2 ? parts[2] : ''
+      const token = this.getCollateralToken(tokenName)
+      const isCollateral = token !== undefined
+      let percentValue = undefined
+      if (percent === '') {
+        targetsWithNoPercent++
+      } else {
+        percentValue = +percent
+        totalPercent += percentValue
+      }
+      let script = undefined
+      if (address !== '') {
+        script = fromAddress(address, this.walletSetup.network.name)?.script
+      } 
+      this.reinvestTargets.push(
+        new ReinvestTarget(
+          tokenName,
+          percentValue,
+          isCollateral,
+          address === '' ? undefined : address,
+          script,
+        ),
+      )
+    })
+
+    const remainingPercent = totalPercent < 100 ? (100 - totalPercent) / targetsWithNoPercent : 0
+    for (const target of this.reinvestTargets) {
+      if (target.percent === undefined) {
+        target.percent = remainingPercent
+      }
+    }
   }
 
   async init(): Promise<boolean> {
@@ -100,6 +188,8 @@ export class VaultMaxiProgram extends CommonProgram {
         ' dusd CollValue is ' +
         this.getCollateralFactor('' + this.dusdTokenId).toFixed(3),
     )
+    await this.initReinvestTargets()
+
     return result
   }
 
@@ -402,77 +492,80 @@ export class VaultMaxiProgram extends CommonProgram {
             'vault ratio not safe but either no lpTokens or no loans in vault.\nDid you change the LMToken? Your vault is NOT safe! '
           await telegram.send(message)
           console.warn(message)
-          return true //can still run
-        }
-        const safeRatio = safeCollRatio / 100
-        const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).div(safeRatio))
-        if (!this.isSingleMint) {
-          const neededStock = neededrepay.div(
-            BigNumber.sum(this.getUsedOraclePrice(tokenLoan, false), pool!.priceRatio.ba),
-          )
-          const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
-          const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
-          const neededLPtokens = neededStock.div(stock_per_token)
-          if (
-            neededLPtokens.gt(lpTokens.amount) ||
-            neededDusd.gt(dusdLoan!.amount) ||
-            neededStock.gt(tokenLoan.amount)
-          ) {
-            const message =
-              'vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n' +
-              neededLPtokens.toFixed(4) +
-              ' vs ' +
-              (+lpTokens.amount).toFixed(4) +
-              ' ' +
-              lpTokens.symbol +
-              '\n' +
-              neededDusd.toFixed(1) +
-              ' vs ' +
-              (+dusdLoan!.amount).toFixed(1) +
-              ' ' +
-              dusdLoan!.symbol +
-              '\n' +
-              neededStock.toFixed(4) +
-              ' vs ' +
-              (+tokenLoan.amount).toFixed(4) +
-              ' ' +
-              tokenLoan.symbol +
-              '\n'
-            await telegram.send(message)
-            console.warn(message)
-            return true //can still run
-          }
         } else {
-          let oracleA = this.getUsedOraclePrice(tokenLoan, false)
-          let oracleB = this.getUsedOraclePrice(
-            vault.collateralAmounts.find((coll) => coll.symbol === this.assetB),
-            true,
-          )
+          const safeRatio = safeCollRatio / 100
+          const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).div(safeRatio))
+          if (!this.isSingleMint) {
+            const neededStock = neededrepay.div(
+              BigNumber.sum(this.getUsedOraclePrice(tokenLoan, false), pool!.priceRatio.ba),
+            )
+            const neededDusd = neededStock.multipliedBy(pool!.priceRatio.ba)
+            const stock_per_token = new BigNumber(pool!.tokenA.reserve).div(pool!.totalLiquidity.token)
+            const neededLPtokens = neededStock.div(stock_per_token)
+            if (
+              neededLPtokens.gt(lpTokens.amount) ||
+              neededDusd.gt(dusdLoan!.amount) ||
+              neededStock.gt(tokenLoan.amount)
+            ) {
+              const message =
+                'vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n' +
+                'wanted ' +
+                neededLPtokens.toFixed(4) +
+                ' but got ' +
+                (+lpTokens.amount).toFixed(4) +
+                ' ' +
+                lpTokens.symbol +
+                '\nwanted ' +
+                neededDusd.toFixed(1) +
+                ' but got ' +
+                (+dusdLoan!.amount).toFixed(1) +
+                ' ' +
+                dusdLoan!.symbol +
+                '\nwanted ' +
+                neededStock.toFixed(4) +
+                ' but got ' +
+                (+tokenLoan.amount).toFixed(4) +
+                ' ' +
+                tokenLoan.symbol +
+                '\n'
+              await telegram.send(message)
+              console.warn(message)
+            }
+          } else {
+            let oracleA = this.getUsedOraclePrice(tokenLoan, false)
+            let oracleB = this.getUsedOraclePrice(
+              vault.collateralAmounts.find((coll) => coll.symbol === this.assetB),
+              true,
+            )
 
-          const neededLPtokens = neededrepay
-            .times(safeRatio)
-            .times(pool.totalLiquidity.token)
-            .div(BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(safeRatio), oracleB.times(pool.tokenB.reserve)))
+            const neededLPtokens = neededrepay
+              .times(safeRatio)
+              .times(pool.totalLiquidity.token)
+              .div(
+                BigNumber.sum(oracleA.times(pool.tokenA.reserve).times(safeRatio), oracleB.times(pool.tokenB.reserve)),
+              )
 
-          const neededAssetA = neededLPtokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
-          if (neededLPtokens.gt(lpTokens.amount) || neededAssetA.gt(tokenLoan.amount)) {
-            const message =
-              'vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n' +
-              neededLPtokens.toFixed(4) +
-              ' vs ' +
-              (+lpTokens.amount).toFixed(4) +
-              ' ' +
-              lpTokens.symbol +
-              '\n' +
-              neededAssetA.toFixed(4) +
-              ' vs ' +
-              (+tokenLoan.amount).toFixed(4) +
-              ' ' +
-              tokenLoan.symbol +
-              '\n'
-            await telegram.send(message)
-            console.warn(message)
-            return true //can still run
+            const neededAssetA = neededLPtokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
+            if (neededLPtokens.gt(lpTokens.amount) || neededAssetA.gt(tokenLoan.amount)) {
+              const message =
+                'vault ratio not safe but not enough lptokens or loans to be able to guard it.\n' +
+                'Did you change the LMToken? Your vault is NOT safe!\n' +
+                'wanted ' +
+                neededLPtokens.toFixed(4) +
+                ' but got ' +
+                (+lpTokens.amount).toFixed(4) +
+                ' ' +
+                lpTokens.symbol +
+                '\nwanted ' +
+                neededAssetA.toFixed(4) +
+                ' but got ' +
+                (+tokenLoan.amount).toFixed(4) +
+                ' ' +
+                tokenLoan.symbol +
+                '\n'
+              await telegram.send(message)
+              console.warn(message)
+            }
           }
         }
       }
@@ -483,6 +576,28 @@ export class VaultMaxiProgram extends CommonProgram {
       this.settings.autoDonationPercentOfReinvest,
       DONATION_MAX_PERCENTAGE,
     )
+
+    //check reinvest pattern
+    let totalSum = 0
+    for (const target of this.reinvestTargets) {
+      if (target.targetAddress !== undefined && target.targetScript === undefined) {
+        const message = 'reinvest target address ' + target.targetAddress + ' is not valid'
+        await telegram.send(message)
+        console.warn(message)
+      }
+      if (target.percent! < 0 || target.percent! > 100) {
+        const message = 'invalid percent (' + target.percent + ') in reinvest target ' + target.token
+        await telegram.send(message)
+        console.warn(message)
+      }
+      totalSum += target.percent!
+    }
+    totalSum = Math.round(totalSum)
+    if (totalSum != 100) {
+      const message = 'sum of reinvest targets is not 100%. Its ' + totalSum
+      await telegram.send(message)
+      console.warn(message)
+    }
 
     return true
   }
@@ -1633,19 +1748,48 @@ export class VaultMaxiProgram extends CommonProgram {
 
         amountToUse = amountToUse.minus(donatedAmount)
       }
+
+      for (const target of this.reinvestTargets) {
+        let inputAmount = amountToUse.times(target.percent! / 100)
+
+        if (target.tokenName !== 'DFI') {
+          //todo: swap and wait
+          const token= await this.getToken(target.tokenName)
+          if(token === undefined) {
+            const msg= "could not find token "+target.tokenName+" in reinvest. skipping this target"
+            console.warn(msg)
+            await telegram.send(msg)
+            continue
+          }
+          const path= await this.client.poolpairs.getBestPath("0",token.id)
+          //TODO: maybe get all paths and choose best manually?
+          console.log('swaping ' + inputAmount + 'DFI to ' + target.tokenName)
+          const swap = await this.compositeswap(inputAmount, 0, +token.id, path.bestPath.map(pair => {return {id:+pair.poolPairId}}), new BigNumber(999999999), prevout)
+          await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
+          prevout= undefined //have to wait for swap anyway
+          if (!(await this.waitForTx(swap.txId))) {
+            await telegram.send('ERROR: swapping reinvestment failed')
+            console.error('swapping reinvestment failed')
+            continue
+          } else {
+            const estimatedResult= inputAmount.times(path.estimatedReturn)
+            inputAmount = BigNumber.min(estimatedResult,(await this.getTokenBalances()).get(target.tokenName)!.amount)
+            console.log("got "+inputAmount.toFixed(4)+" "+target.tokenName+" to use after swap")
+          }
+        }
+        if (target.targetScript !== undefined) {
+          //send as UTXO
+          //convert DFI to UTXOs
+          //send UTXO to script
+        } else if (target.isCollateral) {
+          //deposit
+          console.log('depositing ' + inputAmount + ' ' + target.token + ' to vault ')
+          const tx = await this.depositToVault(+this.getCollateralToken(target.token)!.token.id, amountToUse, prevout) //DFI is token 0
+          await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
+        }
+      }
       let reinvestToken = 'DFI'
       if (this.mainCollateralAsset == 'DFI' || !this.swapRewardsToMainColl) {
-        console.log(
-          'depositing ' +
-            amountToUse +
-            ' (' +
-            amountFromBalance +
-            '+' +
-            fromUtxos +
-            '-' +
-            donatedAmount +
-            ') DFI to vault ',
-        )
         const tx = await this.depositToVault(0, amountToUse, prevout) //DFI is token 0
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
         if (!(await this.waitForTx(tx.txId))) {
@@ -1661,37 +1805,6 @@ export class VaultMaxiProgram extends CommonProgram {
           }
         })
         reinvestToken = this.mainCollateralAsset
-        console.log(
-          'swaping ' +
-            amountToUse +
-            ' (' +
-            amountFromBalance +
-            '+' +
-            fromUtxos +
-            '-' +
-            donatedAmount +
-            ') DFI to ' +
-            this.mainCollateralAsset,
-        )
-        const swap = await this.swap(amountToUse, 0, mainTokenId, new BigNumber(999999999), prevout)
-        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
-        if (!(await this.waitForTx(swap.txId))) {
-          await telegram.send('ERROR: swapping reinvestment failed')
-          console.error('swapping reinvestment failed')
-          return false
-        } else {
-          const tokens = await this.getTokenBalances()
-          const token = tokens.get(this.mainCollateralAsset)
-          let amountToUse = new BigNumber(token!.amount)
-          console.log('depositing ' + amountToUse.toFixed(4) + '@' + this.mainCollateralAsset + ' to vault ')
-          const tx = await this.depositToVault(+token!.id, amountToUse)
-          await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
-          if (!(await this.waitForTx(tx.txId))) {
-            await telegram.send('ERROR: depositing reinvestment failed')
-            console.error('depositing failed')
-            return false
-          }
-        }
       }
       await telegram.send(
         'reinvested ' +
@@ -1794,3 +1907,4 @@ export class VaultMaxiProgram extends CommonProgram {
     })
   }
 }
+
