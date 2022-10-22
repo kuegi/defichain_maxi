@@ -16,9 +16,10 @@ export function isNullOrEmpty(value: string): boolean {
 
 export function checkSafetyOf(message: Message, settings: StoredSettings): boolean {
   let lastExecutedMessageId = settings.lastExecutedMessageId ?? 0
+  let username = settings.username.startsWith('@') ? settings.username.split('@')[1] : settings.username
   return (
     message.id > lastExecutedMessageId && // only execute new messages
-    message.username === settings.username && // only messages of the configured user
+    message.username === username && // only messages of the configured user
     message.chat_id === settings.chatId && // only from configured chat
     !message.is_bot
   ) // message should not come from a bot

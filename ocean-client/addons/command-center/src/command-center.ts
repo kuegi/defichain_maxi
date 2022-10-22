@@ -11,14 +11,14 @@ import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
 import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
-import { AvailableBots, BotType } from './utils/available-bot'
+import { AvailableBots } from './utils/available-bot'
 import { checkSafetyOf } from './utils/helpers'
 import { SetupCheck } from './utils/setup-check'
 import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
 import { VersionCheck } from './utils/version-check'
 
-const VERSION = 'v1.0-rc2'
+const VERSION = 'v1.0'
 
 export const MIN_MAXI_VERSION = { major: '2', minor: '0' }
 export const MIN_REINVEST_VERSION = { major: '1', minor: '0' }
@@ -76,7 +76,7 @@ async function execute(messages: Message[], telegram: Telegram, store: Store, av
         console.log('ignore ' + message.command)
         break
     }
-    await telegram.send('executing ' + message.command)
+    console.log('executing ' + message.command)
     await command?.execute()
   }
 }
