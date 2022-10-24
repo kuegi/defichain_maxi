@@ -83,17 +83,19 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       await program.init()
       blockHeight = await program.getBlockHeight()
       console.log('starting at block ' + blockHeight)
-      if (event) {
-        if (event.checkSetup) {
-          let result = await program.doAndReportCheck(telegram)
-          return { statusCode: result ? 200 : 500 }
-        }
-      }
+      
       const vaultcheck = await program.getVault()
       let pool = await program.getPool(program.lmPair)
       let balances = await program.getTokenBalances()
       if (!(await program.doMaxiChecks(telegram, vaultcheck, pool, balances))) {
         return { statusCode: 500 }
+      }
+      //do checkSetup after general checks, so that a successfully checkSetup without errors means its really all good.
+      if (event) {
+        if (event.checkSetup) {
+          let result = await program.doAndReportCheck(telegram)
+          return { statusCode: result ? 200 : 500 }
+        }
       }
 
       //real execution starts here, so doing heartbeat here, but only once per trigger

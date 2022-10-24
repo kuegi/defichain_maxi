@@ -12,7 +12,7 @@ import { WalletSetup } from '../utils/wallet-setup'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
 import { fromAddress } from '@defichain/jellyfish-address'
 import { CTransaction, PoolId, Script, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
-import { isNullOrEmpty } from '../utils/helpers'
+import { isNullOrEmpty, simplifyAddress } from '../utils/helpers'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
 import { DONATION_ADDRESS, DONATION_ADDRESS_TESTNET, DONATION_MAX_PERCENTAGE } from '../vault-maxi'
@@ -47,9 +47,9 @@ export class CheckedValues {
     return (
       '' +
       'Setup-Check result\n' +
-      (this.vault ? 'monitoring vault ' + this.vault : 'no vault found') +
+      (this.vault ? 'monitoring vault ' + simplifyAddress(this.vault) : 'no vault found') +
       '\n' +
-      (this.address ? 'from address ' + this.address : 'no valid address') +
+      (this.address ? 'from address ' + simplifyAddress(this.address) : 'no valid address') +
       '\n' +
       'Set collateral ratio range ' +
       this.minCollateralRatio +
@@ -168,6 +168,7 @@ export class VaultMaxiProgram extends CommonProgram {
         target.percent = remainingPercent
       }
     }
+    this.reinvestTargets = this.reinvestTargets.filter((t) => t.percent! > 0)
     console.log('got ' + this.reinvestTargets.length + ' targets with ' + totalPercent + ' defined percent.')
   }
 
@@ -575,16 +576,19 @@ export class VaultMaxiProgram extends CommonProgram {
 
     //check reinvest pattern
     let totalSum = 0
+    let reinvestError = false
     for (const target of this.reinvestTargets) {
       if (target.targetAddress !== undefined && target.targetScript === undefined) {
         const message = 'reinvest target address ' + target.targetAddress + ' is not valid'
         await telegram.send(message)
         console.warn(message)
+        reinvestError = true
       }
       if (target.percent! < 0 || target.percent! > 100) {
         const message = 'invalid percent (' + target.percent + ') in reinvest target ' + target.tokenName
         await telegram.send(message)
         console.warn(message)
+        reinvestError = true
       }
       totalSum += target.percent!
     }
@@ -593,6 +597,13 @@ export class VaultMaxiProgram extends CommonProgram {
       const message = 'sum of reinvest targets is not 100%. Its ' + totalSum
       await telegram.send(message)
       console.warn(message)
+      reinvestError = true
+    }
+    if (reinvestError) {
+      const message = 'will not do any reinvest until errors are fixed'
+      await telegram.send(message)
+      console.warn(message)
+      this.reinvestTargets = []
     }
 
     return true
@@ -701,6 +712,25 @@ export class VaultMaxiProgram extends CommonProgram {
           '% of your reinvest. Feel free to donate more manually'
         : 'Thank you for donating ' + this.settings.autoDonationPercentOfReinvest + '% of your rewards'
 
+    const reinvestMessage =
+      this.reinvestTargets.length > 0
+        ? 'reinvest Targets:\n  ' +
+          this.reinvestTargets
+            .map(
+              (target) =>
+                target.percent!.toFixed(1) +
+                '% ' +
+                (target.targetAddress !== undefined
+                  ? 'sending to ' + simplifyAddress(target.targetAddress)
+                  : target.isCollateral
+                  ? 'reinvesting'
+                  : 'swapping to wallet') +
+                ' as ' +
+                target.tokenName,
+            )
+            .reduce((a, b) => a + '\n  ' + b)
+        : 'no reinvest targets -> no reinvest'
+
     const message =
       values.constructMessage() +
       '\n' +
@@ -709,12 +739,7 @@ export class VaultMaxiProgram extends CommonProgram {
       (this.isSingleMint ? 'minting only ' + this.assetA : 'minting both assets') +
       '\nmain collateral asset is ' +
       this.mainCollateralAsset +
-      (this.settings.reinvestThreshold ?? -1 >= 0
-        ? '\n' +
-          (this.swapRewardsToMainColl && this.mainCollateralAsset != 'DFI'
-            ? ' will swap rewards to ' + this.mainCollateralAsset + ' before reinvest'
-            : 'will directly reinvest DFI')
-        : '') +
+      (this.settings.reinvestThreshold ?? -1 >= 0 ? '\n' + reinvestMessage : '') +
       '\n' +
       (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : 'auto donation is turned off') +
       '\n' +
@@ -1689,7 +1714,7 @@ export class VaultMaxiProgram extends CommonProgram {
     balances: Map<String, AddressToken>,
     telegram: Telegram,
   ): Promise<boolean> {
-    if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
+    if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0 || this.reinvestTargets.length == 0) {
       return false
     }
 
@@ -1754,7 +1779,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 target.percent!.toFixed(1) +
                 '% ' +
                 (target.targetAddress !== undefined
-                  ? 'sending to ' + target.targetAddress
+                  ? 'sending to ' + simplifyAddress(target.targetAddress)
                   : target.isCollateral
                   ? 'reinvesting'
                   : 'swapping to wallet') +
@@ -1874,8 +1899,8 @@ export class VaultMaxiProgram extends CommonProgram {
               t.inputAmount.toFixed(4) +
               '@' +
               t.target.tokenName +
-              '=>' +
-              t.target.targetAddress!,
+              ' => ' +
+              simplifyAddress(t.target.targetAddress!),
           )
         } else if (t.target.isCollateral) {
           //deposit
@@ -1892,7 +1917,7 @@ export class VaultMaxiProgram extends CommonProgram {
           )
         } else {
           swappedAmounts.push(
-            (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI=>' : '') +
+            (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI => ' : '') +
               t.inputAmount.toFixed(4) +
               '@' +
               t.target.tokenName,
@@ -1934,13 +1959,13 @@ export class VaultMaxiProgram extends CommonProgram {
           donatedAmount.toFixed(4) +
           ' donation)\n'
         if (reinvestAmounts.length > 0) {
-          msg += 'reinvested:\n' + reinvestAmounts.reduce((a, b) => a + '\n' + b) + '\n'
+          msg += 'reinvested:\n  ' + reinvestAmounts.reduce((a, b) => a + '\n  ' + b) + '\n'
         }
         if (swappedAmounts.length > 0) {
-          msg += 'swapped:\n' + swappedAmounts.reduce((a, b) => a + '\n' + b) + '\n'
+          msg += 'swapped:\n  ' + swappedAmounts.reduce((a, b) => a + '\n  ' + b) + '\n'
         }
         if (sentTokens.length > 0) {
-          msg += 'sent:\n' + sentTokens.reduce((a, b) => a + '\n' + b) + '\n'
+          msg += 'sent:\n  ' + sentTokens.reduce((a, b) => a + '\n  ' + b) + '\n'
         }
 
         await telegram.send(msg)
