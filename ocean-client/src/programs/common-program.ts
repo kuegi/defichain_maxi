@@ -189,7 +189,11 @@ export class CommonProgram {
     )
   }
 
-  async addLiquidity(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
+  async addLiquidity(
+    amounts: TokenBalanceUInt32[],
+    shareAddress: Script | undefined = undefined,
+    prevout: Prevout | undefined = undefined,
+  ): Promise<CTransaction> {
     return this.sendOrCreateDefiTx(
       OP_CODES.OP_DEFI_TX_POOL_ADD_LIQUIDITY({
         from: [
@@ -198,7 +202,7 @@ export class CommonProgram {
             balances: amounts,
           },
         ],
-        shareAddress: this.script!,
+        shareAddress: shareAddress ?? this.script!,
       }),
       prevout,
     )
