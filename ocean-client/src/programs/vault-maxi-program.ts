@@ -1709,6 +1709,28 @@ export class VaultMaxiProgram extends CommonProgram {
     }
   }
 
+  private async swapDFIForReinvest(
+    amount: BigNumber,
+    targetToken: { id: string; symbol: string },
+    prevout: Prevout | undefined,
+  ): Promise<[CTransaction, BigNumber]> {
+    const path = await this.client.poolpairs.getBestPath('0', targetToken.id)
+    //TODO: maybe get all paths and choose best manually?
+    console.log('swaping ' + amount + 'DFI to ' + targetToken.symbol)
+    const swap = await this.compositeswap(
+      amount,
+      0,
+      +targetToken.id,
+      path.bestPath.map((pair) => {
+        return { id: +pair.poolPairId }
+      }),
+      new BigNumber(999999999),
+      prevout,
+    )
+    await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
+    return [swap, amount.times(path.estimatedReturn)]
+  }
+
   async checkAndDoReinvest(
     vault: LoanVaultActive,
     pool: PoolPairData,
@@ -1793,7 +1815,7 @@ export class VaultMaxiProgram extends CommonProgram {
       let finalTx: CTransaction | undefined = undefined
 
       let toBeSent: Map<string, { to: Script; balances: TokenBalanceUInt32[] }> = new Map()
-      let sentTokens : Map<string,string[]>= new Map()
+      let sentTokens: Map<string, string[]> = new Map()
       let reinvestAmounts = []
       let swappedAmounts = []
 
@@ -1821,6 +1843,7 @@ export class VaultMaxiProgram extends CommonProgram {
         usedDFI: BigNumber
         target: ReinvestTarget
       }[] = []
+
       for (const target of dfiTargets) {
         let inputAmount = amountToUse.times(target.percent! / 100)
         reinvestOrSend.push({
@@ -1831,7 +1854,6 @@ export class VaultMaxiProgram extends CommonProgram {
           target: target,
         })
       }
-      9
 
       const swappedSymbol = '\u{27a1}'
 
@@ -1855,27 +1877,13 @@ export class VaultMaxiProgram extends CommonProgram {
           continue
         }
         if (token !== undefined) {
-          tokenId = +token.id
-          const path = await this.client.poolpairs.getBestPath('0', token.id)
-          //TODO: maybe get all paths and choose best manually?
-          console.log('swaping ' + inputAmount + 'DFI to ' + target.tokenName)
-          const swap = await this.compositeswap(
-            inputAmount,
-            0,
-            tokenId,
-            path.bestPath.map((pair) => {
-              return { id: +pair.poolPairId }
-            }),
-            new BigNumber(999999999),
-            prevout,
-          )
-          await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
+          const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount, token, prevout)
           prevout = this.prevOutFromTx(swap)
           finalTx = swap
           reinvestOrSend.push({
-            tokenId: tokenId,
+            tokenId: +token.id,
             inputAmount: inputAmount,
-            estimatedResult: inputAmount.times(path.estimatedReturn),
+            estimatedResult: estimatedResult,
             usedDFI: usedDFI,
             target: target,
           })
@@ -1883,43 +1891,17 @@ export class VaultMaxiProgram extends CommonProgram {
           console.log('swaping ' + inputAmount + 'DFI to ' + pool.tokenA.symbol + ' and ' + pool.tokenB.symbol)
           let estimatedA = inputAmount.div(2)
           if (+pool.tokenA.id != 0) {
-            const pathA = await this.client.poolpairs.getBestPath('0', pool.tokenA.id)
-            const swap = await this.compositeswap(
-              estimatedA,
-              0,
-              +pool.tokenA.id,
-              pathA.bestPath.map((pair) => {
-                return { id: +pair.poolPairId }
-              }),
-              new BigNumber(999999999),
-              prevout,
-            )
-
+            const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount.div(2), pool.tokenA, prevout)
             prevout = this.prevOutFromTx(swap)
             finalTx = swap
-            estimatedA = estimatedA.times(pathA.estimatedReturn)
+            estimatedA = estimatedResult
           }
           let estimatedB = inputAmount.div(2)
           if (+pool.tokenB.id != 0) {
-            const pathB = await this.client.poolpairs.getBestPath('0', pool.tokenB.id)
-            const swap = await this.compositeswap(
-              estimatedB,
-              0,
-              +pool.tokenB.id,
-              pathB.bestPath.map((pair) => {
-                return { id: +pair.poolPairId }
-              }),
-              new BigNumber(999999999),
-              prevout,
-            )
-            await this.updateToState(
-              ProgramState.WaitingForTransaction,
-              VaultMaxiProgramTransaction.Reinvest,
-              swap.txId,
-            )
+            const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount.div(2), pool.tokenB, prevout)
             prevout = this.prevOutFromTx(swap)
             finalTx = swap
-            estimatedB = estimatedB.times(pathB.estimatedReturn)
+            estimatedB = estimatedResult
           }
           reinvestOrSendLP.push({
             pool: pool,
@@ -1939,7 +1921,14 @@ export class VaultMaxiProgram extends CommonProgram {
           return true
         }
       }
+      //swaps done, now add liquidity, send resulting tokens and deposit
+
       const usedBalances: Map<string, BigNumber> = new Map()
+      const updateUsedBalances = (token: string, amount: BigNumber) => {
+        usedBalances.set(token, amount.plus(usedBalances.get(token) ?? 0))
+      }
+
+      balances = await this.getTokenBalances()
       if (reinvestOrSendLP.length > 0) {
         //add all liquidities
         allPools = await this.getPools()
@@ -1949,25 +1938,23 @@ export class VaultMaxiProgram extends CommonProgram {
             console.error('pool not found after swap. whats happening?!')
             continue
           }
+          //check real used assets (might have changed due to swap)
           let usedA = BigNumber.min(
             t.estimatedResultA,
-            new BigNumber((await this.getTokenBalances()).get(pool!.tokenA.symbol)!.amount).minus(
-              usedBalances.get(pool!.tokenA.symbol) ?? 0,
-            ),
+            new BigNumber(balances.get(pool!.tokenA.symbol)!.amount).minus(usedBalances.get(pool!.tokenA.symbol) ?? 0),
           )
           let usedB = BigNumber.min(
             t.estimatedResultB,
             usedA.times(pool!.priceRatio.ba),
-            new BigNumber((await this.getTokenBalances()).get(pool.tokenB.symbol)!.amount).minus(
-              usedBalances.get(pool!.tokenB.symbol) ?? 0,
-            ),
+            new BigNumber(balances.get(pool.tokenB.symbol)!.amount).minus(usedBalances.get(pool!.tokenB.symbol) ?? 0),
           )
           if (usedB.lt(usedA.times(pool.priceRatio.ba))) {
             //not enough b
             usedA = usedB.times(pool.priceRatio.ab)
           }
-          usedBalances.set(pool.tokenA.symbol, usedA.plus(usedBalances.get(pool.tokenA.symbol) ?? 0))
-          usedBalances.set(pool.tokenB.symbol, usedB.plus(usedBalances.get(pool.tokenB.symbol) ?? 0))
+          //keep track of already used assets. since we do all tx in one block, we need to keep track and ensure ourselfs
+          updateUsedBalances(pool.tokenA.symbol, usedA)
+          updateUsedBalances(pool.tokenB.symbol, usedB)
           console.log(
             'adding ' +
               usedA.toFixed(4) +
@@ -1980,6 +1967,8 @@ export class VaultMaxiProgram extends CommonProgram {
               ' to pool' +
               (t.target.targetAddress != undefined ? ' and sending to ' + t.target.targetAddress : ''),
           )
+
+          //adding liquidity and sending the tokens directly to the targetScript
           const tx = await this.addLiquidity(
             [
               { token: +pool.tokenA.id, amount: usedA },
@@ -1991,6 +1980,8 @@ export class VaultMaxiProgram extends CommonProgram {
           await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
           prevout = this.prevOutFromTx(tx)
           finalTx = tx
+
+          //just for logs
           const estimatedLP = usedA.times(pool.totalLiquidity.token).div(pool.tokenA.reserve)
           if (t.target.targetScript !== undefined) {
             sentTokens
@@ -2008,11 +1999,9 @@ export class VaultMaxiProgram extends CommonProgram {
         if (t.tokenId !== 0) {
           t.inputAmount = BigNumber.min(
             t.estimatedResult,
-            new BigNumber((await this.getTokenBalances()).get(t.target.tokenName)!.amount).minus(
-              usedBalances.get(t.target.tokenName) ?? 0,
-            ),
+            new BigNumber(balances.get(t.target.tokenName)!.amount).minus(usedBalances.get(t.target.tokenName) ?? 0),
           )
-          usedBalances.set(t.target.tokenName, t.inputAmount.plus(usedBalances.get(t.target.tokenName) ?? 0))
+          updateUsedBalances(t.target.tokenName, t.inputAmount)
           console.log('got ' + t.inputAmount.toFixed(4) + ' ' + t.target.tokenName + ' to use after swap')
         }
         if (t.target.targetScript !== undefined) {
@@ -2062,6 +2051,8 @@ export class VaultMaxiProgram extends CommonProgram {
           )
         }
       }
+
+      //sending all in one tx
       if (toBeSent.size > 0) {
         let targets: { to: Script; balances: TokenBalanceUInt32[] }[] = []
         let msg = ''
