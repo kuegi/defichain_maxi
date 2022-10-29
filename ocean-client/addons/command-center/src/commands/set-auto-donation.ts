@@ -47,13 +47,9 @@ export class SetAutoDonation extends Command {
   }
 
   successMessage(): string | undefined {
-    let percentageNumber = +this.percentage!
-    return (
-      'Your ' +
-      this.bot +
-      "s' auto-donation " +
-      (percentageNumber > 0 ? 'is set to ' + this.percentage + '. Thanks for supporting us!' : 'is deactivated')
-    )
+    const percentageNumber = +this.percentage!
+    const activeMessage = `is set to ${this.percentage}. Thanks for supporting us!`
+    return `Your ${this.bot?.name}s' auto-donation ${percentageNumber > 0 ? activeMessage : 'is deactivated'}`
   }
 
   doExecution(): Promise<unknown> {

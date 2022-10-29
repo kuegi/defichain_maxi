@@ -42,7 +42,7 @@ export class SetPair extends Command {
   }
 
   successMessage(): string | undefined {
-    return "Your lm-reinvests' token is set to " + this.pair
+    return `Your ${this.bot?.name}s' token is set to ${this.pair}`
   }
 
   async doExecution(): Promise<unknown> {
