@@ -48,7 +48,7 @@ export class SetRange extends Command {
   }
 
   successMessage(): string | undefined {
-    return "Your vault-maxis' range is set to " + this.minCollateralRatio + '-' + this.maxCollateralRatio
+    return `Your ${this.bot?.name}s' range is set to ${this.minCollateralRatio}-${this.maxCollateralRatio}`
   }
 
   async doExecution(): Promise<unknown> {

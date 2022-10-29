@@ -43,7 +43,7 @@ export class SetReinvest extends Command {
   }
 
   successMessage(): string | undefined {
-    return 'Your ' + this.bot + "s' reinvest is set to " + this.reinvest
+    return `Your ${this.bot?.name}s' reinvest is set to ${this.reinvest}`
   }
 
   async doExecution(): Promise<unknown> {

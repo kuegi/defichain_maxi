@@ -35,7 +35,7 @@ export class SetStableArbSize extends Command {
   }
 
   successMessage(): string | undefined {
-    return "Your vault-maxis' stable arb batch size is set to " + this.batchSize
+    return `Your ${this.bot?.name}s' stable arb batch size is set to ${this.batchSize}`
   }
 
   doExecution(): Promise<unknown> {
