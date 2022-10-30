@@ -63,25 +63,68 @@ export class CheckedValues {
   }
 }
 
+enum ReinvestTargetTokenType {
+  DFI,
+  Token,
+  LPToken,
+}
+
+enum ReinvestTargetType {
+  Wallet,
+  Vault,
+}
+
+class TargetWallet {
+  public readonly address: string
+  public readonly script: Script | undefined
+
+  constructor(address: string, script: Script | undefined) {
+    this.address = address
+    this.script = script
+  }
+
+  getLogMessage(program: VaultMaxiProgram) {
+    return this.address === program.getAddress()
+      ? 'swapping to wallet'
+      : 'sending to wallet' + simplifyAddress(this.address)
+  }
+}
+
+class TargetVault {
+  public readonly vaultId: string
+
+  constructor(vaultId: string) {
+    this.vaultId = vaultId
+  }
+
+  getLogMessage(program: VaultMaxiProgram) {
+    return this.vaultId === program.getVaultId() ? 'reinvesting' : 'depositing to vault' + simplifyAddress(this.vaultId)
+  }
+}
+
 class ReinvestTarget {
   tokenName: string
   percent: number | undefined
-  targetAddress: string | undefined
-  targetScript: Script | undefined
-  isCollateral: boolean
+  tokenType: ReinvestTargetTokenType
+  target: TargetVault | TargetWallet | undefined
 
-  constructor(
-    tokenName: string,
-    percent: number | undefined,
-    isCollateral: boolean,
-    targetAddress: string | undefined = undefined,
-    targetScript: Script | undefined = undefined,
-  ) {
+  constructor(tokenName: string, percent: number | undefined, target: TargetVault | TargetWallet | undefined) {
     this.tokenName = tokenName
     this.percent = percent
-    this.isCollateral = isCollateral
-    this.targetAddress = targetAddress
-    this.targetScript = targetScript
+    this.target = target
+    this.tokenType =
+      tokenName === 'DFI'
+        ? ReinvestTargetTokenType.DFI
+        : tokenName.indexOf('-') > 0
+        ? ReinvestTargetTokenType.LPToken
+        : ReinvestTargetTokenType.Token
+  }
+
+  getType() {
+    if (this.target === undefined) {
+      return undefined
+    }
+    return this.target instanceof TargetWallet ? ReinvestTargetType.Wallet : ReinvestTargetType.Vault
   }
 }
 
@@ -139,9 +182,10 @@ export class VaultMaxiProgram extends CommonProgram {
 
     let totalPercent = 0
     let targetsWithNoPercent = 0
+    const vaultRegex = /^[a-f0-9]{64}$/i
     const scriptPerAddress: Map<string, Script | undefined> = new Map()
-    pattern!.split(' ').forEach((target) => {
-      const parts = target.split(':')
+    pattern!.split(' ').forEach((t) => {
+      const parts = t.split(':')
       const tokenName = parts[0]
       const percent = parts.length > 1 ? parts[1] : ''
       const address = parts.length > 2 ? parts[2] : ''
@@ -154,16 +198,31 @@ export class VaultMaxiProgram extends CommonProgram {
         percentValue = +percent
         totalPercent += percentValue
       }
-      let script = undefined
+      let target = undefined
       if (address !== '') {
-        if (!scriptPerAddress.has(address)) {
-          scriptPerAddress.set(address, fromAddress(address, this.walletSetup.network.name)?.script)
+        if (vaultRegex.test(address)) {
+          //is vault address
+          if (isCollateral) {
+            target = new TargetVault(address)
+          } else {
+            console.warn('vault target for non-collateral token: ' + t)
+          }
+        } else {
+          //no vaultId, check for normal address
+          if (!scriptPerAddress.has(address)) {
+            scriptPerAddress.set(address, fromAddress(address, this.walletSetup.network.name)?.script)
+          }
+          target = new TargetWallet(address, scriptPerAddress.get(address))
         }
-        script = scriptPerAddress.get(address)
+      } else {
+        //no target defined -> fallback to own address or vault
+        if (isCollateral) {
+          target = new TargetVault(this.settings.vault)
+        } else {
+          target = new TargetWallet(this.getAddress(), this.getScript()!)
+        }
       }
-      this.reinvestTargets.push(
-        new ReinvestTarget(tokenName, percentValue, isCollateral, address === '' ? undefined : address, script),
-      )
+      this.reinvestTargets.push(new ReinvestTarget(tokenName, percentValue, target))
     })
 
     const remainingPercent = totalPercent < 100 ? (100 - totalPercent) / targetsWithNoPercent : 0
@@ -198,6 +257,10 @@ export class VaultMaxiProgram extends CommonProgram {
     return (
       transaction == VaultMaxiProgramTransaction.RemoveLiquidity || transaction == VaultMaxiProgramTransaction.TakeLoan
     )
+  }
+
+  getVaultId(): string {
+    return this.settings.vault
   }
 
   targetRatio(): number {
@@ -582,8 +645,16 @@ export class VaultMaxiProgram extends CommonProgram {
     let totalSum = 0
     let reinvestError = false
     for (const target of this.reinvestTargets) {
-      if (target.targetAddress !== undefined && target.targetScript === undefined) {
-        const message = 'reinvest target address ' + target.targetAddress + ' is not valid'
+      if (target.target === undefined) {
+        const message = 'invalid reinvest target, likely a vault target with non-collateral asset. please check logs'
+        await telegram.send(message)
+        console.warn(message)
+        reinvestError = true
+      } else if (
+        target.getType() === ReinvestTargetType.Wallet &&
+        (target.target as TargetWallet).script === undefined
+      ) {
+        const message = 'reinvest target address ' + (target.target as TargetWallet).address + ' is not valid'
         await telegram.send(message)
         console.warn(message)
         reinvestError = true
@@ -722,15 +793,7 @@ export class VaultMaxiProgram extends CommonProgram {
           this.reinvestTargets
             .map(
               (target) =>
-                target.percent!.toFixed(1) +
-                '% ' +
-                (target.targetAddress !== undefined
-                  ? 'sending to ' + simplifyAddress(target.targetAddress)
-                  : target.isCollateral
-                  ? 'reinvesting'
-                  : 'swapping to wallet') +
-                ' as ' +
-                target.tokenName,
+                target.percent!.toFixed(1) + '% ' + target.target!.getLogMessage(this) + ' as ' + target.tokenName,
             )
             .reduce((a, b) => a + '\n  ' + b)
         : 'no reinvest targets -> no reinvest'
@@ -1081,7 +1144,7 @@ export class VaultMaxiProgram extends CommonProgram {
         let amount = new BigNumber(collToken.amount)
         if (amount.gt(0)) {
           triedSomeTx = true
-          const depositTx = await this.depositToVault(+collToken.id, amount, used_prevout)
+          const depositTx = await this.depositToVault(+collToken.id, amount, undefined, used_prevout)
           waitingTx = depositTx
           used_prevout = this.prevOutFromTx(waitingTx)
           await this.updateToState(
@@ -1585,6 +1648,7 @@ export class VaultMaxiProgram extends CommonProgram {
           +target.id,
           pools,
           new BigNumber(maxPrice).decimalPlaces(8),
+          undefined,
           prevout,
         )
         await this.updateToState(
@@ -1605,7 +1669,7 @@ export class VaultMaxiProgram extends CommonProgram {
         //swap failed, pay back
         telegrammsg = 'tried stable arb but failed, ' + (swap ? 'swaptx failed directly.' : "swap didn't go throu.")
         console.info(telegrammsg + ' redepositing ' + size.toFixed(2) + '@' + coll.symbol)
-        lastTx = await this.depositToVault(+coll.id, size, prevout)
+        lastTx = await this.depositToVault(+coll.id, size, undefined, prevout)
       } else {
         const balance = await this.getTokenBalance(target.symbol)
         telegrammsg =
@@ -1618,7 +1682,7 @@ export class VaultMaxiProgram extends CommonProgram {
           '@' +
           coll.symbol
         console.info(telegrammsg + ', depositing ' + balance?.amount + '@' + target.symbol)
-        lastTx = await this.depositToVault(+target.id, new BigNumber(balance!.amount), prevout)
+        lastTx = await this.depositToVault(+target.id, new BigNumber(balance!.amount), undefined, prevout)
       }
       await this.updateToState(
         ProgramState.WaitingForTransaction,
@@ -1716,6 +1780,7 @@ export class VaultMaxiProgram extends CommonProgram {
   private async swapDFIForReinvest(
     amount: BigNumber,
     targetToken: { id: string; symbol: string },
+    targetScript: Script | undefined,
     prevout: Prevout | undefined,
   ): Promise<[CTransaction, BigNumber]> {
     const path = await this.client.poolpairs.getBestPath('0', targetToken.id)
@@ -1729,6 +1794,7 @@ export class VaultMaxiProgram extends CommonProgram {
         return { id: +pair.poolPairId }
       }),
       new BigNumber(999999999),
+      targetScript,
       prevout,
     )
     await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, swap.txId)
@@ -1803,15 +1869,7 @@ export class VaultMaxiProgram extends CommonProgram {
           this.reinvestTargets
             .map(
               (target) =>
-                target.percent!.toFixed(1) +
-                '% ' +
-                (target.targetAddress !== undefined
-                  ? 'sending to ' + simplifyAddress(target.targetAddress)
-                  : target.isCollateral
-                  ? 'reinvesting'
-                  : 'swapping to wallet') +
-                ' as ' +
-                target.tokenName,
+                target.percent!.toFixed(1) + '% ' + target.target!.getLogMessage(this) + ' as ' + target.tokenName,
             )
             .reduce((a, b) => a + '\n' + b),
       )
@@ -1819,20 +1877,45 @@ export class VaultMaxiProgram extends CommonProgram {
       let finalTx: CTransaction | undefined = undefined
 
       let toBeSent: Map<string, { to: Script; balances: TokenBalanceUInt32[] }> = new Map()
-      let sentTokens: Map<string, string[]> = new Map()
-      let reinvestAmounts = []
-      let swappedAmounts = []
 
       let allTokens = await this.listTokens()
       let allPools = await this.getPools()
-      const dfiTargets = this.reinvestTargets.filter((target) => target.tokenName === 'DFI')
-      const nondfiTargets = this.reinvestTargets.filter((target) => target.tokenName !== 'DFI')
+      let dfiTargets: ReinvestTarget[] = []
+      let nondfiTargets: ReinvestTarget[] = []
+      let lpTargets: ReinvestTarget[] = []
+
+      //for logs
+      let sentTokens: Map<string, string[]> = new Map()
+      let depositTokens: Map<string, string[]> = new Map()
+
+      //fill data structures
       this.reinvestTargets
-        .filter((t) => t.targetAddress != undefined)
+        .filter((t) => t.target != undefined)
         .forEach((t) => {
-          if (!sentTokens.has(t.targetAddress!)) sentTokens.set(t.targetAddress!, [])
+          switch (t.getType()) {
+            case ReinvestTargetType.Wallet:
+              const address = (t.target as TargetWallet).address
+              if (!sentTokens.has(address)) sentTokens.set(address, [])
+              break
+            case ReinvestTargetType.Vault:
+              const vault = (t.target as TargetVault).vaultId
+              if (!depositTokens.has(vault)) depositTokens.set(vault, [])
+              break
+          }
+          switch (t.tokenType) {
+            case ReinvestTargetTokenType.DFI:
+              dfiTargets.push(t)
+              break
+            case ReinvestTargetTokenType.Token:
+              nondfiTargets.push(t)
+              break
+            case ReinvestTargetTokenType.LPToken:
+              lpTargets.push(t)
+              break
+          }
         })
-      let reinvestOrSend: {
+
+      let toDeposit: {
         tokenId: number
         inputAmount: BigNumber
         estimatedResult: BigNumber
@@ -1840,7 +1923,7 @@ export class VaultMaxiProgram extends CommonProgram {
         target: ReinvestTarget
       }[] = []
 
-      let reinvestOrSendLP: {
+      let toAddtoLM: {
         pool: PoolPairData
         estimatedResultA: BigNumber
         estimatedResultB: BigNumber
@@ -1850,13 +1933,20 @@ export class VaultMaxiProgram extends CommonProgram {
 
       for (const target of dfiTargets) {
         let inputAmount = amountToUse.times(target.percent! / 100)
-        reinvestOrSend.push({
-          tokenId: 0,
-          inputAmount: inputAmount,
-          estimatedResult: inputAmount,
-          usedDFI: inputAmount,
-          target: target,
-        })
+        if (target.getType() === ReinvestTargetType.Wallet) {
+          const tx = await this.accountToUTXO(inputAmount, (target.target as TargetWallet).script!, prevout) //converts and sends in one tx
+          await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
+          prevout = this.prevOutFromTx(tx)
+          finalTx = tx
+        } else {
+          toDeposit.push({
+            tokenId: 0,
+            inputAmount: inputAmount,
+            estimatedResult: inputAmount,
+            usedDFI: inputAmount,
+            target: target,
+          })
+        }
       }
 
       const swappedSymbol = '\u{27a1}'
@@ -1864,57 +1954,81 @@ export class VaultMaxiProgram extends CommonProgram {
       for (const target of nondfiTargets) {
         let inputAmount = amountToUse.times(target.percent! / 100)
         const usedDFI = inputAmount
-        let tokenId = 0
-        //have to swap and wait
+        //have to swap and wait in case of reinvest
         let token = this.getCollateralTokenByKey(target.tokenName)?.token
-        let pool = undefined
-        if (target.tokenName.indexOf('-') > 0) {
-          pool = allPools.find((p) => p.symbol === target.tokenName)
-        }
-        if (pool === undefined && token === undefined) {
+        if (token === undefined) {
           token = allTokens.find((t) => t.symbolKey === target.tokenName)
         }
-        if (pool === undefined && token === undefined) {
-          const msg = 'could not find token/pool ' + target.tokenName + ' in reinvest. skipping this target'
+        if (token === undefined) {
+          const msg = 'could not find token ' + target.tokenName + ' in reinvest. skipping this target'
           console.warn(msg)
           await telegram.send(msg)
           continue
         }
-        if (token !== undefined) {
-          const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount, token, prevout)
-          prevout = this.prevOutFromTx(swap)
-          finalTx = swap
-          reinvestOrSend.push({
+        const targetScript =
+          target.getType() === ReinvestTargetType.Wallet ? (target.target as TargetWallet).script : undefined
+        const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount, token, targetScript, prevout)
+        prevout = this.prevOutFromTx(swap)
+        finalTx = swap
+        if (targetScript !== undefined) {
+          //swap to target -> already final step
+          sentTokens
+            .get((target.target as TargetWallet).address!)!
+            .push(usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedResult.toFixed(4) + '@' + target.tokenName)
+        } else {
+          toDeposit.push({
             tokenId: +token.id,
             inputAmount: inputAmount,
             estimatedResult: estimatedResult,
             usedDFI: usedDFI,
             target: target,
           })
-        } else if (pool !== undefined) {
-          console.log('swaping ' + inputAmount + 'DFI to ' + pool.tokenA.symbol + ' and ' + pool.tokenB.symbol)
-          let estimatedA = inputAmount.div(2)
-          if (+pool.tokenA.id != 0) {
-            const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount.div(2), pool.tokenA, prevout)
-            prevout = this.prevOutFromTx(swap)
-            finalTx = swap
-            estimatedA = estimatedResult
-          }
-          let estimatedB = inputAmount.div(2)
-          if (+pool.tokenB.id != 0) {
-            const [swap, estimatedResult] = await this.swapDFIForReinvest(inputAmount.div(2), pool.tokenB, prevout)
-            prevout = this.prevOutFromTx(swap)
-            finalTx = swap
-            estimatedB = estimatedResult
-          }
-          reinvestOrSendLP.push({
-            pool: pool,
-            estimatedResultA: estimatedA,
-            estimatedResultB: estimatedB,
-            usedDFI: usedDFI,
-            target: target,
-          })
         }
+      }
+
+      for (const target of lpTargets) {
+        let inputAmount = amountToUse.times(target.percent! / 100)
+        const usedDFI = inputAmount
+        //have to swap and wait
+        let pool = allPools.find((p) => p.symbol === target.tokenName)
+        if (pool === undefined) {
+          const msg = 'could not find pool ' + target.tokenName + ' in reinvest. skipping this target'
+          console.warn(msg)
+          await telegram.send(msg)
+          continue
+        }
+        console.log('swaping ' + inputAmount + 'DFI to ' + pool.tokenA.symbol + ' and ' + pool.tokenB.symbol)
+        let estimatedA = inputAmount.div(2)
+        if (+pool.tokenA.id != 0) {
+          const [swap, estimatedResult] = await this.swapDFIForReinvest(
+            inputAmount.div(2),
+            pool.tokenA,
+            undefined,
+            prevout,
+          )
+          prevout = this.prevOutFromTx(swap)
+          finalTx = swap
+          estimatedA = estimatedResult
+        }
+        let estimatedB = inputAmount.div(2)
+        if (+pool.tokenB.id != 0) {
+          const [swap, estimatedResult] = await this.swapDFIForReinvest(
+            inputAmount.div(2),
+            pool.tokenB,
+            undefined,
+            prevout,
+          )
+          prevout = this.prevOutFromTx(swap)
+          finalTx = swap
+          estimatedB = estimatedResult
+        }
+        toAddtoLM.push({
+          pool: pool,
+          estimatedResultA: estimatedA,
+          estimatedResultB: estimatedB,
+          usedDFI: usedDFI,
+          target: target,
+        })
       }
       if (finalTx != undefined) {
         console.log('sent swaps, waiting for them to get confirmed before continuing')
@@ -1925,7 +2039,7 @@ export class VaultMaxiProgram extends CommonProgram {
           return true
         }
       }
-      //swaps done, now add liquidity, send resulting tokens and deposit
+      //swaps done, now add liquidity and deposit
 
       const usedBalances: Map<string, BigNumber> = new Map()
       const updateUsedBalances = (token: string, amount: BigNumber) => {
@@ -1933,10 +2047,10 @@ export class VaultMaxiProgram extends CommonProgram {
       }
 
       balances = await this.getTokenBalances()
-      if (reinvestOrSendLP.length > 0) {
+      if (toAddtoLM.length > 0) {
         //add all liquidities
         allPools = await this.getPools()
-        for (const t of reinvestOrSendLP) {
+        for (const t of toAddtoLM) {
           const pool = allPools.find((p) => p.id === t.pool.id)
           if (pool === undefined) {
             console.error('pool not found after swap. whats happening?!')
@@ -1968,8 +2082,8 @@ export class VaultMaxiProgram extends CommonProgram {
               usedB.toFixed(4) +
               '@' +
               pool.tokenB.symbol +
-              ' to pool' +
-              (t.target.targetAddress != undefined ? ' and sending to ' + t.target.targetAddress : ''),
+              ' to pool with target ' +
+              (t.target.target as TargetWallet).address,
           )
 
           //adding liquidity and sending the tokens directly to the targetScript
@@ -1978,7 +2092,7 @@ export class VaultMaxiProgram extends CommonProgram {
               { token: +pool.tokenA.id, amount: usedA },
               { token: +pool.tokenB.id, amount: usedB },
             ],
-            t.target.targetScript,
+            (t.target.target as TargetWallet).script,
             prevout,
           )
           await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
@@ -1987,19 +2101,13 @@ export class VaultMaxiProgram extends CommonProgram {
 
           //just for logs
           const estimatedLP = usedA.times(pool.totalLiquidity.token).div(pool.tokenA.reserve)
-          if (t.target.targetScript !== undefined) {
-            sentTokens
-              .get(t.target.targetAddress!)!
-              .push(t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedLP.toFixed(4) + '@' + t.target.tokenName)
-          } else {
-            swappedAmounts.push(
-              t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol + +estimatedLP.toFixed(4) + '@' + t.target.tokenName,
-            )
-          }
+          sentTokens
+            .get((t.target.target as TargetWallet).address!)!
+            .push(t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedLP.toFixed(4) + '@' + t.target.tokenName)
         }
       }
 
-      for (const t of reinvestOrSend) {
+      for (const t of toDeposit) {
         if (t.tokenId !== 0) {
           t.inputAmount = BigNumber.min(
             t.estimatedResult,
@@ -2008,62 +2116,28 @@ export class VaultMaxiProgram extends CommonProgram {
           updateUsedBalances(t.target.tokenName, t.inputAmount)
           console.log('got ' + t.inputAmount.toFixed(4) + ' ' + t.target.tokenName + ' to use after swap')
         }
-        if (t.target.targetScript !== undefined) {
-          if(t.target.targetAddress !== this.getAddress()) {
-          console.log('sending ' + t.inputAmount + ' ' + t.target.tokenName + ' to ' + t.target.targetAddress)
-          if (t.target.tokenName === 'DFI') {
-            //send as UTXO
-            const tx = await this.accountToUTXO(t.inputAmount, t.target.targetScript, prevout) //converts and sends in one tx
-            await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
-            prevout = this.prevOutFromTx(tx)
-            finalTx = tx
-          } else {
-            if (!toBeSent.has(t.target.targetAddress!)) {
-              toBeSent.set(t.target.targetAddress!, { to: t.target.targetScript, balances: [] })
-            }
-            toBeSent.get(t.target.targetAddress!)?.balances.push({
-              token: t.tokenId,
-              amount: t.inputAmount,
-            })
-          }
-          sentTokens
-            .get(t.target.targetAddress!)!
-            .push(
-              (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
-                t.inputAmount.toFixed(4) +
-                '@' +
-                t.target.tokenName,
-            )
-          } else {
-            console.log("targetAddress is own address, so keeping "+t.inputAmount+" "+t.target.tokenName+" in wallet")
-            swappedAmounts.push(
-              (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
-                t.inputAmount.toFixed(4) +
-                '@' +
-                t.target.tokenName,
-            )  
-          }
-        } else if (t.target.isCollateral) {
-          //deposit
-          console.log('depositing ' + t.inputAmount + ' ' + t.target.tokenName + ' to vault ')
-          const tx = await this.depositToVault(t.tokenId, t.inputAmount, prevout)
-          await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
-          prevout = this.prevOutFromTx(tx)
-          finalTx = tx
-          reinvestAmounts.push(
-            (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
-              t.inputAmount.toFixed(4) +
-              '@' +
-              t.target.tokenName,
-          )
-        } else {
-          swappedAmounts.push(
-            (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
-              t.inputAmount.toFixed(4) +
-              '@' +
-              t.target.tokenName,
-          )
+        if (t.target.getType() !== ReinvestTargetType.Vault) {
+          console.warn('in reinvest, but targetType is not vault')
+          continue
         }
+        const targetVault = (t.target.target as TargetVault).vaultId
+        //deposit
+        console.log(
+          'depositing ' + t.inputAmount + ' ' + t.target.tokenName + ' to vault ' + simplifyAddress(targetVault),
+        )
+        const tx = await this.depositToVault(t.tokenId, t.inputAmount, targetVault, prevout)
+        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
+        prevout = this.prevOutFromTx(tx)
+        finalTx = tx
+
+        depositTokens
+          .get(targetVault)
+          ?.push(
+            (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
+              t.inputAmount.toFixed(4) +
+              '@' +
+              t.target.tokenName,
+          )
       }
 
       //sending all in one tx
@@ -2101,15 +2175,15 @@ export class VaultMaxiProgram extends CommonProgram {
           ' UTXOs, minus ' +
           donatedAmount.toFixed(4) +
           ' donation)\n'
-        if (reinvestAmounts.length > 0) {
-          msg += 'reinvested:\n  ' + reinvestAmounts.reduce((a, b) => a + '\n  ' + b) + '\n'
-        }
-        if (swappedAmounts.length > 0) {
-          msg += 'swapped:\n  ' + swappedAmounts.reduce((a, b) => a + '\n  ' + b) + '\n'
-        }
         if (sentTokens.size > 0) {
           sentTokens.forEach((value, key) => {
             msg += 'sent to ' + simplifyAddress(key) + ':\n  ' + value.reduce((a, b) => a + '\n  ' + b) + '\n'
+          })
+        }
+
+        if (depositTokens.size > 0) {
+          depositTokens.forEach((value, key) => {
+            msg += 'deposited to ' + simplifyAddress(key) + ':\n  ' + value.reduce((a, b) => a + '\n  ' + b) + '\n'
           })
         }
 

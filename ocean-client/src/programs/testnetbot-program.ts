@@ -120,7 +120,7 @@ export class TestnetBotProgram extends CommonProgram {
       let prevout = undefined
       let swap = undefined
       for (let i = 0; i < Math.floor(loops); i++) {
-        swap = await this.compositeswap(new BigNumber(1000), 5, 5, path, new BigNumber(1), prevout)
+        swap = await this.compositeswap(new BigNumber(1000), 5, 5, path, new BigNumber(1), undefined, prevout)
         prevout = this.prevOutFromTx(swap)
       }
       let result = await this.waitForTx(swap!.txId)

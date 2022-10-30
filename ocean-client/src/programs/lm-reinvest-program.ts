@@ -229,6 +229,7 @@ export class LMReinvestProgram extends CommonProgram {
           +tokenA.id,
           [{ id: +dusdPool!.id }, { id: +pool.id }],
           new BigNumber(999999999),
+          undefined,
           prevout,
         )
         txsToSign.push(swap)

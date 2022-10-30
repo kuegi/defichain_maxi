@@ -105,6 +105,10 @@ export class CommonProgram {
     return this.script ? this.settings.address : ''
   }
 
+  getScript(): Script | undefined {
+    return this.script
+  }
+
   async getStats(): Promise<StatsData> {
     return this.client.stats.get()
   }
@@ -233,11 +237,12 @@ export class CommonProgram {
   async depositToVault(
     token: number,
     amount: BigNumber,
+    vaultId: string | undefined,
     prevout: Prevout | undefined = undefined,
   ): Promise<CTransaction> {
     return this.sendOrCreateDefiTx(
       OP_CODES.OP_DEFI_TX_DEPOSIT_TO_VAULT({
-        vaultId: this.settings.vault,
+        vaultId: vaultId ?? this.settings.vault,
         from: this.script!,
         tokenAmount: {
           token: token,
@@ -360,6 +365,7 @@ export class CommonProgram {
     toTokenId: number,
     pools: PoolId[],
     maxPrice: BigNumber = new BigNumber(999999999),
+    targetScript: Script | undefined = undefined,
     prevout: Prevout | undefined = undefined,
   ): Promise<CTransaction> {
     return this.sendOrCreateDefiTx(
@@ -368,7 +374,7 @@ export class CommonProgram {
           fromScript: this.script!,
           fromTokenId: fromTokenId,
           fromAmount: amount,
-          toScript: this.script!,
+          toScript: targetScript ?? this.script!,
           toTokenId: toTokenId,
           maxPrice: maxPrice,
         },
