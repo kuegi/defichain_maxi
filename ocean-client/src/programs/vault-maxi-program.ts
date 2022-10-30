@@ -2009,6 +2009,7 @@ export class VaultMaxiProgram extends CommonProgram {
           console.log('got ' + t.inputAmount.toFixed(4) + ' ' + t.target.tokenName + ' to use after swap')
         }
         if (t.target.targetScript !== undefined) {
+          if(t.target.targetAddress !== this.getAddress()) {
           console.log('sending ' + t.inputAmount + ' ' + t.target.tokenName + ' to ' + t.target.targetAddress)
           if (t.target.tokenName === 'DFI') {
             //send as UTXO
@@ -2033,6 +2034,15 @@ export class VaultMaxiProgram extends CommonProgram {
                 '@' +
                 t.target.tokenName,
             )
+          } else {
+            console.log("targetAddress is own address, so keeping "+t.inputAmount+" "+t.target.tokenName+" in wallet")
+            swappedAmounts.push(
+              (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
+                t.inputAmount.toFixed(4) +
+                '@' +
+                t.target.tokenName,
+            )  
+          }
         } else if (t.target.isCollateral) {
           //deposit
           console.log('depositing ' + t.inputAmount + ' ' + t.target.tokenName + ' to vault ')
