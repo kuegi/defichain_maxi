@@ -139,6 +139,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
     let totalPercent = 0
     let targetsWithNoPercent = 0
+    const scriptPerAddress: Map<string, Script | undefined> = new Map()
     pattern!.split(' ').forEach((target) => {
       const parts = target.split(':')
       const tokenName = parts[0]
@@ -155,7 +156,10 @@ export class VaultMaxiProgram extends CommonProgram {
       }
       let script = undefined
       if (address !== '') {
-        script = fromAddress(address, this.walletSetup.network.name)?.script
+        if (!scriptPerAddress.has(address)) {
+          scriptPerAddress.set(address, fromAddress(address, this.walletSetup.network.name)?.script)
+        }
+        script = scriptPerAddress.get(address)
       }
       this.reinvestTargets.push(
         new ReinvestTarget(tokenName, percentValue, isCollateral, address === '' ? undefined : address, script),
