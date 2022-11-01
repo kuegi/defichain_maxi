@@ -84,9 +84,7 @@ class TargetWallet {
   }
 
   getLogMessage(program: VaultMaxiProgram) {
-    return this.address === program.getAddress()
-      ? 'swapping to wallet'
-      : 'sending to wallet' + simplifyAddress(this.address)
+    return this.address === program.getAddress() ? 'swapping to wallet' : 'sending to ' + simplifyAddress(this.address)
   }
 }
 
@@ -98,7 +96,7 @@ class TargetVault {
   }
 
   getLogMessage(program: VaultMaxiProgram) {
-    return this.vaultId === program.getVaultId() ? 'reinvesting' : 'depositing to vault' + simplifyAddress(this.vaultId)
+    return this.vaultId === program.getVaultId() ? 'reinvesting' : 'depositing to ' + simplifyAddress(this.vaultId)
   }
 }
 
@@ -1934,10 +1932,12 @@ export class VaultMaxiProgram extends CommonProgram {
       for (const target of dfiTargets) {
         let inputAmount = amountToUse.times(target.percent! / 100)
         if (target.getType() === ReinvestTargetType.Wallet) {
+          console.log('sending ' + inputAmount.toFixed(2) + ' DFI as UTXOs')
           const tx = await this.accountToUTXO(inputAmount, (target.target as TargetWallet).script!, prevout) //converts and sends in one tx
           await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
           prevout = this.prevOutFromTx(tx)
           finalTx = tx
+          sentTokens.get((target.target as TargetWallet).address)!.push(inputAmount.toFixed(2) + '@DFI')
         } else {
           toDeposit.push({
             tokenId: 0,
