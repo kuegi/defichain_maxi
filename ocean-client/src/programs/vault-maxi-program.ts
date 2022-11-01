@@ -1862,6 +1862,8 @@ export class VaultMaxiProgram extends CommonProgram {
 
         amountToUse = amountToUse.minus(donatedAmount)
       }
+
+      //reinvesting the defined DFI amount according to targets now
       console.log(
         'reinvest targets (' +
           this.reinvestTargets.length +
@@ -1875,8 +1877,6 @@ export class VaultMaxiProgram extends CommonProgram {
       )
 
       let finalTx: CTransaction | undefined = undefined
-
-      let toBeSent: Map<string, { to: Script; balances: TokenBalanceUInt32[] }> = new Map()
 
       let allTokens = await this.listTokens()
       let allPools = await this.getPools()
@@ -1951,6 +1951,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
       const swappedSymbol = '\u{27a1}'
 
+      //handle normal token swaps, possible deposit to vault done in a second step
       for (const target of nondfiTargets) {
         let inputAmount = amountToUse.times(target.percent! / 100)
         const usedDFI = inputAmount
@@ -1971,9 +1972,9 @@ export class VaultMaxiProgram extends CommonProgram {
         prevout = this.prevOutFromTx(swap)
         finalTx = swap
         if (targetScript !== undefined) {
-          //swap to target -> already final step
+          //swap to target was  already final step: add to log
           sentTokens
-            .get((target.target as TargetWallet).address!)!
+            .get((target.target as TargetWallet).address)!
             .push(usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedResult.toFixed(4) + '@' + target.tokenName)
         } else {
           toDeposit.push({
@@ -1986,6 +1987,7 @@ export class VaultMaxiProgram extends CommonProgram {
         }
       }
 
+      //handle LM targets: first swap parts, later add to LM
       for (const target of lpTargets) {
         let inputAmount = amountToUse.times(target.percent! / 100)
         const usedDFI = inputAmount
@@ -1997,27 +1999,17 @@ export class VaultMaxiProgram extends CommonProgram {
           await telegram.send(msg)
           continue
         }
-        console.log('swaping ' + inputAmount + 'DFI to ' + pool.tokenA.symbol + ' and ' + pool.tokenB.symbol)
+        console.log('swaping ' + inputAmount + ' DFI to ' + pool.tokenA.symbol + ' and ' + pool.tokenB.symbol)
         let estimatedA = inputAmount.div(2)
         if (+pool.tokenA.id != 0) {
-          const [swap, estimatedResult] = await this.swapDFIForReinvest(
-            inputAmount.div(2),
-            pool.tokenA,
-            undefined,
-            prevout,
-          )
+          const [swap, estimatedResult] = await this.swapDFIForReinvest(estimatedA, pool.tokenA, undefined, prevout)
           prevout = this.prevOutFromTx(swap)
           finalTx = swap
           estimatedA = estimatedResult
         }
         let estimatedB = inputAmount.div(2)
         if (+pool.tokenB.id != 0) {
-          const [swap, estimatedResult] = await this.swapDFIForReinvest(
-            inputAmount.div(2),
-            pool.tokenB,
-            undefined,
-            prevout,
-          )
+          const [swap, estimatedResult] = await this.swapDFIForReinvest(estimatedB, pool.tokenB, undefined, prevout)
           prevout = this.prevOutFromTx(swap)
           finalTx = swap
           estimatedB = estimatedResult
@@ -2040,13 +2032,19 @@ export class VaultMaxiProgram extends CommonProgram {
         }
       }
       //swaps done, now add liquidity and deposit
-
-      const usedBalances: Map<string, BigNumber> = new Map()
-      const updateUsedBalances = (token: string, amount: BigNumber) => {
-        usedBalances.set(token, amount.plus(usedBalances.get(token) ?? 0))
+      //need to keep track of wo
+      const availableBalances: Map<string, BigNumber> = new Map()
+      const reduceAvailableBalance = (token: string, amountOut: BigNumber) => {
+        availableBalances.set(token, availableBalances.get(token)?.minus(amountOut) ?? new BigNumber(0))
+      }
+      const availableBalance = (token: string): BigNumber => {
+        return availableBalances.get(token) ?? new BigNumber(0)
       }
 
-      balances = await this.getTokenBalances()
+      ;(await this.getTokenBalances()).forEach((value, token) =>
+        availableBalances.set(token, new BigNumber(value.amount)),
+      )
+
       if (toAddtoLM.length > 0) {
         //add all liquidities
         allPools = await this.getPools()
@@ -2057,22 +2055,17 @@ export class VaultMaxiProgram extends CommonProgram {
             continue
           }
           //check real used assets (might have changed due to swap)
-          let usedA = BigNumber.min(
-            t.estimatedResultA,
-            new BigNumber(balances.get(pool!.tokenA.symbol)!.amount).minus(usedBalances.get(pool!.tokenA.symbol) ?? 0),
-          )
+          let usedA = BigNumber.min(t.estimatedResultA, availableBalance(pool.tokenA.symbol))
           let usedB = BigNumber.min(
             t.estimatedResultB,
             usedA.times(pool!.priceRatio.ba),
-            new BigNumber(balances.get(pool.tokenB.symbol)!.amount).minus(usedBalances.get(pool!.tokenB.symbol) ?? 0),
+            availableBalance(pool.tokenB.symbol),
           )
           if (usedB.lt(usedA.times(pool.priceRatio.ba))) {
             //not enough b
             usedA = usedB.times(pool.priceRatio.ab)
           }
-          //keep track of already used assets. since we do all tx in one block, we need to keep track and ensure ourselfs
-          updateUsedBalances(pool.tokenA.symbol, usedA)
-          updateUsedBalances(pool.tokenB.symbol, usedB)
+
           console.log(
             'adding ' +
               usedA.toFixed(4) +
@@ -2085,6 +2078,13 @@ export class VaultMaxiProgram extends CommonProgram {
               ' to pool with target ' +
               (t.target.target as TargetWallet).address,
           )
+          if (usedA.lte(0) || usedB.lte(0)) {
+            console.warn('sub zero used assets in addLPToken, ignoring')
+            continue
+          }
+          //keep track of already used assets. since we do all tx in one block, we need to keep track and ensure ourselfs
+          reduceAvailableBalance(pool.tokenA.symbol, usedA)
+          reduceAvailableBalance(pool.tokenB.symbol, usedB)
 
           //adding liquidity and sending the tokens directly to the targetScript
           const tx = await this.addLiquidity(
@@ -2102,29 +2102,28 @@ export class VaultMaxiProgram extends CommonProgram {
           //just for logs
           const estimatedLP = usedA.times(pool.totalLiquidity.token).div(pool.tokenA.reserve)
           sentTokens
-            .get((t.target.target as TargetWallet).address!)!
+            .get((t.target.target as TargetWallet).address)!
             .push(t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedLP.toFixed(4) + '@' + t.target.tokenName)
         }
       }
 
       for (const t of toDeposit) {
-        if (t.tokenId !== 0) {
-          t.inputAmount = BigNumber.min(
-            t.estimatedResult,
-            new BigNumber(balances.get(t.target.tokenName)!.amount).minus(usedBalances.get(t.target.tokenName) ?? 0),
-          )
-          updateUsedBalances(t.target.tokenName, t.inputAmount)
-          console.log('got ' + t.inputAmount.toFixed(4) + ' ' + t.target.tokenName + ' to use after swap')
-        }
         if (t.target.getType() !== ReinvestTargetType.Vault) {
-          console.warn('in reinvest, but targetType is not vault')
+          console.warn('in reinvest toDeposit, but targetType is not vault, ignoring')
           continue
+        }
+        if (t.tokenId !== 0) {
+          t.inputAmount = BigNumber.min(t.estimatedResult, availableBalance(t.target.tokenName))
+          console.log('got ' + t.inputAmount.toFixed(4) + ' ' + t.target.tokenName + ' to use after swap')
+          if (t.inputAmount.lte(0)) {
+            console.warn('got subzero asset to deposit, ignoring')
+            continue
+          }
+          reduceAvailableBalance(t.target.tokenName, t.inputAmount)
         }
         const targetVault = (t.target.target as TargetVault).vaultId
         //deposit
-        console.log(
-          'depositing ' + t.inputAmount + ' ' + t.target.tokenName + ' to vault ' + simplifyAddress(targetVault),
-        )
+        console.log('depositing ' + t.inputAmount + ' ' + t.target.tokenName + ' to vault ' + targetVault)
         const tx = await this.depositToVault(t.tokenId, t.inputAmount, targetVault, prevout)
         await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
         prevout = this.prevOutFromTx(tx)
@@ -2138,26 +2137,6 @@ export class VaultMaxiProgram extends CommonProgram {
               '@' +
               t.target.tokenName,
           )
-      }
-
-      //sending all in one tx
-      if (toBeSent.size > 0) {
-        let targets: { to: Script; balances: TokenBalanceUInt32[] }[] = []
-        let msg = ''
-        toBeSent.forEach((value, target) => {
-          targets.push(value)
-          msg +=
-            target +
-            ': ' +
-            value.balances
-              .map((balance) => balance.amount.toFixed(4) + '@' + balance.token)
-              .reduce((a, b) => a + ',' + b)
-        })
-        console.log('sending tokens ' + msg)
-        const tx = await this.sendTokenToAccounts(targets, prevout)
-        await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
-        prevout = this.prevOutFromTx(tx)
-        finalTx = tx
       }
 
       if (finalTx !== undefined && !(await this.waitForTx(finalTx.txId))) {
@@ -2175,17 +2154,23 @@ export class VaultMaxiProgram extends CommonProgram {
           ' UTXOs, minus ' +
           donatedAmount.toFixed(4) +
           ' donation)\n'
-        if (sentTokens.size > 0) {
-          sentTokens.forEach((value, key) => {
-            msg += 'sent to ' + simplifyAddress(key) + ':\n  ' + value.reduce((a, b) => a + '\n  ' + b) + '\n'
-          })
-        }
 
-        if (depositTokens.size > 0) {
-          depositTokens.forEach((value, key) => {
-            msg += 'deposited to ' + simplifyAddress(key) + ':\n  ' + value.reduce((a, b) => a + '\n  ' + b) + '\n'
-          })
-        }
+        sentTokens.forEach((value, key) => {
+          msg +=
+            (key !== this.getAddress() ? 'sent to ' + simplifyAddress(key) : 'into wallet') +
+            ':\n  ' +
+            value.reduce((a, b) => a + '\n  ' + b) +
+            '\n'
+        })
+
+        depositTokens.forEach((value, key) => {
+          msg +=
+            'deposited to ' +
+            (key !== this.getVaultId() ? simplifyAddress(key) : 'own vault') +
+            ':\n  ' +
+            value.reduce((a, b) => a + '\n  ' + b) +
+            '\n'
+        })
 
         await telegram.send(msg)
         console.log('done ')
