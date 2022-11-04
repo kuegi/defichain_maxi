@@ -17,7 +17,7 @@ import {
   Vin,
   Vout,
 } from '@defichain/jellyfish-transaction'
-import { WhaleApiClient } from '@defichain/whale-api-client'
+import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
 import {
   CollateralToken,
@@ -101,6 +101,19 @@ export class CommonProgram {
     return true
   }
 
+  private async aggregatePagedResponse<T>(call: () => Promise<ApiPagedResponse<T>>): Promise<T[]> {
+    const pages = [await call()]
+    while (pages[pages.length - 1].hasNext) {
+      try {
+        pages.push(await this.client.paginate(pages[pages.length - 1]))
+      } catch (e) {
+        break
+      }
+    }
+
+    return pages.flatMap((page) => page as T[])
+  }
+
   getAddress(): string {
     return this.script ? this.settings.address : ''
   }
@@ -130,7 +143,7 @@ export class CommonProgram {
   }
 
   async getTokenBalances(): Promise<Map<string, AddressToken>> {
-    const tokens = await this.client.address.listToken(this.getAddress(), 1000)
+    const tokens = await this.aggregatePagedResponse(() => this.client.address.listToken(this.getAddress(), 200))
 
     return new Map(tokens.map((token) => [token.symbol, token]))
   }
@@ -146,7 +159,7 @@ export class CommonProgram {
   }
 
   async getPools(): Promise<PoolPairData[]> {
-    return await this.client.poolpairs.list(1000)
+    return await this.aggregatePagedResponse(() => this.client.poolpairs.list(200))
   }
 
   async getPool(poolId: string): Promise<PoolPairData | undefined> {
@@ -167,7 +180,7 @@ export class CommonProgram {
   }
 
   async listTokens(): Promise<TokenData[]> {
-    return this.client.tokens.list(10000)
+    return await this.aggregatePagedResponse(() => this.client.tokens.list(200))
   }
 
   async getLoanToken(token: string): Promise<LoanToken> {
