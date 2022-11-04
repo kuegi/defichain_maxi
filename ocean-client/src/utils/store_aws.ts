@@ -64,6 +64,7 @@ export class StoreAWS implements IStore {
     let MinCollateralRatioKey = this.postfixedKey(StoreKey.MinCollateralRatio)
     let MaxCollateralRatioKey = this.postfixedKey(StoreKey.MaxCollateralRatio)
     let ReinvestThreshold = this.postfixedKey(StoreKey.ReinvestThreshold)
+    let ReinvestPattern = this.postfixedKey(StoreKey.ReinvestPattern)
     let AutoDonationPercentOfReinvestKey = this.postfixedKey(StoreKey.AutoDonationPercentOfReinvest)
     let LMTokenKey = this.postfixedKey(StoreKey.LMToken)
     let LMPairKey = this.postfixedKey(StoreKey.LMPair)
@@ -87,6 +88,7 @@ export class StoreAWS implements IStore {
               SkipKey,
               StableArbBatchSizeKey,
               HeartBeatKey,
+              ReinvestPattern,
             ],
           })
           .promise()
@@ -142,6 +144,7 @@ export class StoreAWS implements IStore {
     this.settings.LMPair = lmPair
     this.settings.mainCollateralAsset = this.getOptionalValue(MainCollAssetKey, parameters) ?? 'DFI'
     this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
+    this.settings.reinvestPattern = this.getOptionalValue(ReinvestPattern, parameters)
     this.settings.autoDonationPercentOfReinvest =
       this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? this.settings.autoDonationPercentOfReinvest
     this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
@@ -191,6 +194,7 @@ enum StoreKey {
   LMPair = '/defichain-maxi/settings/lm-pair',
   MainCollateralAsset = '/defichain-maxi/settings/main-collateral-asset',
   ReinvestThreshold = '/defichain-maxi/settings/reinvest',
+  ReinvestPattern = '/defichain-maxi/settings/reinvest-pattern',
   StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
   AutoDonationPercentOfReinvest = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
 

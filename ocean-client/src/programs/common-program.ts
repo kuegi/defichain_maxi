@@ -9,6 +9,7 @@ import {
   OP_DEFI_TX,
   PoolId,
   Script,
+  ScriptBalances,
   TokenBalanceUInt32,
   toOPCodes,
   Transaction,
@@ -16,7 +17,7 @@ import {
   Vin,
   Vout,
 } from '@defichain/jellyfish-transaction'
-import { WhaleApiClient } from '@defichain/whale-api-client'
+import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
 import {
   CollateralToken,
@@ -68,6 +69,10 @@ export class CommonProgram {
     this.account = await this.walletSetup.getAccount(this.settings.address)
     this.script = fromAddress(this.settings.address, this.walletSetup.network.name)?.script //also does validation of the address
     this.collTokens = await this.client.loan.listCollateralToken(100)
+    console.log(
+      'got collateral tokens: ' +
+        JSON.stringify(this.collTokens.map((coll) => coll.token.symbolKey + '@' + coll.factor)),
+    )
     return true
   }
 
@@ -96,12 +101,33 @@ export class CommonProgram {
     return true
   }
 
+  private async aggregatePagedResponse<T>(call: () => Promise<ApiPagedResponse<T>>): Promise<T[]> {
+    const pages = [await call()]
+    while (pages[pages.length - 1].hasNext) {
+      try {
+        pages.push(await this.client.paginate(pages[pages.length - 1]))
+      } catch (e) {
+        break
+      }
+    }
+
+    return pages.flatMap((page) => page as T[])
+  }
+
   getAddress(): string {
     return this.script ? this.settings.address : ''
   }
 
+  getScript(): Script | undefined {
+    return this.script
+  }
+
   async getStats(): Promise<StatsData> {
     return this.client.stats.get()
+  }
+
+  getCollateralTokenByKey(key: string): CollateralToken | undefined {
+    return this.collTokens?.find((token) => token.token.symbolKey == key)
   }
 
   getCollateralToken(id: string): CollateralToken | undefined {
@@ -117,7 +143,7 @@ export class CommonProgram {
   }
 
   async getTokenBalances(): Promise<Map<string, AddressToken>> {
-    const tokens = await this.client.address.listToken(this.getAddress(), 1000)
+    const tokens = await this.aggregatePagedResponse(() => this.client.address.listToken(this.getAddress(), 200))
 
     return new Map(tokens.map((token) => [token.symbol, token]))
   }
@@ -133,7 +159,7 @@ export class CommonProgram {
   }
 
   async getPools(): Promise<PoolPairData[]> {
-    return await this.client.poolpairs.list(1000)
+    return await this.aggregatePagedResponse(() => this.client.poolpairs.list(200))
   }
 
   async getPool(poolId: string): Promise<PoolPairData | undefined> {
@@ -151,6 +177,10 @@ export class CommonProgram {
 
   async getToken(token: string): Promise<TokenData> {
     return this.client.tokens.get(token)
+  }
+
+  async listTokens(): Promise<TokenData[]> {
+    return await this.aggregatePagedResponse(() => this.client.tokens.list(200))
   }
 
   async getLoanToken(token: string): Promise<LoanToken> {
@@ -176,7 +206,11 @@ export class CommonProgram {
     )
   }
 
-  async addLiquidity(amounts: TokenBalanceUInt32[], prevout: Prevout | undefined = undefined): Promise<CTransaction> {
+  async addLiquidity(
+    amounts: TokenBalanceUInt32[],
+    shareAddress: Script | undefined = undefined,
+    prevout: Prevout | undefined = undefined,
+  ): Promise<CTransaction> {
     return this.sendOrCreateDefiTx(
       OP_CODES.OP_DEFI_TX_POOL_ADD_LIQUIDITY({
         from: [
@@ -185,7 +219,7 @@ export class CommonProgram {
             balances: amounts,
           },
         ],
-        shareAddress: this.script!,
+        shareAddress: shareAddress ?? this.script!,
       }),
       prevout,
     )
@@ -216,11 +250,12 @@ export class CommonProgram {
   async depositToVault(
     token: number,
     amount: BigNumber,
+    vaultId: string | undefined,
     prevout: Prevout | undefined = undefined,
   ): Promise<CTransaction> {
     return this.sendOrCreateDefiTx(
       OP_CODES.OP_DEFI_TX_DEPOSIT_TO_VAULT({
-        vaultId: this.settings.vault,
+        vaultId: vaultId ?? this.settings.vault,
         from: this.script!,
         tokenAmount: {
           token: token,
@@ -259,6 +294,27 @@ export class CommonProgram {
     )
   }
 
+  async accountToUTXO(
+    amount: BigNumber,
+    destinationScript: Script,
+    prevout: Prevout | undefined = undefined,
+  ): Promise<CTransaction> {
+    return this.sendOrCreateDefiTx(
+      OP_CODES.OP_DEFI_TX_ACCOUNT_TO_UTXOS({
+        from: this.script!,
+        balances: [{ token: 0x00, amount: amount }],
+        mintingOutputsStart: 2,
+      }),
+      prevout,
+      new BigNumber(0),
+      {
+        value: amount,
+        script: destinationScript,
+        tokenId: 0x00,
+      },
+    )
+  }
+
   async sendDFIToAccount(
     amount: BigNumber,
     address: string,
@@ -272,6 +328,24 @@ export class CommonProgram {
             balances: [{ token: 0, amount: amount }],
           },
         ],
+        from: this.script!,
+      }),
+      prevout,
+    )
+  }
+
+  async sendTokenToAccounts(
+    targets: { to: Script; balances: TokenBalanceUInt32[] }[],
+    prevout: Prevout | undefined = undefined,
+  ): Promise<CTransaction> {
+    return this.sendOrCreateDefiTx(
+      OP_CODES.OP_DEFI_TX_ACCOUNT_TO_ACCOUNT({
+        to: targets.map((target): ScriptBalances => {
+          return {
+            script: target.to,
+            balances: target.balances,
+          }
+        }),
         from: this.script!,
       }),
       prevout,
@@ -304,6 +378,7 @@ export class CommonProgram {
     toTokenId: number,
     pools: PoolId[],
     maxPrice: BigNumber = new BigNumber(999999999),
+    targetScript: Script | undefined = undefined,
     prevout: Prevout | undefined = undefined,
   ): Promise<CTransaction> {
     return this.sendOrCreateDefiTx(
@@ -312,7 +387,7 @@ export class CommonProgram {
           fromScript: this.script!,
           fromTokenId: fromTokenId,
           fromAmount: amount,
-          toScript: this.script!,
+          toScript: targetScript ?? this.script!,
           toTokenId: toTokenId,
           maxPrice: maxPrice,
         },
@@ -326,8 +401,9 @@ export class CommonProgram {
     opDeFiTx: OP_DEFI_TX,
     prevout: Prevout | undefined,
     dftxOut: BigNumber = new BigNumber(0),
+    extraVout: Vout | undefined = undefined,
   ): Promise<CTransaction> {
-    const txn = await this.buildDefiTx(opDeFiTx, this.script!, prevout, dftxOut)
+    const txn = await this.buildDefiTx(opDeFiTx, this.script!, prevout, dftxOut, extraVout)
     if (this.canSign()) {
       //send directly
       return this.send(txn as TransactionSegWit, prevout ? 3000 : 0) //initial wait time when depending on other tx
@@ -414,6 +490,7 @@ export class CommonProgram {
     changeScript: Script,
     prevout: Prevout | undefined = undefined,
     outValue: BigNumber = new BigNumber('0'),
+    extraVout: Vout | undefined = undefined,
   ): Promise<Transaction> {
     const minFee = outValue.plus(0.001) // see JSDoc above
     let total = new BigNumber(0)
@@ -484,6 +561,9 @@ export class CommonProgram {
       vin: vin,
       vout: [deFiOut, change],
       lockTime: 0x00000000,
+    }
+    if (extraVout != undefined) {
+      txn.vout.push(extraVout)
     }
 
     //no need to estimate, we are fine with minimum fee

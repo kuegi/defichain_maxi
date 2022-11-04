@@ -45,6 +45,7 @@ To run, the script needs parameters set in the AWS ParameterStore:
 /defichain-maxi/settings/main-collateral-asset
 /defichain-maxi/settings/stable-arb-batch-size (if > 0 -> search for stable-coin arbitrage and do batches of max this size)
 /defichain-maxi/settings/reinvest
+/defichain-maxi/settings/reinvest-pattern
 /defichain-maxi/settings/auto-donation-percent-of-reinvest (if > 0 this percentage of your reinvested amount will be donated to the devs on every reinvest. highly appreciated.)
 
 /defichain-maxi/state (written by the bot itself)
@@ -61,6 +62,19 @@ optional parameters (if you want telegram notifications)
 /defichain-maxi/telegram/logs/chat-id
 /defichain-maxi/telegram/logs/token
 ```
+
+### Reinvest pattern
+
+in the reinvest pattern, you can define how the DFI should be used in the reinvest. You can define a space seperated list of targets. each target has the pattern `token:percent:targetAddress` if there is no targetAddress given, the tokens stay in the wallet. collateral tokens that stay in the wallet get deposited to the vault automatically.
+the given percent is the part of the reinvest amount that should be used in this target. the sum of all percent-values must not be greater than 100.
+If the sum of all given percent numbers is below 100, the remaining percent are equally distributed among all targets without defined percent. 
+If the token is a LP token, the DFI get swapped 50:50 to the two needed tokens and added to the pool. resulting LP tokens can be send to a targetAddress.
+
+examples:
+
+* `DFI` : full reinvest as DFI into the vault
+* `DFI DUSD` : half of the amount gets swapped to DUSD, DFI and DUSD get deposited to the vault
+* `BTC:10:df1address1 TSLA:15 BTC-DFI:8 SPY-DUSD:20:otheraddress DFI USDT`: 10% swapped to BTC and sent to df1address1, 15% swapped to TSLA and kept in wallet, 8% swapped half to BTC and put into BTC-DFI pool, 20% swapped to SPY and DUSD and the LP-token send to otheraddress, rest (47%) split in DFI and USDT both deposited to the vault.
 
 ## Advanced usage
 Besides having parameters in the AWS ParameterStore, there is the possibility to set environment variables on a AWS Lambda execution.

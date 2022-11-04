@@ -20,6 +20,7 @@
             "MainCollateralAsset",
             "StablecoinArbitrageBatch",
             "MinReinvest",
+            "ReinvestPattern",
             "AutoDonation"
           ]
         },
@@ -73,6 +74,9 @@
         },
         "MinReinvest": {
           "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
+        },
+        "ReinvestPattern": {
+          "default": "Pattern for reinvest (if empty, its the mainCollateralAsset)"
         },
         "AutoDonation": {
           "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
@@ -161,6 +165,11 @@
       "Type": "Number",
       "Default": 1,
       "Description": "Above this threshold script will add DFI as collateral"
+    },
+    "ReinvestPattern": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Pattern for reinvestments. if empty, everything is reinvested as the maincollateralasset."
     },
     "AutoDonation": {
       "Type": "Number",
@@ -500,6 +509,18 @@
         "Type": "String",
         "Value": {
           "Ref": "MinReinvest"
+        }
+      }
+    },
+    "vaultMaxiParamReinvestPattern": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Pattern for reinvestments. if empty, everything is reinvested as the maincollateralasset.",
+        "Name": "/defichain-maxi/settings/reinvest-pattern",
+        "Type": "String",
+        "Value": {
+          "Ref": "ReinvestPattern"
         }
       }
     },

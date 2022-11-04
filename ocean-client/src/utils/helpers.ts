@@ -8,3 +8,11 @@ export function isNullOrEmpty(value: string): boolean {
 export function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+export function simplifyAddress(address: string) {
+  if (address.length > 10) {
+    return address.substring(0, 5) + '...' + address.substring(address.length - 4)
+  } else {
+    return address
+  }
+}
