@@ -1802,7 +1802,7 @@ export class VaultMaxiProgram extends CommonProgram {
   async checkAndDoReinvest(
     vault: LoanVaultActive,
     pool: PoolPairData,
-    balances: Map<String, AddressToken>,
+    balances: Map<string, AddressToken>,
     telegram: Telegram,
   ): Promise<boolean> {
     if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0 || this.reinvestTargets.length == 0) {
@@ -2041,9 +2041,8 @@ export class VaultMaxiProgram extends CommonProgram {
         return availableBalances.get(token) ?? new BigNumber(0)
       }
 
-      ;(await this.getTokenBalances()).forEach((value, token) =>
-        availableBalances.set(token, new BigNumber(value.amount)),
-      )
+      balances = await this.getTokenBalances()
+      balances.forEach((value, token) => availableBalances.set(token, new BigNumber(value.amount)))
 
       if (toAddtoLM.length > 0) {
         //add all liquidities
