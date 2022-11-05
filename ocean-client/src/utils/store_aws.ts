@@ -43,8 +43,7 @@ export abstract class StoreAWS {
     const chunkSize = 10
     let parameters: ParameterList = []
     for (let i = 0; i < keys.length; i += chunkSize) {
-      const chunk = keys.slice(i, i + chunkSize)
-      parameters.concat(
+      parameters = parameters.concat(
         (
           await this.ssm
             .getParameters({
