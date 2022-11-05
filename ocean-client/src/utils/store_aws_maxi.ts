@@ -21,6 +21,9 @@ export class StoredMaxiSettings extends StoredAWSSettings implements TelegramSet
   shouldSkipNext: boolean = false
 
   heartBeatUrl: string | undefined
+  logId: string | undefined
+  keepWalletClean: boolean = true
+  oceanUrl: string | undefined
 }
 
 enum StoreKey {
@@ -45,6 +48,9 @@ enum StoreKey {
 
   //optionals
   HeartBeatURL = '/defichain-maxi/settings/heartbeat-url',
+  LogId = '/defichain-maxi/settings/log-id',
+  KeepWalletClean = '/defichain-maxi/settings/keep-wallet-clean',
+  OceanUrl = '/defichain-maxi/settings/ocean-url',
 
   State = '/defichain-maxi/state',
   Skip = '/defichain-maxi/skip',
@@ -98,6 +104,9 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
     let StableArbBatchSizeKey = this.postfixedKey(StoreKey.StableArbBatchSize)
 
     let HeartBeatKey = this.postfixedKey(StoreKey.HeartBeatURL)
+    let LogIdKey = this.postfixedKey(StoreKey.LogId)
+    let KeepWalletCleanKey = this.postfixedKey(StoreKey.KeepWalletClean)
+    let OceanUrlKey = this.postfixedKey(StoreKey.OceanUrl)
 
     //store only allows to get 10 parameters per request
     const parameters = await this.fetchParameters([
@@ -119,6 +128,9 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
       StateKey,
       ReinvestThreshold,
       AutoDonationPercentOfReinvestKey,
+      LogIdKey,
+      KeepWalletCleanKey,
+      OceanUrlKey,
     ])
 
     const settings = new StoredMaxiSettings()
@@ -139,6 +151,9 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
     settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
     settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
     settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? 'false') === 'true'
+    settings.logId = this.getOptionalValue(LogIdKey, parameters)
+    settings.keepWalletClean = this.getBooleanValue(KeepWalletCleanKey, parameters) ?? true
+    settings.oceanUrl = this.getOptionalValue(OceanUrlKey, parameters)
 
     //optionals
     settings.heartBeatUrl = this.getOptionalValue(HeartBeatKey, parameters)

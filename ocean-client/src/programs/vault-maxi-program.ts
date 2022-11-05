@@ -132,7 +132,6 @@ export class VaultMaxiProgram extends CommonProgram {
   private mainCollateralAsset: string
   private isSingleMint: boolean
   private readonly keepWalletClean: boolean
-  private readonly swapRewardsToMainColl: boolean
   private readonly minValueForCleanup: number = 0.1
   private readonly maxPercentDiffInConsistencyChecks: number = 1
 
@@ -150,8 +149,7 @@ export class VaultMaxiProgram extends CommonProgram {
     this.isSingleMint = this.mainCollateralAsset == 'DUSD' || this.lmPair == 'DUSD-DFI'
 
     this.targetCollateral = (this.getSettings().minCollateralRatio + this.getSettings().maxCollateralRatio) / 200
-    this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== 'false' ?? true
-    this.swapRewardsToMainColl = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== 'false' ?? true
+    this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== 'false' ?? settings.keepWalletClean ?? true
   }
 
   private getSettings(): StoredMaxiSettings {
