@@ -56,8 +56,8 @@ export class CommonProgram {
 
   pendingTx: string | undefined
 
-  constructor(store: IStore, walletSetup: WalletSetup) {
-    this.settings = store.settings
+  constructor(store: IStore, settings: StoredSettings, walletSetup: WalletSetup) {
+    this.settings = settings
     this.store = store
     this.client = walletSetup.client
     this.walletSetup = walletSetup

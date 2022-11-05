@@ -1,6 +1,5 @@
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
-import { Store } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
@@ -40,7 +39,7 @@ export async function main(event: botEvent, context: any): Promise<Object> {
         delay(30000)
         settings = await store.fetchSettings()
       }
-      const program = new TestnetBotProgram(store, new WalletSetup(settings, ocean))
+      const program = new TestnetBotProgram(store, settings, new WalletSetup(settings, ocean))
       await program.init()
       if (!program.isTestNet()) {
         console.error('Must only run on testnet!')

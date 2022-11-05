@@ -2,13 +2,13 @@ import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
-import { IStore } from '../utils/store'
 import { WalletSetup } from '../utils/wallet-setup'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from '../vault-maxi'
 import { CTransaction } from '@defichain/jellyfish-transaction/dist'
 import { VERSION } from '../lm-reinvest'
+import { StoreAWSReinvest, StoredReinvestSettings } from '../utils/store_aws_reinvest'
 
 export enum LMReinvestProgramTransaction {
   None = 'none',
@@ -18,9 +18,13 @@ export enum LMReinvestProgramTransaction {
 export class LMReinvestProgram extends CommonProgram {
   readonly lmPair: string
 
-  constructor(store: IStore, walletSetup: WalletSetup) {
-    super(store, walletSetup)
-    this.lmPair = this.settings.LMPair
+  constructor(store: StoreAWSReinvest, settings: StoredReinvestSettings, walletSetup: WalletSetup) {
+    super(store, settings, walletSetup)
+    this.lmPair = this.getSettings().LMPair
+  }
+
+  private getSettings(): StoredReinvestSettings {
+    return this.settings as StoredReinvestSettings
   }
 
   async doMaxiChecks(telegram: Telegram, pool: PoolPairData | undefined): Promise<boolean> {
@@ -39,7 +43,7 @@ export class LMReinvestProgram extends CommonProgram {
       //1 tx is roughly 2e-6 fee, one action mainly 3 tx -> 6e-6 fee. we want at least 10 actions safety -> below 1e-4 we warn
       const message =
         'your UTXO balance is running low in ' +
-        this.settings.address +
+        this.getSettings().address +
         ', only ' +
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
@@ -48,8 +52,8 @@ export class LMReinvestProgram extends CommonProgram {
     }
 
     // sanity check for auto-donate feature, do NOT allow auto-donate above our defined max percentage
-    this.settings.autoDonationPercentOfReinvest = Math.min(
-      this.settings.autoDonationPercentOfReinvest,
+    this.getSettings().autoDonationPercentOfReinvest = Math.min(
+      this.getSettings().autoDonationPercentOfReinvest,
       DONATION_MAX_PERCENTAGE,
     )
 
@@ -75,24 +79,24 @@ export class LMReinvestProgram extends CommonProgram {
       (pool ? 'using pool ' : 'no pool found for pair ') +
       this.lmPair +
       '\n' +
-      (this.settings.reinvestThreshold && this.settings.reinvestThreshold > 0
-        ? 'Will reinvest above ' + (this.settings.reinvestThreshold + ' DFI')
+      (this.getSettings().reinvestThreshold && this.getSettings().reinvestThreshold! > 0
+        ? 'Will reinvest above ' + (this.getSettings().reinvestThreshold + ' DFI')
         : 'No reinvest set, got nothing to do!')
 
     const autoDonationMessage =
-      this.settings.autoDonationPercentOfReinvest > DONATION_MAX_PERCENTAGE
+      this.getSettings().autoDonationPercentOfReinvest > DONATION_MAX_PERCENTAGE
         ? 'Thank you for donating ' +
           DONATION_MAX_PERCENTAGE +
           '% of your rewards. You set to donate ' +
-          this.settings.autoDonationPercentOfReinvest +
+          this.getSettings().autoDonationPercentOfReinvest +
           '% which is great but feels like an input error. Donation was reduced to ' +
           DONATION_MAX_PERCENTAGE +
           '% of your reinvest. Feel free to donate more manually'
-        : 'Thank you for donating ' + this.settings.autoDonationPercentOfReinvest + '% of your rewards'
+        : 'Thank you for donating ' + this.getSettings().autoDonationPercentOfReinvest + '% of your rewards'
 
     message +=
       '\n' +
-      (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : 'auto donation is turned off') +
+      (this.getSettings().autoDonationPercentOfReinvest > 0 ? autoDonationMessage : 'auto donation is turned off') +
       '\nusing ocean at: ' +
       this.walletSetup.url
 
@@ -158,7 +162,7 @@ export class LMReinvestProgram extends CommonProgram {
     balances: Map<String, AddressToken>,
     telegram: Telegram,
   ): Promise<boolean> {
-    if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0) {
+    if (!this.getSettings().reinvestThreshold || this.getSettings().reinvestThreshold! <= 0) {
       return false
     }
 
@@ -179,21 +183,21 @@ export class LMReinvestProgram extends CommonProgram {
         ' tokens. total ' +
         amountToUse +
         ' vs ' +
-        this.settings.reinvestThreshold,
+        this.getSettings().reinvestThreshold,
     )
-    if (amountToUse.gt(this.settings.reinvestThreshold) && fromUtxos.gt(0)) {
+    if (amountToUse.gt(this.getSettings().reinvestThreshold!) && fromUtxos.gt(0)) {
       console.log('converting ' + fromUtxos + ' UTXOs to token ')
       const tx = await this.utxoToOwnAccount(fromUtxos)
       txsToSign.push(tx)
       prevout = this.prevOutFromTx(tx)
     }
 
-    if (amountToUse.gt(this.settings.reinvestThreshold)) {
+    if (amountToUse.gt(this.getSettings().reinvestThreshold!)) {
       let donatedAmount = new BigNumber(0)
-      const maxReinvestForDonation = Math.max(this.settings.reinvestThreshold, 20) * 2 //anything below 20 DFI is considered a "reinvest all the time"
-      if (this.settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
+      const maxReinvestForDonation = Math.max(this.getSettings().reinvestThreshold!, 20) * 2 //anything below 20 DFI is considered a "reinvest all the time"
+      if (this.getSettings().autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
         //send donation and reduce amountToUse
-        donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
+        donatedAmount = amountToUse.times(this.getSettings().autoDonationPercentOfReinvest).div(100)
         console.log('donating ' + donatedAmount.toFixed(2) + ' DFI')
         const tx = await this.sendDFIToAccount(donatedAmount, DONATION_ADDRESS, prevout)
         txsToSign.push(tx)
@@ -274,7 +278,7 @@ export class LMReinvestProgram extends CommonProgram {
             '@' +
             tokenB.symbol,
         )
-        if (this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
+        if (this.getSettings().autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
           await telegram.send(
             'you activated auto donation, but the reinvested amount was too big to be a reinvest. ' +
               'We assume that this was a transfer of funds, so we skipped auto-donation. ' +
@@ -293,7 +297,7 @@ export class LMReinvestProgram extends CommonProgram {
     transaction: LMReinvestProgramTransaction,
     txId: string = '',
   ): Promise<void> {
-    return await this.store.updateToState({
+    return await (this.store as StoreAWSReinvest).updateToState({
       state: state,
       tx: transaction,
       txId: txId,

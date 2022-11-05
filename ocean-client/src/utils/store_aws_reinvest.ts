@@ -1,113 +1,20 @@
 import SSM from 'aws-sdk/clients/ssm'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
+import { StoreAWS, StoredAWSSettings } from './store_aws'
 
-// handle AWS Paramter
-export class StoreAWSReinvest implements IStore {
-  private ssm: SSM
-  readonly settings: StoredSettings
+export class StoredReinvestSettings extends StoredAWSSettings {
+  chatId: string = ''
+  token: string = ''
+  logChatId: string = ''
+  logToken: string = ''
 
-  constructor() {
-    this.ssm = new SSM()
-    this.settings = new StoredSettings()
-  }
-
-  async updateToState(information: ProgramStateInformation): Promise<void> {
-    const key = StoreKey.State.replace('-maxi', '-maxi' + this.settings.paramPostFix)
-    const state = {
-      Name: key,
-      Value: ProgramStateConverter.toValue(information),
-      Overwrite: true,
-      Type: 'String',
-    }
-    await this.ssm.putParameter(state).promise()
-  }
-
-  async skipNext(): Promise<void> {}
-  async clearSkip(): Promise<void> {}
-
-  async fetchSettings(): Promise<StoredSettings> {
-    // first check environment
-
-    let storePostfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ''
-
-    this.settings.paramPostFix = storePostfix
-    let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
-
-    let DeFiAddressKey = StoreKey.DeFiAddress.replace('-maxi', '-maxi' + storePostfix)
-    let ReinvestThreshold = StoreKey.ReinvestThreshold.replace('-maxi', '-maxi' + storePostfix)
-    let AutoDonationPercentOfReinvestKey = StoreKey.AutoDonationPercentOfReinvest.replace(
-      '-maxi',
-      '-maxi' + storePostfix,
-    )
-    let LMPairKey = StoreKey.LMPair.replace('-maxi', '-maxi' + storePostfix)
-    let StateKey = StoreKey.State.replace('-maxi', '-maxi' + storePostfix)
-
-    //store only allows to get 10 parameters per request
-    let parameters =
-      (
-        await this.ssm
-          .getParameters({
-            Names: [
-              StoreKey.TelegramNotificationChatId,
-              StoreKey.TelegramNotificationToken,
-              StoreKey.TelegramLogsChatId,
-              StoreKey.TelegramLogsToken,
-              DeFiAddressKey,
-              LMPairKey,
-              ReinvestThreshold,
-              AutoDonationPercentOfReinvestKey,
-              StateKey,
-            ],
-          })
-          .promise()
-      ).Parameters ?? []
-
-    let decryptedSeed
-    try {
-      decryptedSeed = await this.ssm
-        .getParameter({
-          Name: seedkey,
-          WithDecryption: true,
-        })
-        .promise()
-    } catch (e) {
-      console.error('Seed Parameter not found!')
-      decryptedSeed = undefined
-    }
-    this.settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
-    this.settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
-    this.settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
-    this.settings.logToken = this.getValue(StoreKey.TelegramLogsToken, parameters)
-    this.settings.address = this.getValue(DeFiAddressKey, parameters)
-    this.settings.LMPair = this.getValue(LMPairKey, parameters)
-    this.settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
-    this.settings.autoDonationPercentOfReinvest =
-      this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? this.settings.autoDonationPercentOfReinvest
-    this.settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
-
-    let seedList = decryptedSeed?.Parameter?.Value?.replace(/[ ,]+/g, ' ')
-    this.settings.seed = seedList?.trim().split(' ') ?? []
-    return this.settings
-  }
-
-  private getValue(key: string, parameters: SSM.ParameterList): string {
-    return parameters?.find((element) => element.Name === key)?.Value as string
-  }
-
-  private getOptionalValue(key: string, parameters: SSM.ParameterList): string | undefined {
-    return parameters?.find((element) => element.Name === key)?.Value
-  }
-
-  private getNumberValue(key: string, parameters: SSM.ParameterList): number | undefined {
-    let value = parameters?.find((element) => element.Name === key)?.Value
-    return value ? +value : undefined
-  }
-
-  private getBooleanValue(key: string, parameters: SSM.ParameterList): boolean | undefined {
-    let value = parameters?.find((element) => element.Name === key)?.Value
-    return value ? JSON.parse(value) : undefined
-  }
+  address: string = ''
+  seed: string[] = []
+  LMPair: string = 'GLD-DUSD'
+  reinvestThreshold: number | undefined
+  reinvestPattern: string | undefined
+  autoDonationPercentOfReinvest: number = 0
 }
 
 enum StoreKey {
@@ -125,3 +32,58 @@ enum StoreKey {
 
   State = '/defichain-maxi/state-reinvest',
 }
+
+// handle AWS Paramter
+export class StoreAWSReinvest extends StoreAWS implements IStore {
+  constructor() {
+    super()
+  }
+
+  async updateToState(information: ProgramStateInformation): Promise<void> {
+    await this.updateParameter(this.postfixedKey(StoreKey.State), ProgramStateConverter.toValue(information))
+  }
+
+  async fetchSettings(): Promise<StoredReinvestSettings> {
+    // first check environment
+
+    let storePostfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ''
+
+    this.paramPostFix = storePostfix
+    let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
+
+    let DeFiAddressKey = this.postfixedKey(StoreKey.DeFiAddress)
+    let ReinvestThreshold = this.postfixedKey(StoreKey.ReinvestThreshold)
+    let AutoDonationPercentOfReinvestKey = this.postfixedKey(StoreKey.AutoDonationPercentOfReinvest)
+    let LMPairKey = this.postfixedKey(StoreKey.LMPair)
+    let StateKey = this.postfixedKey(StoreKey.State)
+
+    //store only allows to get 10 parameters per request
+    const parameters = await this.fetchParameters([
+      StoreKey.TelegramNotificationChatId,
+      StoreKey.TelegramNotificationToken,
+      StoreKey.TelegramLogsChatId,
+      StoreKey.TelegramLogsToken,
+      DeFiAddressKey,
+      LMPairKey,
+      ReinvestThreshold,
+      AutoDonationPercentOfReinvestKey,
+      StateKey,
+    ])
+
+    const settings: StoredReinvestSettings = new StoredReinvestSettings()
+    settings.chatId = this.getValue(StoreKey.TelegramNotificationChatId, parameters)
+    settings.token = this.getValue(StoreKey.TelegramNotificationToken, parameters)
+    settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
+    settings.logToken = this.getValue(StoreKey.TelegramLogsToken, parameters)
+    settings.address = this.getValue(DeFiAddressKey, parameters)
+    settings.LMPair = this.getValue(LMPairKey, parameters)
+    settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
+    settings.autoDonationPercentOfReinvest =
+      this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? settings.autoDonationPercentOfReinvest
+    settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
+
+    settings.seed = await this.readSeed(seedkey)
+    return settings
+  }
+}
+
