@@ -26,7 +26,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.4.0beta'
+export const VERSION = 'v2.4.0beta1'
 export const DONATION_ADDRESS = 'df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07'
 export const DONATION_ADDRESS_TESTNET = 'tZ1GuasY57oin5cej1Wp3MA1pAE4y3tmzq'
 export const DONATION_MAX_PERCENTAGE = 50
@@ -58,12 +58,18 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
     console.log('initial state: ' + ProgramStateConverter.toValue(settings.stateInformation))
 
     if (firstRun && settings.oceanUrl && settings.oceanUrl.length > 0) {
-      oceansToUse = oceansToUse.concat(settings.oceanUrl.split(',').map((url) => url.trim()))
+      oceansToUse = oceansToUse.concat(
+        settings.oceanUrl
+          .replace(/[, ]+/g, ',')
+          .split(',')
+          .map((url) => url.trim())
+          .filter((url) => url.length > 0),
+      )
     }
     console.log('using oceans ' + JSON.stringify(oceansToUse))
 
     const usedLogId = process.env.VAULTMAXI_LOGID ?? settings.logId
-    const logId = usedLogId && usedLogId.length > 0 ? ' ' + process.env.VAULTMAXI_LOGID : ''
+    const logId = usedLogId && usedLogId.length > 0 ? ' ' + usedLogId : ''
     const telegram = new Telegram(settings, '[Maxi' + settings.paramPostFix + ' ' + VERSION + logId + ']')
 
     let commonProgram: CommonProgram | undefined
@@ -113,7 +119,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       //do checkSetup after general checks, so that a successfully checkSetup without errors means its really all good.
       if (event) {
         if (event.checkSetup) {
-          let result = await program.doAndReportCheck(telegram)
+          let result = await program.doAndReportCheck(telegram, oceansToUse.slice(3))
           return { statusCode: result ? 200 : 500 }
         }
       }

@@ -50,7 +50,7 @@ enum StoreKey {
   HeartBeatURL = '/defichain-maxi/settings/heartbeat-url',
   LogId = '/defichain-maxi/settings/log-id',
   KeepWalletClean = '/defichain-maxi/settings/keep-wallet-clean',
-  OceanUrl = '/defichain-maxi/settings/ocean-url',
+  OceanUrls = '/defichain-maxi/settings/ocean-urls',
 
   State = '/defichain-maxi/state',
   Skip = '/defichain-maxi/skip',
@@ -106,7 +106,7 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
     let HeartBeatKey = this.postfixedKey(StoreKey.HeartBeatURL)
     let LogIdKey = this.postfixedKey(StoreKey.LogId)
     let KeepWalletCleanKey = this.postfixedKey(StoreKey.KeepWalletClean)
-    let OceanUrlKey = this.postfixedKey(StoreKey.OceanUrl)
+    let OceanUrlKey = this.postfixedKey(StoreKey.OceanUrls)
 
     //store only allows to get 10 parameters per request
     const parameters = await this.fetchParameters([

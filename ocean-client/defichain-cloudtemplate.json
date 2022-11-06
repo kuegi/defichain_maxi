@@ -29,7 +29,10 @@
             "default": "Additional Settings (Optional)"
           },
           "Parameters": [
-            "HeartBeatURL"
+            "HeartBeatURL",
+            "OceanUrls",
+            "KeepWalletClean",
+            "LogId"
           ]
         },
         {
@@ -83,6 +86,15 @@
         },
         "HeartBeatURL": {
           "default": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
+        },
+        "OceanUrls": {
+          "default": "comma seperated list of ocean urls to use. last in list will be used first. in case of error, it will iterate. official ocean url is always the final fallback."
+        },
+        "KeepWalletClean": {
+          "default": "If true, maxi also uses dust (f.e. from commissions) to payback loans or increase more liquidity."
+        },
+        "LogId": {
+          "default": "Added to every telegram message to help identify between different vault maxi instances."
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
@@ -180,6 +192,22 @@
       "Type": "String",
       "Default": "",
       "Description": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
+    },
+    "OceanUrls": {
+      "Type": "String",
+      "Default": "",
+      "Description": "comma seperated list of ocean urls to use. last in list will be used first. in case of error, it will iterate. official ocean url is always the final fallback."
+    },
+    "KeepWalletClean": {
+      "Type": "String",
+      "Default": "true",
+      "AllowedPattern": "true|false",
+      "Description": "If true, maxi also uses dust (f.e. from commissions) to payback loans or increase more liquidity. otherwise set to false"
+    },
+    "LogId": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Added to every telegram message to help identify between different vault maxi instances."
     },
     "TelegramNotificationChatId": {
       "Type": "String",
@@ -545,6 +573,42 @@
         "Type": "String",
         "Value": {
           "Ref": "HeartBeatURL"
+        }
+      }
+    },
+    "vaultMaxiParamOceanUrls": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "URL to call for heartbeat",
+        "Name": "/defichain-maxi/settings/ocean-urls",
+        "Type": "String",
+        "Value": {
+          "Ref": "OceanUrls"
+        }
+      }
+    },
+    "vaultMaxiParamKeepWalletClean": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "URL to call for heartbeat",
+        "Name": "/defichain-maxi/settings/keep-wallet-clean",
+        "Type": "String",
+        "Value": {
+          "Ref": "KeepWalletClean"
+        }
+      }
+    },
+    "vaultMaxiParamLogId": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "URL to call for heartbeat",
+        "Name": "/defichain-maxi/settings/log-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "LogId"
         }
       }
     },
