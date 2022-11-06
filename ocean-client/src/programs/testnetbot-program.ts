@@ -9,10 +9,11 @@ import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from '../vault-maxi'
 import { CTransaction, PoolId } from '@defichain/jellyfish-transaction/dist'
 import { VERSION } from '../lm-reinvest'
+import { StoredTestnetBotSettings } from '../utils/store_aws_testnetbot'
 
 export class TestnetBotProgram extends CommonProgram {
-  constructor(store: IStore, walletSetup: WalletSetup) {
-    super(store, walletSetup)
+  constructor(store: IStore, settings: StoredTestnetBotSettings, walletSetup: WalletSetup) {
+    super(store, settings, walletSetup)
   }
 
   async doMaxiChecks(telegram: Telegram, pool: PoolPairData | undefined): Promise<boolean> {

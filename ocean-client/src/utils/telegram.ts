@@ -1,6 +1,12 @@
 import fetch from 'cross-fetch'
 import { isNullOrEmpty } from './helpers'
-import { StoredSettings } from './store'
+
+export interface TelegramSettings {
+  chatId: string
+  token: string
+  logChatId: string
+  logToken: string
+}
 
 export class Telegram {
   private readonly prefix: string = '[VaultMaxi]'
@@ -10,7 +16,7 @@ export class Telegram {
   readonly logToken: string = ''
   private readonly endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
 
-  constructor(settings: StoredSettings, prefix: string = '') {
+  constructor(settings: TelegramSettings, prefix: string = '') {
     this.logChatId = settings.logChatId
     this.logToken = settings.logToken
     this.token = settings.token

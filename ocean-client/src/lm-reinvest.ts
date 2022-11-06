@@ -33,7 +33,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
     let commonProgram: CommonProgram | undefined
     try {
-      const program = new LMReinvestProgram(store, new WalletSetup(settings, ocean))
+      const program = new LMReinvestProgram(store, settings, new WalletSetup(settings, ocean))
       commonProgram = program
       await program.init()
 

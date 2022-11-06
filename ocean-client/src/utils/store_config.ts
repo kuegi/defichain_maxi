@@ -1,16 +1,17 @@
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 import fs from 'fs'
+import { IStoreMaxi, StoredMaxiSettings } from './store_aws_maxi'
 
 // handle Parameter in local config on Linux and Windows
-export class StoreConfig implements IStore {
-  readonly settings: StoredSettings
+export class StoreConfig implements IStoreMaxi {
+  readonly settings: StoredMaxiSettings
   private config: ConfigFile
   private configpath: string
   private statefile: string
 
   constructor() {
-    this.settings = new StoredSettings()
+    this.settings = new StoredMaxiSettings()
     this.settings.paramPostFix = process.env.VAULTMAXI_STORE_POSTIX ?? ''
     // get home dir on Linux or Windows
     this.configpath = process.env.HOME ?? process.env.USERPROFILE ?? ''
@@ -57,7 +58,7 @@ export class StoreConfig implements IStore {
     return lines[0]
   }
 
-  async fetchSettings(): Promise<StoredSettings> {
+  async fetchSettings(): Promise<StoredMaxiSettings> {
     this.settings.chatId = this.config.chatId
     this.settings.token = this.config.token
     this.settings.logChatId = this.config.logChatId

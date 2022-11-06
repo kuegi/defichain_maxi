@@ -17,9 +17,7 @@ import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
 import { DONATION_ADDRESS, DONATION_ADDRESS_TESTNET, DONATION_MAX_PERCENTAGE } from '../vault-maxi'
 import { VERSION } from '../vault-maxi'
-import { IStore } from '../utils/store'
-import { Token } from 'aws-sdk/clients/cloudwatchlogs'
-import { TokenData } from '@defichain/whale-api-client/dist/api/tokens'
+import { IStoreMaxi, StoredMaxiSettings } from '../utils/store_aws_maxi'
 
 export enum VaultMaxiProgramTransaction {
   None = 'none',
@@ -143,21 +141,25 @@ export class VaultMaxiProgram extends CommonProgram {
 
   private reinvestTargets: ReinvestTarget[] = []
 
-  constructor(store: IStore, walletSetup: WalletSetup) {
-    super(store, walletSetup)
+  constructor(store: IStoreMaxi, settings: StoredMaxiSettings, walletSetup: WalletSetup) {
+    super(store, settings, walletSetup)
     this.dusdTokenId = walletSetup.isTestnet() ? 11 : 15
-    this.lmPair = this.settings.LMPair
+    this.lmPair = this.getSettings().LMPair
     ;[this.assetA, this.assetB] = this.lmPair.split('-')
-    this.mainCollateralAsset = this.settings.mainCollateralAsset
+    this.mainCollateralAsset = this.getSettings().mainCollateralAsset
     this.isSingleMint = this.mainCollateralAsset == 'DUSD' || this.lmPair == 'DUSD-DFI'
 
-    this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
+    this.targetCollateral = (this.getSettings().minCollateralRatio + this.getSettings().maxCollateralRatio) / 200
     this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== 'false' ?? true
     this.swapRewardsToMainColl = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== 'false' ?? true
   }
 
+  private getSettings(): StoredMaxiSettings {
+    return this.settings as StoredMaxiSettings
+  }
+
   async initReinvestTargets() {
-    let pattern = this.settings.reinvestPattern
+    let pattern = this.getSettings().reinvestPattern
     if (pattern === undefined || pattern === '') {
       //no pattern provided? pattern = "<mainCollateralAsset>" if should swap, else "DFI"
       pattern = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== 'false' ?? true ? this.mainCollateralAsset : 'DFI'
@@ -215,7 +217,7 @@ export class VaultMaxiProgram extends CommonProgram {
       } else {
         //no target defined -> fallback to own address or vault
         if (isCollateral) {
-          target = new TargetVault(this.settings.vault)
+          target = new TargetVault(this.getSettings().vault)
         } else {
           target = new TargetWallet(this.getAddress(), this.getScript()!)
         }
@@ -258,7 +260,7 @@ export class VaultMaxiProgram extends CommonProgram {
   }
 
   getVaultId(): string {
-    return this.settings.vault
+    return this.getSettings().vault
   }
 
   targetRatio(): number {
@@ -418,12 +420,17 @@ export class VaultMaxiProgram extends CommonProgram {
     }
     if (!vaultcheck) {
       const message =
-        'Could not find vault. ' + 'trying vault ' + this.settings.vault + ' in ' + this.settings.address + '. '
+        'Could not find vault. ' +
+        'trying vault ' +
+        this.getSettings().vault +
+        ' in ' +
+        this.getSettings().address +
+        '. '
       await telegram.send(message)
       console.error(message)
       return false
     }
-    if (vaultcheck.ownerAddress !== this.settings.address) {
+    if (vaultcheck.ownerAddress !== this.getSettings().address) {
       const message = 'Error: vault not owned by this address'
       await telegram.send(message)
       console.error(message)
@@ -455,7 +462,7 @@ export class VaultMaxiProgram extends CommonProgram {
         //can't work with no UTXOs
         const message =
           'you have no UTXOs left in ' +
-          this.settings.address +
+          this.getSettings().address +
           ". Please replenish otherwise you maxi can't protect your vault!"
         await telegram.send(message)
         await telegram.log(message)
@@ -464,7 +471,7 @@ export class VaultMaxiProgram extends CommonProgram {
       }
       const message =
         'your UTXO balance is running low in ' +
-        this.settings.address +
+        this.getSettings().address +
         ', only ' +
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
@@ -473,13 +480,13 @@ export class VaultMaxiProgram extends CommonProgram {
     }
     // showstoppers checked, now check for warnings or automatic adaptions
 
-    if (+vaultcheck.loanScheme.minColRatio >= this.settings.minCollateralRatio) {
+    if (+vaultcheck.loanScheme.minColRatio >= this.getSettings().minCollateralRatio) {
       const message =
         'minCollateralRatio is too low. ' +
         'thresholds ' +
-        this.settings.minCollateralRatio +
+        this.getSettings().minCollateralRatio +
         ' - ' +
-        this.settings.maxCollateralRatio +
+        this.getSettings().maxCollateralRatio +
         '. loanscheme minimum is ' +
         vaultcheck.loanScheme.minColRatio +
         ' will use ' +
@@ -487,31 +494,31 @@ export class VaultMaxiProgram extends CommonProgram {
         ' as minimum'
       await telegram.send(message)
       console.warn(message)
-      this.settings.minCollateralRatio = +vaultcheck.loanScheme.minColRatio + 1
+      this.getSettings().minCollateralRatio = +vaultcheck.loanScheme.minColRatio + 1
     }
 
     const minRange = 2
     if (
-      this.settings.maxCollateralRatio > 0 &&
-      this.settings.minCollateralRatio > this.settings.maxCollateralRatio - minRange
+      this.getSettings().maxCollateralRatio > 0 &&
+      this.getSettings().minCollateralRatio > this.getSettings().maxCollateralRatio - minRange
     ) {
       const message =
         'Min collateral must be more than ' +
         minRange +
         ' below max collateral. Please change your settings. ' +
         'thresholds ' +
-        this.settings.minCollateralRatio +
+        this.getSettings().minCollateralRatio +
         ' - ' +
-        this.settings.maxCollateralRatio +
+        this.getSettings().maxCollateralRatio +
         ' will use ' +
-        this.settings.minCollateralRatio +
+        this.getSettings().minCollateralRatio +
         ' - ' +
-        (this.settings.minCollateralRatio + minRange)
+        (this.getSettings().minCollateralRatio + minRange)
       await telegram.send(message)
       console.warn(message)
-      this.settings.maxCollateralRatio = this.settings.minCollateralRatio + minRange
+      this.getSettings().maxCollateralRatio = this.getSettings().minCollateralRatio + minRange
     }
-    this.targetCollateral = (this.settings.minCollateralRatio + this.settings.maxCollateralRatio) / 200
+    this.targetCollateral = (this.getSettings().minCollateralRatio + this.getSettings().maxCollateralRatio) / 200
 
     if (this.mainCollateralAsset != 'DUSD' && this.mainCollateralAsset != 'DFI') {
       const message = "can't use this main collateral: " + this.mainCollateralAsset + '. falling back to DFI'
@@ -634,8 +641,8 @@ export class VaultMaxiProgram extends CommonProgram {
     }
 
     // sanity check for auto-donate feature, do NOT allow auto-donate above our defined max percentage
-    this.settings.autoDonationPercentOfReinvest = Math.min(
-      this.settings.autoDonationPercentOfReinvest,
+    this.getSettings().autoDonationPercentOfReinvest = Math.min(
+      this.getSettings().autoDonationPercentOfReinvest,
       DONATION_MAX_PERCENTAGE,
     )
 
@@ -762,28 +769,28 @@ export class VaultMaxiProgram extends CommonProgram {
     let vault = await this.getVault()
     let pool = await this.getPool(this.lmPair)
 
-    values.address = walletAddress === this.settings.address ? walletAddress : undefined
+    values.address = walletAddress === this.getSettings().address ? walletAddress : undefined
     values.vault =
-      vault?.vaultId === this.settings.vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
-    values.minCollateralRatio = this.settings.minCollateralRatio
-    values.maxCollateralRatio = this.settings.maxCollateralRatio
+      vault?.vaultId === this.getSettings().vault && vault.ownerAddress == walletAddress ? vault.vaultId : undefined
+    values.minCollateralRatio = this.getSettings().minCollateralRatio
+    values.maxCollateralRatio = this.getSettings().maxCollateralRatio
 
     values.assetA = pool && pool.symbol == this.lmPair ? this.assetA : undefined
     values.assetB = values.assetA ? this.assetB : undefined
     if (this.assetB != 'DUSD' && this.lmPair != 'DUSD-DFI') {
       values.assetA = values.assetB = undefined
     }
-    values.reinvest = this.settings.reinvestThreshold
+    values.reinvest = this.getSettings().reinvestThreshold
     const autoDonationMessage =
-      this.settings.autoDonationPercentOfReinvest > DONATION_MAX_PERCENTAGE
+      this.getSettings().autoDonationPercentOfReinvest > DONATION_MAX_PERCENTAGE
         ? 'Thank you for donating ' +
           DONATION_MAX_PERCENTAGE +
           '% of your rewards. You set to donate ' +
-          this.settings.autoDonationPercentOfReinvest +
+          this.getSettings().autoDonationPercentOfReinvest +
           '% which is great but feels like an input error. Donation was reduced to ' +
           DONATION_MAX_PERCENTAGE +
           '% of your reinvest. Feel free to donate more manually'
-        : 'Thank you for donating ' + this.settings.autoDonationPercentOfReinvest + '% of your rewards'
+        : 'Thank you for donating ' + this.getSettings().autoDonationPercentOfReinvest + '% of your rewards'
 
     const reinvestMessage =
       this.reinvestTargets.length > 0
@@ -804,12 +811,12 @@ export class VaultMaxiProgram extends CommonProgram {
       (this.isSingleMint ? 'minting only ' + this.assetA : 'minting both assets') +
       '\nmain collateral asset is ' +
       this.mainCollateralAsset +
-      (this.settings.reinvestThreshold ?? -1 >= 0 ? '\n' + reinvestMessage : '') +
+      (this.getSettings().reinvestThreshold ?? -1 >= 0 ? '\n' + reinvestMessage : '') +
       '\n' +
-      (this.settings.autoDonationPercentOfReinvest > 0 ? autoDonationMessage : 'auto donation is turned off') +
+      (this.getSettings().autoDonationPercentOfReinvest > 0 ? autoDonationMessage : 'auto donation is turned off') +
       '\n' +
-      (this.settings.stableCoinArbBatchSize > 0
-        ? 'searching for arbitrage with batches of size ' + this.settings.stableCoinArbBatchSize
+      (this.getSettings().stableCoinArbBatchSize > 0
+        ? 'searching for arbitrage with batches of size ' + this.getSettings().stableCoinArbBatchSize
         : 'not searching for stablecoin arbitrage') +
       '\nusing ocean at: ' +
       this.walletSetup.url
@@ -1599,7 +1606,7 @@ export class VaultMaxiProgram extends CommonProgram {
         const newNextRatio = this.nextLoanValue(vault).div(
           this.nextCollateralValue(vault).minus(size.times(factorDelta)),
         )
-        if (BigNumber.min(newRatio, newNextRatio).lt(this.settings.minCollateralRatio / 100)) {
+        if (BigNumber.min(newRatio, newNextRatio).lt(this.getSettings().minCollateralRatio / 100)) {
           const usedColl = newRatio.lt(newNextRatio)
             ? new BigNumber(vault.collateralValue)
             : this.nextCollateralValue(vault)
@@ -1607,7 +1614,7 @@ export class VaultMaxiProgram extends CommonProgram {
           size = BigNumber.min(
             size,
             usedColl
-              .times(this.settings.minCollateralRatio / 100)
+              .times(this.getSettings().minCollateralRatio / 100)
               .minus(usedLoan)
               .div(factorDelta),
           )
@@ -1805,7 +1812,11 @@ export class VaultMaxiProgram extends CommonProgram {
     balances: Map<string, AddressToken>,
     telegram: Telegram,
   ): Promise<boolean> {
-    if (!this.settings.reinvestThreshold || this.settings.reinvestThreshold <= 0 || this.reinvestTargets.length == 0) {
+    if (
+      !this.getSettings().reinvestThreshold ||
+      this.getSettings().reinvestThreshold! <= 0 ||
+      this.reinvestTargets.length == 0
+    ) {
       return false
     }
 
@@ -1825,20 +1836,20 @@ export class VaultMaxiProgram extends CommonProgram {
         ' tokens. total ' +
         amountToUse +
         ' vs ' +
-        this.settings.reinvestThreshold,
+        this.getSettings().reinvestThreshold,
     )
-    if (amountToUse.gt(this.settings.reinvestThreshold) && fromUtxos.gt(0)) {
+    if (amountToUse.gt(this.getSettings().reinvestThreshold!) && fromUtxos.gt(0)) {
       console.log('converting ' + fromUtxos + ' UTXOs to token ')
       const tx = await this.utxoToOwnAccount(fromUtxos)
       await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.Reinvest, tx.txId)
       prevout = this.prevOutFromTx(tx)
     }
 
-    if (amountToUse.gt(this.settings.reinvestThreshold)) {
+    if (amountToUse.gt(this.getSettings().reinvestThreshold!)) {
       let donatedAmount = new BigNumber(0)
       let dfiCollateral = vault.collateralAmounts.find((coll) => coll.symbol === 'DFI')
       let dfiPrice = dfiCollateral?.activePrice?.active?.amount
-      let maxReinvestForDonation = this.settings.reinvestThreshold
+      let maxReinvestForDonation = this.getSettings().reinvestThreshold!
       if (dfiPrice && pool.apr) {
         //35040 executions per year -> this is the expected reward per maxi trigger in DFI, every reinvest below that number is pointless
         maxReinvestForDonation = Math.max(
@@ -1849,9 +1860,9 @@ export class VaultMaxiProgram extends CommonProgram {
         maxReinvestForDonation = Math.max(maxReinvestForDonation, 10) //fallback to min 10 DFI reinvest
       }
       maxReinvestForDonation *= 2 //anything above twice the expected reinvest value is considered a transfer of funds
-      if (this.settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
+      if (this.getSettings().autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
         //send donation and reduce amountToUse
-        donatedAmount = amountToUse.times(this.settings.autoDonationPercentOfReinvest).div(100)
+        donatedAmount = amountToUse.times(this.getSettings().autoDonationPercentOfReinvest).div(100)
         console.log('donating ' + donatedAmount.toFixed(2) + ' DFI')
         const donationAddress = this.walletSetup.isTestnet() ? DONATION_ADDRESS_TESTNET : DONATION_ADDRESS
         const tx = await this.sendDFIToAccount(donatedAmount, donationAddress, prevout)
@@ -2174,7 +2185,7 @@ export class VaultMaxiProgram extends CommonProgram {
         await telegram.send(msg)
         console.log('done ')
         await this.sendMotivationalLog(vault, pool, donatedAmount, telegram)
-        if (this.settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
+        if (this.getSettings().autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
           console.log('sending manual donation suggestion')
           await telegram.send(
             'you activated auto donation, but the reinvested amount was too big to be a reinvest. ' +
@@ -2252,7 +2263,7 @@ export class VaultMaxiProgram extends CommonProgram {
   }
 
   async updateToState(state: ProgramState, transaction: VaultMaxiProgramTransaction, txId: string = ''): Promise<void> {
-    return await this.store.updateToState({
+    return await (this.store as IStoreMaxi).updateToState({
       state: state,
       tx: transaction,
       txId: txId,

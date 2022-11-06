@@ -1,6 +1,5 @@
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
-import { Store } from './utils/store'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
@@ -8,6 +7,8 @@ import { ProgramStateConverter } from './utils/program-state-converter'
 import { delay, isNullOrEmpty } from './utils/helpers'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
+import { StoreConfig } from './utils/store_config'
+import { IStoreMaxi, StoreAWSMaxi } from './utils/store_aws_maxi'
 
 class SettingsOverride {
   minCollateralRatio: number | undefined
@@ -39,8 +40,16 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
   let heartBeatSent = false
   while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
     console.log('starting with ' + context.getRemainingTimeInMillis() + 'ms available')
-    let store = new Store()
-    let settings = await store.fetchSettings()
+
+    let store: IStoreMaxi
+    var aws_execution_env = process.env.AWS_EXECUTION_ENV
+    if (process.env.LOG_ENV == 'TRUE') console.log(process.env)
+    if (aws_execution_env) {
+      store = new StoreAWSMaxi()
+    } else {
+      store = new StoreConfig()
+    }
+    const settings = await store.fetchSettings()
     console.log('initial state: ' + ProgramStateConverter.toValue(settings.stateInformation))
 
     const logId = process.env.VAULTMAXI_LOGID ? ' ' + process.env.VAULTMAXI_LOGID : ''
@@ -78,12 +87,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         await telegram.log(message)
         return { statusCode: 200 }
       }
-      const program = new VaultMaxiProgram(store, new WalletSetup(settings, ocean))
+      const program = new VaultMaxiProgram(store, settings, new WalletSetup(settings, ocean))
       commonProgram = program
       await program.init()
       blockHeight = await program.getBlockHeight()
       console.log('starting at block ' + blockHeight)
-      
+
       const vaultcheck = await program.getVault()
       let pool = await program.getPool(program.lmPair)
       let balances = await program.getTokenBalances()
