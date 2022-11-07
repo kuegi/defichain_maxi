@@ -1,9 +1,7 @@
 import { CTransaction, Script } from '@defichain/jellyfish-transaction/dist'
 import { CommonProgram, ProgramState } from '../programs/common-program'
-import { VaultMaxiProgram } from '../programs/vault-maxi-program'
 import { simplifyAddress } from './helpers'
 import { fromAddress } from '@defichain/jellyfish-address'
-import { LoanVaultActive } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
 import { Telegram } from './telegram'
@@ -312,8 +310,10 @@ export async function checkAndDoReinvest(
   if (settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
     //send donation and reduce amountToUse
     donatedAmount = amountToUse.times(settings.autoDonationPercentOfReinvest).div(100)
-    console.log('donating ' + donatedAmount.toFixed(2) + ' DFI')
     const donationAddresses = program.isTestnet() ? DONATION_ADDRESSES_TESTNET : DONATION_ADDRESSES
+    console.log(
+      'donating ' + donatedAmount.toFixed(2) + ' DFI split to ' + donationAddresses.reduce((a, b) => a + ',' + b),
+    )
     if (donationAddresses.length > 0) {
       const dfiPerAddress = donatedAmount.div(donationAddresses.length)
       const targets = donationAddresses.map((address) => {
