@@ -6,7 +6,6 @@ import { ProgramStateConverter, ProgramStateInformation } from './program-state-
 import { IStore, StoredSettings } from './store'
 
 export class StoredAWSSettings extends StoredSettings {
-  paramPostFix: string = ''
   stateInformation: ProgramStateInformation = {
     state: ProgramState.Idle,
     tx: '',
@@ -18,10 +17,11 @@ export class StoredAWSSettings extends StoredSettings {
 
 // abstract Store to handle AWS Paramter
 export abstract class StoreAWS {
-  protected paramPostFix: string = ''
+  readonly paramPostFix: string = ''
   private ssm: SSM
 
   constructor() {
+    this.paramPostFix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ''
     this.ssm = new SSM()
   }
 

@@ -132,7 +132,6 @@ export class VaultMaxiProgram extends CommonProgram {
   private mainCollateralAsset: string
   private isSingleMint: boolean
   private readonly keepWalletClean: boolean
-  private readonly swapRewardsToMainColl: boolean
   private readonly minValueForCleanup: number = 0.1
   private readonly maxPercentDiffInConsistencyChecks: number = 1
 
@@ -141,8 +140,8 @@ export class VaultMaxiProgram extends CommonProgram {
 
   private reinvestTargets: ReinvestTarget[] = []
 
-  constructor(store: IStoreMaxi, settings: StoredMaxiSettings, walletSetup: WalletSetup) {
-    super(store, settings, walletSetup)
+  constructor(maxiStore: IStoreMaxi, settings: StoredMaxiSettings, walletSetup: WalletSetup) {
+    super(maxiStore, settings, walletSetup)
     this.dusdTokenId = walletSetup.isTestnet() ? 11 : 15
     this.lmPair = this.getSettings().LMPair
     ;[this.assetA, this.assetB] = this.lmPair.split('-')
@@ -150,8 +149,9 @@ export class VaultMaxiProgram extends CommonProgram {
     this.isSingleMint = this.mainCollateralAsset == 'DUSD' || this.lmPair == 'DUSD-DFI'
 
     this.targetCollateral = (this.getSettings().minCollateralRatio + this.getSettings().maxCollateralRatio) / 200
-    this.keepWalletClean = process.env.VAULTMAXI_KEEP_CLEAN !== 'false' ?? true
-    this.swapRewardsToMainColl = process.env.VAULTMAXI_SWAP_REWARDS_TO_MAIN !== 'false' ?? true
+    this.keepWalletClean =
+      (process.env.VAULTMAXI_KEEP_CLEAN ? process.env.VAULTMAXI_KEEP_CLEAN !== 'false' : settings.keepWalletClean) ??
+      true
   }
 
   private getSettings(): StoredMaxiSettings {
@@ -759,7 +759,7 @@ export class VaultMaxiProgram extends CommonProgram {
     return maxRatioNum.div(maxRatioDenom).multipliedBy(100)
   }
 
-  async doAndReportCheck(telegram: Telegram): Promise<boolean> {
+  async doAndReportCheck(telegram: Telegram, oceansToUse: string[]): Promise<boolean> {
     if (!this.doValidationChecks(telegram, true)) {
       return false //report already send inside
     }
@@ -819,7 +819,8 @@ export class VaultMaxiProgram extends CommonProgram {
         ? 'searching for arbitrage with batches of size ' + this.getSettings().stableCoinArbBatchSize
         : 'not searching for stablecoin arbitrage') +
       '\nusing ocean at: ' +
-      this.walletSetup.url
+      this.walletSetup.url +
+      (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '')
 
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)

@@ -5,6 +5,7 @@ import { IStoreMaxi, StoredMaxiSettings } from './store_aws_maxi'
 
 // handle Parameter in local config on Linux and Windows
 export class StoreConfig implements IStoreMaxi {
+  readonly paramPostFix: string = ''
   readonly settings: StoredMaxiSettings
   private config: ConfigFile
   private configpath: string
@@ -12,7 +13,7 @@ export class StoreConfig implements IStoreMaxi {
 
   constructor() {
     this.settings = new StoredMaxiSettings()
-    this.settings.paramPostFix = process.env.VAULTMAXI_STORE_POSTIX ?? ''
+    this.paramPostFix = process.env.VAULTMAXI_STORE_POSTIX ?? ''
     // get home dir on Linux or Windows
     this.configpath = process.env.HOME ?? process.env.USERPROFILE ?? ''
     if (!this.configpath) throw new Error('Can not get Home folder')
@@ -20,13 +21,13 @@ export class StoreConfig implements IStoreMaxi {
     this.configpath += '/.vault-maxi'
     // create dir if not exist
     if (!fs.existsSync(this.configpath)) fs.mkdirSync(this.configpath)
-    this.statefile = this.configpath + `/state${this.settings.paramPostFix}.txt`
+    this.statefile = this.configpath + `/state${this.paramPostFix}.txt`
     this.config = this.GetConfig()
     if (!fs.existsSync(this.config.seedfile)) throw new Error(`seedfile ${this.config.seedfile} not exists!`)
   }
 
   private GetConfig(): ConfigFile {
-    var configfile = this.configpath + `/settings${this.settings.paramPostFix}.json`
+    var configfile = this.configpath + `/settings${this.paramPostFix}.json`
     if (!fs.existsSync(configfile)) {
       // write empty config if not exists
       fs.writeFileSync(configfile, JSON.stringify(new ConfigFile(), null, 2))
