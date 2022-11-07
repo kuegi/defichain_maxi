@@ -38,6 +38,7 @@ import { Prevout } from '@defichain/jellyfish-transaction-builder'
 import { SmartBuffer } from 'smart-buffer'
 import { fromAddress, fromScript } from '@defichain/jellyfish-address'
 import { StatsData } from '@defichain/whale-api-client/dist/api/stats'
+import { Network } from '@defichain/jellyfish-network'
 
 export enum ProgramState {
   Idle = 'idle',
@@ -48,8 +49,8 @@ export enum ProgramState {
 export class CommonProgram {
   protected readonly settings: StoredSettings
   protected readonly store: IStore
-  protected readonly client: WhaleApiClient
   protected readonly walletSetup: WalletSetup
+  public readonly client: WhaleApiClient
   private account: WhaleWalletAccount | undefined
   private script: Script | undefined
   private collTokens: CollateralToken[] | undefined
@@ -80,7 +81,7 @@ export class CommonProgram {
     return this.account != undefined
   }
 
-  public isTestNet(): boolean {
+  public isTestnet(): boolean {
     return this.walletSetup.isTestnet()
   }
 
@@ -112,6 +113,18 @@ export class CommonProgram {
     }
 
     return pages.flatMap((page) => page as T[])
+  }
+
+  getVersion(): string {
+    return 'unknown'
+  }
+
+  getNetwork(): Network {
+    return this.walletSetup.network
+  }
+
+  getVaultId(): string {
+    return this.settings.vault
   }
 
   getAddress(): string {
@@ -157,7 +170,6 @@ export class CommonProgram {
   async getVault(): Promise<LoanVaultActive | LoanVaultLiquidated> {
     return this.client.loan.getVault(this.settings.vault)
   }
-
   async getPools(): Promise<PoolPairData[]> {
     return await this.aggregatePagedResponse(() => this.client.poolpairs.list(200))
   }
@@ -189,6 +201,16 @@ export class CommonProgram {
 
   async getBlockHeight(): Promise<number> {
     return (await this.client.stats.get()).count.blocks
+  }
+
+  async updateToState(state: ProgramState, transaction: string, txId: string = ''): Promise<void> {
+    return await this.store.updateToState({
+      state: state,
+      tx: transaction,
+      txId: txId,
+      blockHeight: await this.getBlockHeight(),
+      version: this.getVersion(),
+    })
   }
 
   async removeLiquidity(
@@ -602,7 +624,7 @@ export class CommonProgram {
     return this.send(txn, prevout ? 3000 : 0) //initial wait time when depending on other tx
   }
 
-  protected prevOutFromTx(tx: CTransaction): Prevout {
+  public prevOutFromTx(tx: CTransaction): Prevout {
     return {
       txid: tx.txId,
       vout: 1,

@@ -30,6 +30,10 @@ export class StoreAWSTestnetBot extends StoreAWS implements IStore {
     super()
   }
 
+  updateToState(information: ProgramStateInformation): Promise<void> {
+    throw new Error('Method not implemented.')
+  }
+
   async fetchSettings(): Promise<StoredTestnetBotSettings> {
     // first check environment
 

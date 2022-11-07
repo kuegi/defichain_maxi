@@ -16,7 +16,7 @@
             "default": "Script Parameters"
           },
           "Parameters": [
-            "LMPair",
+            "ReinvestPattern",
             "MinReinvest",
             "AutoDonation"
           ]
@@ -37,8 +37,8 @@
         "DeFiAddress": {
           "default": "Defichain Address"
         },
-        "LMPair": {
-          "default": "LM Pair"
+        "ReinvestPattern": {
+          "default": "Pattern for reinvest"
         },
         "MinReinvest": {
           "default": "Threshold for Reinvest (optional, set -1 to deactivate)"
@@ -69,12 +69,10 @@
       "AllowedPattern": "df1[a-zA-Z0-9]*",
       "Description": "Your defichain address to use, must be from the wallet defined by the seed parameter"
     },
-    "LMPair": {
+    "ReinvestPattern": {
       "Type": "String",
       "Default": "BTC-DFI",
-      "MinLength": "6",
-      "AllowedPattern": "[A-Z.]+-(DUSD|DFI)",
-      "Description": "The pair to be used for Liquidity Mining f.e. BTC-DFI"
+      "Description": "Pattern for reinvestments."
     },
     "MinReinvest": {
       "Type": "Number",
@@ -398,15 +396,15 @@
         }
       }
     },
-    "reinvestParamLMPair": {
+    "reinvestParamReinvestPattern": {
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
-        "Description": "the pair to use for LM",
-        "Name": "/defichain-maxi/settings-reinvest/lm-pair",
+        "Description": "Pattern for reinvestments.",
+        "Name": "/defichain-maxi/settings-reinvest/pattern",
         "Type": "String",
         "Value": {
-          "Ref": "LMPair"
+          "Ref": "ReinvestPattern"
         }
       }
     },

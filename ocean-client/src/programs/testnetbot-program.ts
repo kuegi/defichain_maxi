@@ -4,12 +4,8 @@ import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { IStore } from '../utils/store'
 import { WalletSetup } from '../utils/wallet-setup'
-import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
-import { Prevout } from '@defichain/jellyfish-transaction-builder'
-import { DONATION_ADDRESS, DONATION_MAX_PERCENTAGE } from '../vault-maxi'
-import { CTransaction, PoolId } from '@defichain/jellyfish-transaction/dist'
-import { VERSION } from '../lm-reinvest'
 import { StoredTestnetBotSettings } from '../utils/store_aws_testnetbot'
+import { PoolId } from '@defichain/jellyfish-transaction/dist'
 
 export class TestnetBotProgram extends CommonProgram {
   constructor(store: IStore, settings: StoredTestnetBotSettings, walletSetup: WalletSetup) {

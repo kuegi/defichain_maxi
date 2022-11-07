@@ -13,9 +13,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v1.0'
-export const DONATION_ADDRESS = 'df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07'
-export const DONATION_MAX_PERCENTAGE = 50
+export const VERSION = 'v2.0beta'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('lm-reinvest ' + VERSION)
@@ -43,8 +41,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           return { statusCode: result ? 200 : 500 }
         }
       }
-      let pool = await program.getPool(program.lmPair)
-      if (!(await program.doMaxiChecks(telegram, pool))) {
+      if (!(await program.doMaxiChecks(telegram))) {
         return { statusCode: 500 }
       }
       let balances = await program.getTokenBalances()
@@ -62,49 +59,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           console.log('waiting for tx from previous run')
           const resultFromPrevTx = await program.waitForTx(information.txId, information.blockHeight)
           balances = await program.getTokenBalances()
-          pool = await program.getPool(program.lmPair)
           console.log(resultFromPrevTx ? 'done' : ' timed out -> cleanup')
-          let retryAdd = false
-          if (!resultFromPrevTx) {
-            if (information.tx == LMReinvestProgramTransaction.Swap) {
-              //was waiting for initial, just restart
-              information.state = ProgramState.Idle
-            } else {
-              retryAdd = true
-            }
-          } else {
-            if (information.tx == LMReinvestProgramTransaction.Swap) {
-              retryAdd = true
-            } else {
-              //was waiting for final addLiquidity, now there, so back to idle
-              information.state = ProgramState.Idle
-            }
-          }
-          if (retryAdd) {
-            information.state = ProgramState.Idle
-            const [usedAssetA, usedAssetB] = await program.addLiquidityWithFullWallet(pool!, balances, telegram)
-            if (usedAssetA !== undefined && usedAssetB !== undefined) {
-              const tokenA = pool!.tokenA
-              const tokenB = pool!.tokenB
-              await telegram.send(
-                'invested ' +
-                  usedAssetA.toFixed(8) +
-                  '@' +
-                  tokenA.symbol +
-                  ' paired with ' +
-                  usedAssetB.toFixed(8) +
-                  '@' +
-                  tokenB.symbol +
-                  ' after timeout in initial try',
-              )
-              console.log('done retry addLiquidity')
-            }
-          }
           await program.updateToState(information.state, LMReinvestProgramTransaction.None)
         }
       }
       console.log('starting with ' + DFIinAddress.toFixed(4) + ' in address')
-      await program.checkAndDoReinvest(pool!, balances, telegram)
+      await program.checkAndDoReinvest(balances, telegram)
       await program.updateToState(ProgramState.Idle, LMReinvestProgramTransaction.None)
       await telegram.log('executed script with ' + DFIinAddress.toFixed(4) + ' DFI in address')
       console.log('script done ')
