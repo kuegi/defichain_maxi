@@ -85,7 +85,7 @@
           "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
         },
         "HeartBeatURL": {
-          "default": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
+          "default": "Heartbeat URL to be called by vault-maxi"
         },
         "OceanUrls": {
           "default": "comma seperated list of ocean urls to use. last in list will be used first. in case of error, it will iterate. official ocean url is always the final fallback."
@@ -347,6 +347,42 @@
           ]
         }
       ]
+    },
+    "CreateHeartBeat": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "HeartBeatURL"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "CreateLogId": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "LogId"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "CreateOceanUrls": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "OceanUrls"
+            },
+            ""
+          ]
+        }
+      ]
     }
   },
   "Resources": {
@@ -521,7 +557,7 @@
         },
         "Code": {
           "S3Bucket": { "Fn::Sub": "defichain-maxi-public-${AWS::Region}" },
-          "S3Key": "vault-maxi-2-3-2.zip"
+          "S3Key": "vault-maxi-2-4-0.zip"
         },
         "Runtime": "nodejs16.x",
         "Timeout": 890
@@ -566,6 +602,7 @@
     },
     "vaultMaxiParamHeartBeatURL": {
       "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateHeartBeat",
       "Properties": {
         "DataType": "text",
         "Description": "URL to call for heartbeat",
@@ -578,9 +615,10 @@
     },
     "vaultMaxiParamOceanUrls": {
       "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateOceanUrls",
       "Properties": {
         "DataType": "text",
-        "Description": "URL to call for heartbeat",
+        "Description": "list of alternative ocean urls, can be separated by space or comma",
         "Name": "/defichain-maxi/settings/ocean-urls",
         "Type": "String",
         "Value": {
@@ -592,7 +630,7 @@
       "Type": "AWS::SSM::Parameter",
       "Properties": {
         "DataType": "text",
-        "Description": "URL to call for heartbeat",
+        "Description": "set to false if maxi should ignore dust and commissions",
         "Name": "/defichain-maxi/settings/keep-wallet-clean",
         "Type": "String",
         "Value": {
@@ -602,9 +640,10 @@
     },
     "vaultMaxiParamLogId": {
       "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateLogId",
       "Properties": {
         "DataType": "text",
-        "Description": "URL to call for heartbeat",
+        "Description": "Log Id to be added to every telegram notification",
         "Name": "/defichain-maxi/settings/log-id",
         "Type": "String",
         "Value": {
