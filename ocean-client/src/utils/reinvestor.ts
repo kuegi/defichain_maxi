@@ -10,8 +10,9 @@ import { Telegram } from './telegram'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
-export const DONATION_ADDRESS = 'df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07'
-export const DONATION_ADDRESS_TESTNET = 'tZ1GuasY57oin5cej1Wp3MA1pAE4y3tmzq'
+//kuegi and krysh 50:50
+const DONATION_ADDRESSES = ['df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07', 'df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm']
+const DONATION_ADDRESSES_TESTNET = ['tZ1GuasY57oin5cej1Wp3MA1pAE4y3tmzq', 'tf1qhvhck87423zx7dzr69avm5fhchn9e0q5j8679z']
 export const DONATION_MAX_PERCENTAGE = 50
 
 enum ReinvestTargetTokenType {
@@ -312,10 +313,24 @@ export async function checkAndDoReinvest(
     //send donation and reduce amountToUse
     donatedAmount = amountToUse.times(settings.autoDonationPercentOfReinvest).div(100)
     console.log('donating ' + donatedAmount.toFixed(2) + ' DFI')
-    const donationAddress = program.isTestnet() ? DONATION_ADDRESS_TESTNET : DONATION_ADDRESS
-    finalTx = await program.sendDFIToAccount(donatedAmount, donationAddress, prevout)
-    prevout = program.prevOutFromTx(finalTx)
-    amountToUse = amountToUse.minus(donatedAmount)
+    const donationAddresses = program.isTestnet() ? DONATION_ADDRESSES_TESTNET : DONATION_ADDRESSES
+    if (donationAddresses.length > 0) {
+      const dfiPerAddress = donatedAmount.div(donationAddresses.length)
+      const targets = donationAddresses.map((address) => {
+        return {
+          to: fromAddress(address, program.getNetwork().name)!.script,
+          balances: [
+            {
+              token: 0,
+              amount: dfiPerAddress,
+            },
+          ],
+        }
+      })
+      finalTx = await program.sendTokenToAccounts(targets, prevout)
+      prevout = program.prevOutFromTx(finalTx)
+      amountToUse = amountToUse.minus(donatedAmount)
+    }
   }
 
   //reinvesting the defined DFI amount according to targets now
