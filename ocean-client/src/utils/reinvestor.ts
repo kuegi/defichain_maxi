@@ -123,7 +123,8 @@ export function getReinvestMessage(
 }
 
 export async function initReinvestTargets(pattern: string, program: CommonProgram): Promise<ReinvestTarget[]> {
-  console.log('init reinvest targets from ' + pattern + ' split: ' + JSON.stringify(pattern?.split(' ')))
+  const splitPattern = pattern.replace(/[ ,]+/g, ' ').split(' ')
+  console.log('init reinvest targets from ' + pattern + ' split: ' + JSON.stringify(splitPattern))
   // sample reinvest:
   // DFI:10:df1cashOutAddress DFI BTC:10 SPY:20 GLD:20
   // -> send 10% of DFI to address
@@ -143,7 +144,7 @@ export async function initReinvestTargets(pattern: string, program: CommonProgra
   let targetsWithNoPercent = 0
   const vaultRegex = /^[a-f0-9]{64}$/i
   const scriptPerAddress: Map<string, Script | undefined> = new Map()
-  pattern!.split(' ').forEach((t) => {
+  splitPattern.forEach((t) => {
     const parts = t.split(':')
     const tokenName = parts[0]
     const percent = parts.length > 1 ? parts[1] : ''
