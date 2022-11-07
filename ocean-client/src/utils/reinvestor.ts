@@ -160,19 +160,26 @@ export async function initReinvestTargets(pattern: string, program: CommonProgra
     }
     let target = undefined
     if (address !== '') {
-      if (vaultRegex.test(address)) {
+      let usedAddress = address
+      if (usedAddress === 'wallet') {
+        usedAddress = program.getAddress()
+      }
+      if (usedAddress === 'vault') {
+        usedAddress = program.getVaultId()
+      }
+      if (vaultRegex.test(usedAddress)) {
         //is vault address
         if (isCollateral) {
-          target = new TargetVault(address)
+          target = new TargetVault(usedAddress)
         } else {
           console.warn('vault target for non-collateral token: ' + t)
         }
       } else {
         //no vaultId, check for normal address
-        if (!scriptPerAddress.has(address)) {
-          scriptPerAddress.set(address, fromAddress(address, program.getNetwork().name)?.script)
+        if (!scriptPerAddress.has(usedAddress)) {
+          scriptPerAddress.set(usedAddress, fromAddress(usedAddress, program.getNetwork().name)?.script)
         }
-        target = new TargetWallet(address, scriptPerAddress.get(address))
+        target = new TargetWallet(usedAddress, scriptPerAddress.get(usedAddress))
       }
     } else {
       //no target defined -> fallback to own address or vault
