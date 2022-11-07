@@ -57,6 +57,7 @@ enum StoreKey {
 }
 
 export interface IStoreMaxi extends IStore {
+  readonly paramPostFix: string
   updateToState(information: ProgramStateInformation): Promise<void>
   skipNext(): Promise<void>
   clearSkip(): Promise<void>
@@ -84,9 +85,6 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
   async fetchSettings(): Promise<StoredMaxiSettings> {
     // first check environment
 
-    let storePostfix = process.env.VAULTMAXI_STORE_POSTFIX ?? process.env.VAULTMAXI_STORE_POSTIX ?? ''
-
-    this.paramPostFix = storePostfix
     let seedkey = process.env.DEFICHAIN_SEED_KEY ?? StoreKey.DeFiWalletSeed
 
     let DeFiAddressKey = this.postfixedKey(StoreKey.DeFiAddress)

@@ -70,7 +70,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
 
     const usedLogId = process.env.VAULTMAXI_LOGID ?? settings.logId
     const logId = usedLogId && usedLogId.length > 0 ? ' ' + usedLogId : ''
-    const telegram = new Telegram(settings, '[Maxi' + settings.paramPostFix + ' ' + VERSION + logId + ']')
+    const telegram = new Telegram(settings, '[Maxi' + store.paramPostFix + ' ' + VERSION + logId + ']')
 
     let commonProgram: CommonProgram | undefined
     try {
