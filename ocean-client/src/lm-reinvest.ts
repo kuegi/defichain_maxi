@@ -27,7 +27,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       console.log('received event ' + JSON.stringify(event))
     }
     const logId = process.env.VAULTMAXI_LOGID ? ' ' + process.env.VAULTMAXI_LOGID : ''
-    const telegram = new Telegram(settings, '[Reinvest' + settings.paramPostFix + ' ' + VERSION + logId + ']')
+    const telegram = new Telegram(settings, '[Reinvest' + store.paramPostFix + ' ' + VERSION + logId + ']')
 
     let commonProgram: CommonProgram | undefined
     try {

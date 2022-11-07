@@ -29,7 +29,10 @@
             "default": "Additional Settings (Optional)"
           },
           "Parameters": [
-            "HeartBeatURL"
+            "HeartBeatURL",
+            "OceanUrls",
+            "KeepWalletClean",
+            "LogId"
           ]
         },
         {
@@ -82,7 +85,16 @@
           "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
         },
         "HeartBeatURL": {
-          "default": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
+          "default": "Heartbeat URL to be called by vault-maxi"
+        },
+        "OceanUrls": {
+          "default": "comma seperated list of ocean urls to use. last in list will be used first. in case of error, it will iterate. official ocean url is always the final fallback."
+        },
+        "KeepWalletClean": {
+          "default": "If true, maxi also uses dust (f.e. from commissions) to payback loans or increase more liquidity."
+        },
+        "LogId": {
+          "default": "Added to every telegram message to help identify between different vault maxi instances."
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
@@ -180,6 +192,22 @@
       "Type": "String",
       "Default": "",
       "Description": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
+    },
+    "OceanUrls": {
+      "Type": "String",
+      "Default": "",
+      "Description": "comma seperated list of ocean urls to use. last in list will be used first. in case of error, it will iterate. official ocean url is always the final fallback."
+    },
+    "KeepWalletClean": {
+      "Type": "String",
+      "Default": "true",
+      "AllowedPattern": "true|false",
+      "Description": "If true, maxi also uses dust (f.e. from commissions) to payback loans or increase more liquidity. otherwise set to false"
+    },
+    "LogId": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Added to every telegram message to help identify between different vault maxi instances."
     },
     "TelegramNotificationChatId": {
       "Type": "String",
@@ -316,6 +344,42 @@
                 ""
               ]
             }
+          ]
+        }
+      ]
+    },
+    "CreateHeartBeat": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "HeartBeatURL"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "CreateLogId": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "LogId"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "CreateOceanUrls": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "OceanUrls"
+            },
+            ""
           ]
         }
       ]
@@ -538,6 +602,7 @@
     },
     "vaultMaxiParamHeartBeatURL": {
       "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateHeartBeat",
       "Properties": {
         "DataType": "text",
         "Description": "URL to call for heartbeat",
@@ -545,6 +610,44 @@
         "Type": "String",
         "Value": {
           "Ref": "HeartBeatURL"
+        }
+      }
+    },
+    "vaultMaxiParamOceanUrls": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateOceanUrls",
+      "Properties": {
+        "DataType": "text",
+        "Description": "list of alternative ocean urls, can be separated by space or comma",
+        "Name": "/defichain-maxi/settings/ocean-urls",
+        "Type": "String",
+        "Value": {
+          "Ref": "OceanUrls"
+        }
+      }
+    },
+    "vaultMaxiParamKeepWalletClean": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "set to false if maxi should ignore dust and commissions",
+        "Name": "/defichain-maxi/settings/keep-wallet-clean",
+        "Type": "String",
+        "Value": {
+          "Ref": "KeepWalletClean"
+        }
+      }
+    },
+    "vaultMaxiParamLogId": {
+      "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateLogId",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Log Id to be added to every telegram notification",
+        "Name": "/defichain-maxi/settings/log-id",
+        "Type": "String",
+        "Value": {
+          "Ref": "LogId"
         }
       }
     },
