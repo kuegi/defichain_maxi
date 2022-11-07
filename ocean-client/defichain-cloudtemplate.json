@@ -88,13 +88,13 @@
           "default": "Heartbeat URL to be called by vault-maxi"
         },
         "OceanUrls": {
-          "default": "comma seperated list of ocean urls to use. last in list will be used first. in case of error, it will iterate. official ocean url is always the final fallback."
+          "default": "Alternative Ocean Urls"
         },
         "KeepWalletClean": {
-          "default": "If true, maxi also uses dust (f.e. from commissions) to payback loans or increase more liquidity."
+          "default": "Keep Wallet Clean"
         },
         "LogId": {
-          "default": "Added to every telegram message to help identify between different vault maxi instances."
+          "default": "Log id"
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
