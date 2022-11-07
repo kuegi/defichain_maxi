@@ -8,6 +8,8 @@ export class StoredSettings {
   seed: string[] = []
 }
 
-export interface IStore {}
+export interface IStore {
+  updateToState(information: ProgramStateInformation): Promise<void>
+}
 
 

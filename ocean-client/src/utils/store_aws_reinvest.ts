@@ -1,9 +1,10 @@
 import SSM from 'aws-sdk/clients/ssm'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
-import { IStore, StoredSettings } from './store'
+import { IReinvestSettings } from './reinvestor'
+import { IStore } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
 
-export class StoredReinvestSettings extends StoredAWSSettings {
+export class StoredReinvestSettings extends StoredAWSSettings implements IReinvestSettings {
   chatId: string = ''
   token: string = ''
   logChatId: string = ''
@@ -11,7 +12,6 @@ export class StoredReinvestSettings extends StoredAWSSettings {
 
   address: string = ''
   seed: string[] = []
-  LMPair: string = 'GLD-DUSD'
   reinvestThreshold: number | undefined
   reinvestPattern: string | undefined
   autoDonationPercentOfReinvest: number = 0
@@ -28,6 +28,7 @@ enum StoreKey {
 
   LMPair = '/defichain-maxi/settings-reinvest/lm-pair',
   ReinvestThreshold = '/defichain-maxi/settings-reinvest/reinvest',
+  ReinvestPattern = '/defichain-maxi/settings-reinvest/pattern',
   AutoDonationPercentOfReinvest = '/defichain-maxi/settings-reinvest/auto-donation-percent-of-reinvest',
 
   State = '/defichain-maxi/state-reinvest',
@@ -52,6 +53,7 @@ export class StoreAWSReinvest extends StoreAWS implements IStore {
     let ReinvestThreshold = this.postfixedKey(StoreKey.ReinvestThreshold)
     let AutoDonationPercentOfReinvestKey = this.postfixedKey(StoreKey.AutoDonationPercentOfReinvest)
     let LMPairKey = this.postfixedKey(StoreKey.LMPair)
+    let ReinvestPatternKey = this.postfixedKey(StoreKey.ReinvestPattern)
     let StateKey = this.postfixedKey(StoreKey.State)
 
     //store only allows to get 10 parameters per request
@@ -62,6 +64,7 @@ export class StoreAWSReinvest extends StoreAWS implements IStore {
       StoreKey.TelegramLogsToken,
       DeFiAddressKey,
       LMPairKey,
+      ReinvestPatternKey,
       ReinvestThreshold,
       AutoDonationPercentOfReinvestKey,
       StateKey,
@@ -73,7 +76,9 @@ export class StoreAWSReinvest extends StoreAWS implements IStore {
     settings.logChatId = this.getValue(StoreKey.TelegramLogsChatId, parameters)
     settings.logToken = this.getValue(StoreKey.TelegramLogsToken, parameters)
     settings.address = this.getValue(DeFiAddressKey, parameters)
-    settings.LMPair = this.getValue(LMPairKey, parameters)
+    settings.reinvestPattern =
+      this.getOptionalValue(ReinvestPatternKey, parameters) ?? this.getValue(LMPairKey, parameters)
+
     settings.reinvestThreshold = this.getNumberValue(ReinvestThreshold, parameters)
     settings.autoDonationPercentOfReinvest =
       this.getNumberValue(AutoDonationPercentOfReinvestKey, parameters) ?? settings.autoDonationPercentOfReinvest

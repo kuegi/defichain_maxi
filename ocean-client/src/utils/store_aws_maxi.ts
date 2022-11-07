@@ -1,10 +1,10 @@
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
+import { IReinvestSettings } from './reinvestor'
 import { IStore } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
-import { StoreConfig } from './store_config'
 import { TelegramSettings } from './telegram'
 
-export class StoredMaxiSettings extends StoredAWSSettings implements TelegramSettings {
+export class StoredMaxiSettings extends StoredAWSSettings implements TelegramSettings, IReinvestSettings {
   chatId: string = ''
   token: string = ''
   logChatId: string = ''

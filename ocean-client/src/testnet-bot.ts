@@ -41,7 +41,7 @@ export async function main(event: botEvent, context: any): Promise<Object> {
       }
       const program = new TestnetBotProgram(store, settings, new WalletSetup(settings, ocean))
       await program.init()
-      if (!program.isTestNet()) {
+      if (!program.isTestnet()) {
         console.error('Must only run on testnet!')
         return { statusCode: 500 }
       }
