@@ -55,6 +55,14 @@ saved as a SecureString:
 ```
 /defichain-maxi/wallet/seed
 ```
+
+optional parameters for extra settings:
+```
+/defichain-maxi/settings/heartbeat-url (if defined, a GET request is send to this url on every invocation)
+/defichain-maxi/settings/log-id (added to every telegram message for unique identification)
+/defichain-maxi/settings/keep-wallet-clean (default true: means vaultMaxi uses dust and commission to payback loans etc.)
+/defichain-maxi/settings/ocean-urls (comma separated list of alternative ocean-urls that you want to use)
+```
 optional parameters (if you want telegram notifications)
 ```
 /defichain-maxi/telegram/notifications/chat-id
@@ -65,16 +73,22 @@ optional parameters (if you want telegram notifications)
 
 ### Reinvest pattern
 
-in the reinvest pattern, you can define how the DFI should be used in the reinvest. You can define a space seperated list of targets. each target has the pattern `token:percent:targetAddress` if there is no targetAddress given, the tokens stay in the wallet. collateral tokens that stay in the wallet get deposited to the vault automatically.
+in the reinvest pattern, you can define how the DFI should be used in the reinvest. You can define a space or comma seperated list of targets. each target has the pattern `token:percent:targetAddressVault` if there is no targetAddress/Vault given, collateral tokens get deposited to the vault while normal tokens (including LM-Token) stay in your wallet.
 the given percent is the part of the reinvest amount that should be used in this target. the sum of all percent-values must not be greater than 100.
 If the sum of all given percent numbers is below 100, the remaining percent are equally distributed among all targets without defined percent. 
+
 If the token is a LP token, the DFI get swapped 50:50 to the two needed tokens and added to the pool. resulting LP tokens can be send to a targetAddress.
+
+For collateralTokens the targetAddressVault can be a vault-id. Then the tokens are deposited to this vault.
+
+For easier usage you can use `wallet` or `vault` as shortcut for your own address and vault.
 
 examples:
 
 * `DFI` : full reinvest as DFI into the vault
 * `DFI DUSD` : half of the amount gets swapped to DUSD, DFI and DUSD get deposited to the vault
-* `BTC:10:df1address1 TSLA:15 BTC-DFI:8 SPY-DUSD:20:otheraddress DFI USDT`: 10% swapped to BTC and sent to df1address1, 15% swapped to TSLA and kept in wallet, 8% swapped half to BTC and put into BTC-DFI pool, 20% swapped to SPY and DUSD and the LP-token send to otheraddress, rest (47%) split in DFI and USDT both deposited to the vault.
+* `DFI DUSD::wallet` : half of the amount gets swapped to DUSD, DFI get deposited to the vault, DUSD stay in the wallet
+* `BTC:10:df1address1 TSLA:15 BTC-DFI:8 SPY-DUSD:20:otheraddress DFI USDT::someVault`: 10% swapped to BTC and sent to df1address1, 15% swapped to TSLA and kept in wallet, 8% swapped half to BTC and put into BTC-DFI pool, 20% swapped to SPY and DUSD and the LP-token send to otheraddress, rest (47%) split in DFI (deposited to own vault) and USDT (deposited to `someVault`)
 
 ## Advanced usage
 Besides having parameters in the AWS ParameterStore, there is the possibility to set environment variables on a AWS Lambda execution.
@@ -82,6 +96,7 @@ Besides having parameters in the AWS ParameterStore, there is the possibility to
 Currently following keys are respected with a small description on how they alter execution functionality
 
 ### VAULTMAXI_LOGID
+(overrides the parameter `/defichain-maxi/settings/log-id` but same functionality)
 value: string
 
 will be shown in the prefix of every telegram message. Meant to easily distinguish log messages of different bots
@@ -117,6 +132,7 @@ value: string
 This value overwrites the default seed key parameter to another SecureString parameter, which is further used to initialise your wallet.
 
 ### VAULTMAXI_KEEP_CLEAN
+(overrides parameter `/defichain-maxi/settings/keep-wallet-clean` but same functionality)
 value: string
 possible values: `"true", "false"`
 default: true
@@ -126,6 +142,7 @@ Enabled: keeps your address clean by using commissions (dust) to payback loans a
 Disabled: will not touch commissions (dust), only what is needed by default calculations
 
 ### VAULTMAXI_SWAP_REWARDS_TO_MAIN
+DEPRECATED since the new reinvest-pattern
 value: string
 possible values: `"true", "false"`
 default: true
@@ -135,6 +152,7 @@ Enabled: rewards will be swapped to your main collateral asset ("DUSD" if not DF
 Disabled: rewards will be directly reinvested as DFI
 
 ### VAULTMAXI_OCEAN_URL
+(will be added internally to the list of `/defichain-maxi/settings/ocean-urls`)
 value: string
 
 If provided, this overrides the url to be used as the ocean endpoint. default is "https://ocean.defichain.com" , but you could use custom providers like mydefichain: "https://ocean.mydefichain.com"
