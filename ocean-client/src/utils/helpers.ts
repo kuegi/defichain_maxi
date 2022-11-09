@@ -10,8 +10,8 @@ export function delay(ms: number) {
 }
 
 export function simplifyAddress(address: string) {
-  if (address.length > 10) {
-    return address.substring(0, 5) + '...' + address.substring(address.length - 4)
+  if (address.length > 15) {
+    return address.substring(0, 8) + '...' + address.substring(address.length - 4)
   } else {
     return address
   }
