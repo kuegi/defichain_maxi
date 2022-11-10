@@ -47,19 +47,19 @@ export class Store {
   async updateReinvest(value: string, bot?: Bot): Promise<unknown> {
     const key = this.getKeyForBot(StoreKey.Reinvest, StoreKey.LMRReinvest, bot)
     if (!key) return Promise.reject()
-    return this.updateParameter(key, value)
+    return this.updateParameter(key, value, bot)
   }
 
   async updateLMPair(value: string, bot?: Bot): Promise<unknown> {
     const key = this.getKeyForBot(StoreKey.LMPair, StoreKey.LMRPair, bot)
     if (!key) return Promise.reject()
-    return this.updateParameter(key, value)
+    return this.updateParameter(key, value, bot)
   }
 
   async updateAutoDonation(value: string, bot?: Bot): Promise<unknown> {
     const key = this.getKeyForBot(StoreKey.AutoDonation, StoreKey.LMRAutoDonation, bot)
     if (!key) return Promise.reject()
-    return this.updateParameter(key, value)
+    return this.updateParameter(key, value, bot)
   }
 
   async updateStableArbBatchSize(value: string, bot?: Bot): Promise<unknown> {
