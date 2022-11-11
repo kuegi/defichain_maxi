@@ -9,6 +9,7 @@ import { SetAutoDonation } from './set-auto-donation'
 import { SetPair } from './set-pair'
 import { SetRange } from './set-range'
 import { SetReinvest } from './set-reinvest'
+import { SetReinvestPattern } from './set-reinvest-pattern'
 import { SetStableArbSize } from './set-stable-arb-size'
 import { Skip } from './skip'
 
@@ -30,6 +31,7 @@ export class Help extends Command {
       this.buildLine(Commands.RemoveExposure, RemoveExposure.descriptionFor) +
       this.buildLine(Commands.SetRange, SetRange.descriptionFor) +
       this.buildLine(Commands.SetReinvest, SetReinvest.descriptionFor) +
+      this.buildLine(Commands.SetReinvestPattern, SetReinvestPattern.descriptionFor) +
       this.buildLine(Commands.SetStableArbSize, SetStableArbSize.descriptionFor) +
       this.buildLine(Commands.SetAutoDonation, SetAutoDonation.descriptionFor) +
       this.buildLine(Commands.SetPair, SetPair.descriptionFor)
