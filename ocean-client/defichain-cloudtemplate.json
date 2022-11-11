@@ -292,6 +292,18 @@
         }
       ]
     },
+    "CreateReinvestPattern": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "ReinvestPattern"
+            },
+            ""
+          ]
+        }
+      ]
+    },
     "CreateTelegramLogs": {
       "Fn::And": [
         {
@@ -578,6 +590,7 @@
     },
     "vaultMaxiParamReinvestPattern": {
       "Type": "AWS::SSM::Parameter",
+      "Condition": "CreateReinvestPattern",
       "Properties": {
         "DataType": "text",
         "Description": "Pattern for reinvestments. if empty, everything is reinvested as the maincollateralasset.",
