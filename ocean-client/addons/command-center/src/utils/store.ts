@@ -50,6 +50,12 @@ export class Store {
     return this.updateParameter(key, value, bot)
   }
 
+  async updateReinvestPattern(value: string, bot?: Bot): Promise<unknown> {
+    const key = this.getKeyForBot(StoreKey.ReinvestPattern, StoreKey.LMRReinvestPattern, bot)
+    if (!key) return Promise.reject()
+    return this.updateParameter(key, value, bot)
+  }
+
   async updateLMPair(value: string, bot?: Bot): Promise<unknown> {
     const key = this.getKeyForBot(StoreKey.LMPair, StoreKey.LMRPair, bot)
     if (!key) return Promise.reject()
@@ -149,7 +155,7 @@ export class Store {
       case BotType.REINVEST:
         return reinvest
       default:
-        undefined
+        return undefined
     }
   }
 }
@@ -161,12 +167,14 @@ enum StoreKey {
   MinCollateralRatio = '/defichain-maxi/settings/min-collateral-ratio',
   LMPair = '/defichain-maxi/settings/lm-pair',
   Reinvest = '/defichain-maxi/settings/reinvest',
+  ReinvestPattern = '/defichain-maxi/settings/reinvest-pattern',
   AutoDonation = '/defichain-maxi/settings/auto-donation-percent-of-reinvest',
   StableArbBatchSize = '/defichain-maxi/settings/stable-arb-batch-size',
 
   // defichain-maxi lm-reinvest related keys
   LMRPair = '/defichain-maxi/settings-reinvest/lm-pair',
   LMRReinvest = '/defichain-maxi/settings-reinvest/reinvest',
+  LMRReinvestPattern = '/defichain-maxi/settings-reinvest/pattern',
   LMRAutoDonation = '/defichain-maxi/settings-reinvest/auto-donation-percent-of-reinvest',
 
   // command center related keys

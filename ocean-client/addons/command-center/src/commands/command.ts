@@ -19,6 +19,7 @@ export enum Commands {
   RemoveExposure = '/removeExposure',
   SetRange = '/setRange',
   SetReinvest = '/setReinvest',
+  SetReinvestPattern = '/setReinvestPattern',
   SetAutoDonation = '/setAutoDonation',
   SetStableArbSize = '/setStableArbSize',
   SetPair = '/setPair',

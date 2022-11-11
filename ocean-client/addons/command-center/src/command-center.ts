@@ -9,6 +9,7 @@ import { SetAutoDonation } from './commands/set-auto-donation'
 import { SetPair } from './commands/set-pair'
 import { SetRange } from './commands/set-range'
 import { SetReinvest } from './commands/set-reinvest'
+import { SetReinvestPattern } from './commands/set-reinvest-pattern'
 import { SetStableArbSize } from './commands/set-stable-arb-size'
 import { Skip } from './commands/skip'
 import { AvailableBots } from './utils/available-bot'
@@ -61,6 +62,9 @@ async function execute(messages: Message[], telegram: Telegram, store: Store, av
         break
       case Commands.SetReinvest:
         command = new SetReinvest(telegram, store, availableBots, commandData)
+        break
+      case Commands.SetReinvestPattern:
+        command = new SetReinvestPattern(telegram, store, availableBots, commandData)
         break
       case Commands.SetStableArbSize:
         command = new SetStableArbSize(telegram, store, availableBots, commandData)
