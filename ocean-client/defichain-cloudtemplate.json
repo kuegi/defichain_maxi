@@ -29,7 +29,6 @@
             "default": "Additional Settings (Optional)"
           },
           "Parameters": [
-            "HeartBeatURL",
             "OceanUrls",
             "KeepWalletClean",
             "LogId"
@@ -83,9 +82,6 @@
         },
         "AutoDonation": {
           "default": "Percent of your rewards that will be donated to developers automatically. Thanks for donating 5%. (optional, set 0 to deactivate)"
-        },
-        "HeartBeatURL": {
-          "default": "Heartbeat URL to be called by vault-maxi"
         },
         "OceanUrls": {
           "default": "Alternative Ocean Urls"
@@ -187,11 +183,6 @@
       "Type": "Number",
       "Default": 5,
       "Description": "Percent of your rewards that will be automatically donated to the developers. Thanks."
-    },
-    "HeartBeatURL": {
-      "Type": "String",
-      "Default": "",
-      "Description": "If set, vault-maxi calls this url on every execution. Can be used to monitor uptime via external service."
     },
     "OceanUrls": {
       "Type": "String",
@@ -356,18 +347,6 @@
                 ""
               ]
             }
-          ]
-        }
-      ]
-    },
-    "CreateHeartBeat": {
-      "Fn::Not": [
-        {
-          "Fn::Equals": [
-            {
-              "Ref": "HeartBeatURL"
-            },
-            ""
           ]
         }
       ]
@@ -610,19 +589,6 @@
         "Type": "String",
         "Value": {
           "Ref": "AutoDonation"
-        }
-      }
-    },
-    "vaultMaxiParamHeartBeatURL": {
-      "Type": "AWS::SSM::Parameter",
-      "Condition": "CreateHeartBeat",
-      "Properties": {
-        "DataType": "text",
-        "Description": "URL to call for heartbeat",
-        "Name": "/defichain-maxi/settings/heartbeat-url",
-        "Type": "String",
-        "Value": {
-          "Ref": "HeartBeatURL"
         }
       }
     },
