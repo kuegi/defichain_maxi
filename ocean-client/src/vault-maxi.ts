@@ -10,6 +10,8 @@ import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { StoreConfig } from './utils/store_config'
 import { IStoreMaxi, StoreAWSMaxi } from './utils/store_aws_maxi'
 
+import fetch from 'node-fetch'
+
 class SettingsOverride {
   minCollateralRatio: number | undefined
   maxCollateralRatio: number | undefined
@@ -207,15 +209,16 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         }
       }
 
+      program.logVaultData(vault)
+
       if (vault.state == LoanVaultState.FROZEN) {
+        console.log('vault is frozen, removing exposure')
         await program.removeExposure(vault, pool!, balances, telegram, true)
         const message = 'vault is frozen. trying again later '
         await telegram.send(message)
         console.warn(message)
         return { statusCode: 200 }
       }
-
-      program.logVaultData(vault)
 
       //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
       if (settings.mainCollateralAsset === 'DFI') {
