@@ -444,7 +444,7 @@ export async function checkAndDoReinvest(
       //swap to target was  already final step: add to log
       sentTokens
         .get((target.target as TargetWallet).address)!
-        .push(usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedResult.toFixed(4) + '@' + target.tokenName)
+        .push(usedDFI.toFixed(2) + swappedSymbol + estimatedResult.toFixed(4) + '@' + target.tokenName)
     } else {
       toDeposit.push({
         tokenId: +token.id,
@@ -571,7 +571,10 @@ export async function checkAndDoReinvest(
       const estimatedLP = usedA.times(pool.totalLiquidity.token).div(pool.tokenA.reserve)
       sentTokens
         .get((t.target.target as TargetWallet).address)!
-        .push(t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol + estimatedLP.toFixed(4) + '@' + t.target.tokenName)
+        .push(
+          `${t.usedDFI.toFixed(2)}${swappedSymbol}${estimatedLP.toFixed(4)}@${t.target.tokenName}` +
+            `🟰${usedA.toFixed(4)}@${pool.tokenA.symbol}➕${usedB.toFixed(4)}@${pool.tokenB.symbol}`,
+        )
     }
   }
 
@@ -599,7 +602,7 @@ export async function checkAndDoReinvest(
     depositTokens
       .get(targetVault)
       ?.push(
-        (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + '@DFI' + swappedSymbol : '') +
+        (t.target.tokenName !== 'DFI' ? t.usedDFI.toFixed(2) + swappedSymbol : '') +
           t.inputAmount.toFixed(4) +
           '@' +
           t.target.tokenName,
