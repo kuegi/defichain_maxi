@@ -376,14 +376,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       } else {
         message += 'without changes.\nvault ratio ' + oldRatio + ' next ' + nextRatio + '.'
       }
-      message +=
-        '\ntarget range ' +
-        settings.minCollateralRatio +
-        ' - ' +
-        settings.maxCollateralRatio +
-        '\ncurrent safetylevel: ' +
-        safetyLevel.toFixed(0) +
-        '%'
+      message += '\ntarget range ' + settings.minCollateralRatio + ' - ' + settings.maxCollateralRatio + '\n'
+      if (safetyLevel.gt(10000)) {
+        message += 'Maxi could bring your vault above 10000% collRatio. All safe.'
+      } else {
+        message += 'Maxi could bring your vault to a collRatio of ' + safetyLevel.toFixed(0) + '%'
+      }
       await telegram.log(message)
       console.log('script done, safety level: ' + safetyLevel.toFixed(0))
       return { statusCode: result ? 200 : 500 }
