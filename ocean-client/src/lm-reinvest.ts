@@ -13,7 +13,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.0'
+export const VERSION = 'v2.1'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('lm-reinvest ' + VERSION)
