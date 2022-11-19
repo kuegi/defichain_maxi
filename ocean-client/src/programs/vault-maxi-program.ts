@@ -336,6 +336,7 @@ export class VaultMaxiProgram extends CommonProgram {
       if (utxoBalance.lte(0)) {
         //can't work with no UTXOs
         const message =
+          '!!!IMMEDIATE ACTION REQUIRED!!!\n' +
           'you have no UTXOs left in ' +
           this.getSettings().address +
           ". Please replenish otherwise you maxi can't protect your vault!"
@@ -345,6 +346,7 @@ export class VaultMaxiProgram extends CommonProgram {
         return false
       }
       const message =
+        '!!!IMMEDIATE ACTION REQUIRED!!!\n' +
         'your UTXO balance is running low in ' +
         this.getSettings().address +
         ', only ' +
@@ -433,7 +435,9 @@ export class VaultMaxiProgram extends CommonProgram {
         const dusdLoan = vault.loanAmounts.find((loan) => loan.symbol == 'DUSD')
         if (!lpTokens || !tokenLoan || (!this.isSingleMint && !dusdLoan)) {
           const message =
-            'vault ratio not safe but either no lpTokens or no loans in vault.\nDid you change the LMToken? Your vault is NOT safe! '
+            '!!!IMMEDIATE ACTION REQUIRED!!!\n' +
+            'There are no lpTokens in the address or no according loans in the vault.\n' +
+            'Did you change the LMToken? VaultMaxi is NOT ABLE TO WORK! Your vault is NOT safe! '
           await telegram.send(message)
           console.warn(message)
         } else {
@@ -451,27 +455,16 @@ export class VaultMaxiProgram extends CommonProgram {
               neededDusd.gt(dusdLoan!.amount) ||
               neededStock.gt(tokenLoan.amount)
             ) {
+              const safetyLevel = await this.calcSafetyLevel(vault, pool, balances)
               const message =
-                'vault ratio not safe but not enough lptokens or loans to be able to guard it.\nDid you change the LMToken? Your vault is NOT safe!\n' +
-                'wanted ' +
-                neededLPtokens.toFixed(4) +
-                ' but got ' +
-                (+lpTokens.amount).toFixed(4) +
-                ' ' +
-                lpTokens.symbol +
-                '\nwanted ' +
-                neededDusd.toFixed(1) +
-                ' but got ' +
-                (+dusdLoan!.amount).toFixed(1) +
-                ' ' +
-                dusdLoan!.symbol +
-                '\nwanted ' +
-                neededStock.toFixed(4) +
-                ' but got ' +
-                (+tokenLoan.amount).toFixed(4) +
-                ' ' +
-                tokenLoan.symbol +
-                '\n'
+                `VaultMaxi could only reach a collRatio of ${safetyLevel.toFixed(0)}%. This is not safe!\n` +
+                'It is highly recommend to fix this!\n' +
+                `To be able to reach a safe collRatio of ${safeRatio}% it would ` +
+                `need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${lpTokens.symbol}.\n` +
+                `would need ${neededDusd.toFixed(1)}  but got ${(+dusdLoan!.amount).toFixed(1)}  ${
+                  dusdLoan!.symbol
+                }.\n` +
+                `would need ${neededStock.toFixed(4)} but got ${(+tokenLoan.amount).toFixed(4)} ${tokenLoan.symbol}.\n`
               await telegram.send(message)
               console.warn(message)
             }
@@ -491,22 +484,14 @@ export class VaultMaxiProgram extends CommonProgram {
 
             const neededAssetA = neededLPtokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
             if (neededLPtokens.gt(lpTokens.amount) || neededAssetA.gt(tokenLoan.amount)) {
+              const safetyLevel = await this.calcSafetyLevel(vault, pool, balances)
               const message =
-                'vault ratio not safe but not enough lptokens or loans to be able to guard it.\n' +
-                'Did you change the LMToken? Your vault is NOT safe!\n' +
-                'wanted ' +
-                neededLPtokens.toFixed(4) +
-                ' but got ' +
-                (+lpTokens.amount).toFixed(4) +
-                ' ' +
-                lpTokens.symbol +
-                '\nwanted ' +
-                neededAssetA.toFixed(4) +
-                ' but got ' +
-                (+tokenLoan.amount).toFixed(4) +
-                ' ' +
-                tokenLoan.symbol +
-                '\n'
+                `VaultMaxi could only reach a collRatio of ${safetyLevel.toFixed(0)}%. This is not safe!\n` +
+                'It is highly recommend to fix this!\n' +
+                `To be able to reach a safe collRatio of ${safeRatio}% it would ` +
+                `need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${lpTokens.symbol}.\n` +
+                `would need ${neededAssetA.toFixed(1)} but got ${(+tokenLoan.amount).toFixed(1)} ${tokenLoan.symbol}.\n`
+
               await telegram.send(message)
               console.warn(message)
             }
