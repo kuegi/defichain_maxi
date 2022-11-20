@@ -40,8 +40,10 @@ async function buildLambda(file) {
   zip(`./dist/${file}`, `./dist/${file}.zip`, {includes: [`*`], cwd: `./dist/${file}`}, (err) => {
     console.log(`src/${file}.ts -> dist/${file}.zip`)
     //calc hash
-    const hash = (crypto.createHash('sha256')).update(fs.readFileSync(`./dist/${file}.zip`)).digest('base64');
-    console.log(`sha256 hash: ${hash}`);
+    const base64 = (crypto.createHash('sha256')).update(fs.readFileSync(`./dist/${file}.zip`)).digest('base64')
+    const hex= (crypto.createHash('sha256')).update(fs.readFileSync(`./dist/${file}.zip`)).digest('hex')
+    console.log(`sha256 hash base64: ${base64}`);
+    console.log(`sha256 hash hex: ${hex}`);
   });
 
 }

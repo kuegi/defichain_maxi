@@ -302,7 +302,7 @@
           "S3Bucket": {
             "Fn::Sub": "defichain-maxi-public-${AWS::Region}"
           },
-          "S3Key": "lm-reinvest-2-1.zip"
+          "S3Key": "lm-reinvest-2-0-1.zip"
         },
         "Runtime": "nodejs14.x",
         "Timeout": 890
