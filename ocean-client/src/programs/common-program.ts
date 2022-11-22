@@ -17,7 +17,7 @@ import {
   Vin,
   Vout,
 } from '@defichain/jellyfish-transaction'
-import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
+import { ApiPagedResponse, WhaleApiClient, WhaleApiException } from '@defichain/whale-api-client'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
 import {
   CollateralToken,
@@ -671,8 +671,14 @@ export class CommonProgram {
               console.log('failed to send tx even after after multiple retries (' + e.error.message + ')')
               error(e)
             } else {
+              let errorCode = -1
+              if (e instanceof WhaleApiException) {
+                errorCode = e.code
+              }
               console.log(
                 'error sending tx (' +
+                  errorCode +
+                  ': ' +
                   e.error.message +
                   '). retrying after ' +
                   (waitTime / 1000).toFixed(0) +

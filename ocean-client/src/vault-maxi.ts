@@ -6,7 +6,7 @@ import { CommonProgram, ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'
 import { delay, isNullOrEmpty } from './utils/helpers'
 import { BigNumber } from '@defichain/jellyfish-api-core'
-import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
+import { WhaleApiException, WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { StoreConfig } from './utils/store_config'
 import { IStoreMaxi, StoreAWSMaxi } from './utils/store_aws_maxi'
 
@@ -33,7 +33,7 @@ export const VERSION = 'v2.4.1'
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
   let blockHeight = 0
-  let cleanUpFailed = false
+  let cleanUpTries = 0
   // adding multiples so that we alternate the first retries
   let oceansToUse = ['https://ocean.defichain.io', 'https://ocean.defichain.com', 'https://ocean.defichain.io']
   if (process.env.VAULTMAXI_OCEAN_URL) {
@@ -167,11 +167,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           await program.updateToState(information.state, VaultMaxiProgramTransaction.None)
         }
         // 2022-03-09 Krysh: only clean up if it is really needed, otherwise we are fine and can proceed like normally
-        if (information.state === ProgramState.Error) {
-          let safetyMode: boolean = cleanUpFailed
-          console.log('need to clean up ' + (safetyMode ? 'in safety mode due to previous error' : ''))
-          cleanUpFailed = true //will be set to false if success
-          result = await program.cleanUp(vault, balances, telegram, safetyMode)
+        if (information.state === ProgramState.Error && cleanUpTries < 3) {
+          //only cleanup if not tried too often already
+          //if we already tried 3 cleanups without success -> try a normal round to maybe reduce additional exposure and go back to cleanup in next execution
+          console.log('need to clean up failed ' + cleanUpTries + ' times so far')
+          cleanUpTries += 1 //will be set to 0 if success
+          result = await program.cleanUp(vault, balances, telegram, cleanUpTries - 1)
           vault = (await program.getVault()) as LoanVaultActive
           balances = await program.getTokenBalances()
           pool = await program.getPool(program.lmPair)
@@ -187,7 +188,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             console.error('Error in cleaning up, trying again in safetyMode')
             await telegram.send('There was an error in recovering from a failed state. please check yourself!')
             if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {
-              result = await program.cleanUp(vault, balances, telegram, true)
+              result = await program.cleanUp(vault, balances, telegram, cleanUpTries)
               vault = (await program.getVault()) as LoanVaultActive
               balances = await program.getTokenBalances()
               pool = await program.getPool(program.lmPair)
@@ -196,12 +197,12 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             console.log('cleanup done')
             await telegram.send('Successfully cleaned up after some error happened')
           }
-          cleanUpFailed = !result
-          //If safety mode, try another cleanup afterwards to clean the whole adress in case of temporary error
+          //if it worked after multiple times: set to error to clean the whole adress in case of temporary error.
           await program.updateToState(
-            safetyMode ? ProgramState.Error : ProgramState.Idle,
+            cleanUpTries > 2 ? ProgramState.Error : ProgramState.Idle,
             VaultMaxiProgramTransaction.None,
           )
+          cleanUpTries = 0
           console.log('got ' + (context.getRemainingTimeInMillis() / 1000).toFixed(1) + ' sec left after cleanup')
           if (context.getRemainingTimeInMillis() < MIN_TIME_PER_ACTION_MS) {
             return { statusCode: result ? 200 : 500 } //not enough time left, better quit and have a clean run on next invocation
@@ -360,7 +361,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         }
       }
 
-      await program.updateToState(result ? ProgramState.Idle : ProgramState.Error, VaultMaxiProgramTransaction.None)
+      await program.updateToState(
+        result && cleanUpTries == 0 ? ProgramState.Idle : ProgramState.Error,
+        VaultMaxiProgramTransaction.None,
+      )
       console.log('wrote state')
       const safetyLevel = await program.calcSafetyLevel(vault, pool!, balances)
       let message = 'executed script at block ' + blockHeight + ' '
@@ -391,7 +395,11 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
     } catch (e) {
       console.error('Error in script')
       console.error(e)
-      let message = 'There was an unexpected error in the script. please check the logs'
+      let errorMessage = ''
+      if (e instanceof WhaleApiException) {
+        errorMessage = '\nMessage was: ' + e.message
+      }
+      let message = 'There was an unexpected error in the script. please check the logs.' + errorMessage
       if (e instanceof SyntaxError) {
         console.info("syntaxError: '" + e.name + "' message: " + e.message)
         if (e.message == 'Unexpected token < in JSON at position 0') {

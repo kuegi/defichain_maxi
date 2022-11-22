@@ -908,6 +908,7 @@ export class VaultMaxiProgram extends CommonProgram {
     collateralTokens: AddressToken[],
     telegram: Telegram,
     prevout: Prevout | undefined = undefined,
+    oneByOne: boolean = false,
   ): Promise<boolean> {
     if (loanTokens.length == 0 && collateralTokens.length == 0) {
       await telegram.send('ERROR: want to pay back, but nothing to do. please check logs')
@@ -917,6 +918,7 @@ export class VaultMaxiProgram extends CommonProgram {
     let waitingTx = undefined
     let triedSomeTx = false
     let used_prevout = prevout
+    let error = undefined
     if (loanTokens.length > 0) {
       console.log(
         ' paying back tokens ' +
@@ -933,14 +935,34 @@ export class VaultMaxiProgram extends CommonProgram {
       })
       if (paybackTokens.length > 0) {
         triedSomeTx = true
-        const paybackTx = await this.paybackLoans(paybackTokens, used_prevout)
-        waitingTx = paybackTx
-        used_prevout = this.prevOutFromTx(waitingTx)
-        await this.updateToState(
-          ProgramState.WaitingForTransaction,
-          VaultMaxiProgramTransaction.PaybackLoan,
-          waitingTx.txId,
-        )
+
+        if (!oneByOne) {
+          const paybackTx = await this.paybackLoans(paybackTokens, used_prevout)
+          waitingTx = paybackTx
+          used_prevout = this.prevOutFromTx(waitingTx)
+          await this.updateToState(
+            ProgramState.WaitingForTransaction,
+            VaultMaxiProgramTransaction.PaybackLoan,
+            waitingTx.txId,
+          )
+        } else {
+          for (const payback of paybackTokens) {
+            try {
+              const paybackTx = await this.paybackLoans([payback], used_prevout)
+              waitingTx = paybackTx
+              used_prevout = this.prevOutFromTx(waitingTx)
+              await this.updateToState(
+                ProgramState.WaitingForTransaction,
+                VaultMaxiProgramTransaction.PaybackLoan,
+                waitingTx.txId,
+              )
+            } catch (e) {
+              error = e
+              console.error('Error paying back tokens one by one. will try next one')
+              console.error(e)
+            }
+          }
+        }
       }
     }
     if (collateralTokens.length > 0) {
@@ -952,33 +974,43 @@ export class VaultMaxiProgram extends CommonProgram {
         let amount = new BigNumber(collToken.amount)
         if (amount.gt(0)) {
           triedSomeTx = true
-          const depositTx = await this.depositToVault(+collToken.id, amount, undefined, used_prevout)
-          waitingTx = depositTx
-          used_prevout = this.prevOutFromTx(waitingTx)
-          await this.updateToState(
-            ProgramState.WaitingForTransaction,
-            VaultMaxiProgramTransaction.PaybackLoan,
-            waitingTx.txId,
-          )
+          try {
+            const depositTx = await this.depositToVault(+collToken.id, amount, undefined, used_prevout)
+            waitingTx = depositTx
+            used_prevout = this.prevOutFromTx(waitingTx)
+            await this.updateToState(
+              ProgramState.WaitingForTransaction,
+              VaultMaxiProgramTransaction.PaybackLoan,
+              waitingTx.txId,
+            )
+          } catch (e) {
+            error = e
+            console.error('Error depositing tokens. will try next one')
+            console.error(e)
+          }
         } else {
           console.log('negative amount -> not doing anything: ' + amount.toFixed(8) + '@' + collToken.symbol)
         }
       }
     }
-
+    let result = false
     if (waitingTx != undefined) {
       const success = await this.waitForTx(waitingTx.txId)
       if (!success) {
         await telegram.send('ERROR: paying back tokens')
         console.error('paying back tokens failed')
-        return false
+        result = false
       } else {
-        console.log('done')
-        return true
+        console.log('payback done')
+        result = true
       }
     } else {
-      return !triedSomeTx //didn't even need to do something -> success
+      result = !triedSomeTx //didn't even need to do something -> success
     }
+    if (error) {
+      throw error //waited if any other payback worked, no throw to know outside something is wrong
+    }
+    return result
   }
 
   async increaseExposure(
@@ -1624,7 +1656,7 @@ export class VaultMaxiProgram extends CommonProgram {
     vault: LoanVaultActive,
     balances: Map<string, AddressToken>,
     telegram: Telegram,
-    safetyMode: boolean = false,
+    previousTries: number = 0,
   ): Promise<boolean> {
     let wantedTokens: AddressToken[] = []
     let mainAssetAsLoan = false
@@ -1643,7 +1675,7 @@ export class VaultMaxiProgram extends CommonProgram {
             token.amount = '' + interest.times(1.005).plus(token.amount) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
           }
         }
-        if (safetyMode) {
+        if (previousTries > 1) {
           token.amount = '' + +token.amount / 2 //last cleanup failed -> try with half the amount
         }
         let enoughValue = true
@@ -1678,7 +1710,7 @@ export class VaultMaxiProgram extends CommonProgram {
       console.log('No tokens to pay back. nothing to clean up')
       return true // not an error
     } else {
-      return await this.paybackTokenBalances(wantedTokens, collTokens, telegram)
+      return await this.paybackTokenBalances(wantedTokens, collTokens, telegram, undefined, previousTries > 0)
     }
   }
 
