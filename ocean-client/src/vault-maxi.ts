@@ -395,7 +395,6 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
     } catch (e) {
       console.error('Error in script')
       console.error(e)
-      //TODO: extract error from ocean Error
       let errorMessage = ''
       if (e instanceof WhaleApiException) {
         errorMessage = '\nMessage was: ' + e.message
