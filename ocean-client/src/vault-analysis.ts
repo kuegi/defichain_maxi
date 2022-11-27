@@ -133,7 +133,7 @@ export async function main(event: any, context: any): Promise<Object> {
     }
 
     const wantedTypes = ['AddPoolLiquidity', 'WithdrawFromVault', 'TakeLoan', 'PaybackLoan', 'RemovePoolLiquidity']
-    const history = await o.getAll(() => o.c.address.listAccountHistory(vault.ownerAddress, 400), 400)
+    const history = await o.c.address.listAccountHistory(vault.ownerAddress, 400)
     const dusdHistory = history.filter(
       (h) =>
         h.amounts.find((a) => a.includes('DUSD')) !== undefined && wantedTypes.find((a) => h.type === a) !== undefined,
