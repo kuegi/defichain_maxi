@@ -99,9 +99,10 @@ function compArray(array1: string[], array2: string[]) {
 
 export async function main(event: any, context: any): Promise<Object> {
   const o = new Ocean()
+
   //read all vaults
   console.log('reading vaults')
-  const vaultlist = await o.getAll(() => o.c.loan.listVault(1000))
+  const vaultlist = await o.getAll(() => o.c.loan.listVault(200))
   console.log('got ' + vaultlist.length + ' vaults, now filtering')
   //filter for actives with min collateral and loan and bech32 owner
   const MIN_COLLATERAL = 50
@@ -179,8 +180,35 @@ export async function main(event: any, context: any): Promise<Object> {
         prevType = h.type
       }
     }
+    /* //full check for sent wizard config takes too long, not doing it
     if (doubleMintUnclear) {
-      //TODO: check for full history and wizard config tx?
+      console.log('checking full history for wizard config')
+      const txs = await o.getAll(() => o.c.address.listTransaction(vault.ownerAddress, 200))
+      txs.reverse() //config is usually at the beginning
+      const opWzTx = '6a004d5c01577a54785' //OP_RETURN 0 'WzTx'...
+      for (const tx of txs) {
+        const n = tx.vout?.n ?? 0
+        if (n == 1) {
+          //could be a tx we wanna see
+          const vouts = await o.c.transactions.getVouts(tx.txid, 10)
+          for (const vout of vouts) {
+            if (vout.n == 0) {
+              if (vout.script.hex.startsWith(opWzTx)) {
+                wizardVaults.push(vault)
+                doubleMintUnclear = false
+                console.log('found wizard from tx history')
+                break
+              }
+            }
+          }
+          if (!doubleMintUnclear) {
+            break
+          }
+        }
+      }
+    }
+    //*/
+    if (doubleMintUnclear) {
       doubleMinVaultsUnclear.push(vault)
     }
   }
