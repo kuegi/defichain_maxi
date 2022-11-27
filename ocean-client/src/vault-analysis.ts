@@ -28,7 +28,6 @@ class Ocean {
 }
 
 class BotData {
-  public totalVaults = 0
   public minRatio = 300
   public maxRatio = 0
   public avgRatio = 0
@@ -39,16 +38,19 @@ class BotData {
   public minCollateral = 99999999999999999
   public maxCollateral = 0
   public miovaults: LoanVaultActive[] = []
+  public allvaults: LoanVaultActive[] = []
 
   public toString(): string {
-    let result = `${this.totalVaults} vaults`
-    if (this.totalVaults > 0) {
+    let result = `${this.allvaults.length} vaults`
+    if (this.allvaults.length > 0) {
       result +=
         `\nratio: ${this.minRatio} - ${this.maxRatio} avg ${this.avgRatio.toFixed(
           2,
         )} w: ${this.avgRatioWeighted.toFixed(2)}\n` +
-        `coll: \$${this.minCollateral}-\$${this.maxCollateral} total: ${this.aum} (${this.miovaults} mio vaults)\n` +
-        `loans: \$${this.totalLoans} dusd: ${this.totalDUSD}`
+        `coll: \$${this.minCollateral.toFixed(0)}-\$${this.maxCollateral.toFixed(0)} total: ${this.aum.toFixed(0)} (${
+          this.miovaults.length
+        } mio vaults)\n` +
+        `loans: \$${this.totalLoans.toFixed(0)} dusd: ${this.totalDUSD.toFixed(0)}`
     }
     return result
   }
@@ -57,7 +59,7 @@ class BotData {
 function analysevaults(vaults: LoanVaultActive[]): BotData {
   console.log('analysing data of ' + vaults.length + ' vaults')
   const data = new BotData()
-  data.totalVaults = vaults.length
+  data.allvaults = vaults
   vaults.forEach((v) => {
     data.minRatio = Math.min(data.minRatio, +v.collateralRatio)
     data.maxRatio = Math.max(data.maxRatio, +v.collateralRatio)
@@ -99,7 +101,7 @@ export async function main(event: any, context: any): Promise<Object> {
   const o = new Ocean()
   //read all vaults
   console.log('reading vaults')
-  const vaultlist = await o.getAll(() => o.c.loan.listVault(200))
+  const vaultlist = await o.getAll(() => o.c.loan.listVault(1000))
   console.log('got ' + vaultlist.length + ' vaults, now filtering')
   //filter for actives with min collateral and loan and bech32 owner
   const MIN_COLLATERAL = 50
@@ -107,9 +109,13 @@ export async function main(event: any, context: any): Promise<Object> {
     (v) => v.state == LoanVaultState.ACTIVE && +v.collateralValue > MIN_COLLATERAL,
   ) as LoanVaultActive[]
   const usedVaults = nonEmptyVaults.filter((v) => v.loanAmounts.length > 0)
-  // only consider reasonable collRatio
+  // only consider bech32 owner with reasonable collRatio and either DUSD in loan or collateral (double mint and DFI single mint has loan, DUSD singlemint has collateral)
   const possibleBotVaults = usedVaults.filter(
-    (v) => v.ownerAddress.startsWith('df1') && +v.collateralRatio < +v.loanScheme.minColRatio * 2,
+    (v) =>
+      v.ownerAddress.startsWith('df1') &&
+      +v.collateralRatio < +v.loanScheme.minColRatio * 2 &&
+      (v.loanAmounts.find((l) => l.symbol === 'DUSD') !== undefined ||
+        v.collateralAmounts.find((c) => c.symbol === 'DUSD') !== undefined),
   ) as LoanVaultActive[]
 
   let allBotVaults: LoanVaultActive[] = []
@@ -126,8 +132,8 @@ export async function main(event: any, context: any): Promise<Object> {
       console.log('done ' + done + ' vaults, got ' + allBotVaults.length + ' bot vaults so far')
     }
 
-    const wantedTypes = ['AddPoolLiquidity', 'WithdrawFromVault', 'TakeLoan']
-    const history = await o.getAll(() => o.c.address.listAccountHistory(vault.ownerAddress, 200), 600)
+    const wantedTypes = ['AddPoolLiquidity', 'WithdrawFromVault', 'TakeLoan', 'PaybackLoan', 'RemovePoolLiquidity']
+    const history = await o.getAll(() => o.c.address.listAccountHistory(vault.ownerAddress, 400), 400)
     const dusdHistory = history.filter(
       (h) =>
         h.amounts.find((a) => a.includes('DUSD')) !== undefined && wantedTypes.find((a) => h.type === a) !== undefined,
@@ -187,9 +193,14 @@ export async function main(event: any, context: any): Promise<Object> {
   const wizardData = analysevaults(wizardVaults)
   const unclearDoubleMint = analysevaults(doubleMinVaultsUnclear)
   console.log('allData:\n' + allData.toString())
-  console.log('dusdData:\n' + dusdData.toString())
-  console.log('dfiData:\n' + dfiData.toString())
-  console.log('wizardData:\n' + wizardData.toString())
+  console.log('all data vaults: ' + JSON.stringify(allData.allvaults.map((v) => v.vaultId)))
+  console.log('dusd singlemint:\n' + dusdData.toString())
+  console.log('vaults: ' + JSON.stringify(dusdData.allvaults.map((v) => v.vaultId)))
+  console.log('dfi singlemint:\n' + dfiData.toString())
+  console.log(' vaults: ' + JSON.stringify(dfiData.allvaults.map((v) => v.vaultId)))
+  console.log('wizard:\n' + wizardData.toString())
+  console.log('vaults: ' + JSON.stringify(wizardData.allvaults.map((v) => v.vaultId)))
   console.log('unclearDoubleMint:\n' + unclearDoubleMint.toString())
+  console.log('vaults: ' + JSON.stringify(unclearDoubleMint.allvaults.map((v) => v.vaultId)))
   return { statusCode: 200 }
 }
