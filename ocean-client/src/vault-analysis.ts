@@ -4,7 +4,7 @@ import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 import { S3 } from 'aws-sdk'
 import { SmartBuffer } from 'smart-buffer'
-import { fromAddress, fromScript } from '@defichain/jellyfish-address'
+import { fromScript } from '@defichain/jellyfish-address'
 
 class Ocean {
   public readonly c: WhaleApiClient
@@ -66,9 +66,9 @@ class BotData {
       maxRatio: this.maxRatio,
       avgRatio: this.avgRatio,
       avgRatioWeighted: this.avgRatioWeighted,
-      aum: this.aum,
+      totalCollateral: this.aum,
       totalLoans: this.totalLoans,
-      totalDUSD: this.totalDUSD,
+      totalDUSDLoans: this.totalDUSD,
       minCollateral: this.minCollateral,
       maxCollateral: this.maxCollateral,
       totalVaults: this.allvaults.length,
