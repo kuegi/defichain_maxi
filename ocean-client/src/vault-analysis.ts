@@ -1,5 +1,10 @@
+import { MainNet } from '@defichain/jellyfish-network'
+import { AccountToAccount, OP_DEFI_TX, toOPCodes } from '@defichain/jellyfish-transaction/dist'
 import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
+import { S3 } from 'aws-sdk'
+import { SmartBuffer } from 'smart-buffer'
+import { fromAddress, fromScript } from '@defichain/jellyfish-address'
 
 class Ocean {
   public readonly c: WhaleApiClient
@@ -54,6 +59,21 @@ class BotData {
     }
     return result
   }
+
+  public toJSON(): Object {
+    return {
+      minRatio: this.minRatio,
+      maxRatio: this.maxRatio,
+      avgRatio: this.avgRatio,
+      avgRatioWeighted: this.avgRatioWeighted,
+      aum: this.aum,
+      totalLoans: this.totalLoans,
+      totalDUSD: this.totalDUSD,
+      minCollateral: this.minCollateral,
+      maxCollateral: this.maxCollateral,
+      totalVaults: this.allvaults.length,
+    }
+  }
 }
 
 function analysevaults(vaults: LoanVaultActive[]): BotData {
@@ -100,12 +120,14 @@ function compArray(array1: string[], array2: string[]) {
 export async function main(event: any, context: any): Promise<Object> {
   const o = new Ocean()
 
+  const MIN_COLLATERAL = 50
+  const MAX_HISTORY = 400
+
   //read all vaults
   console.log('reading vaults')
   const vaultlist = await o.getAll(() => o.c.loan.listVault(200))
   console.log('got ' + vaultlist.length + ' vaults, now filtering')
   //filter for actives with min collateral and loan and bech32 owner
-  const MIN_COLLATERAL = 50
   const nonEmptyVaults = vaultlist.filter(
     (v) => v.state == LoanVaultState.ACTIVE && +v.collateralValue > MIN_COLLATERAL,
   ) as LoanVaultActive[]
@@ -116,7 +138,8 @@ export async function main(event: any, context: any): Promise<Object> {
       v.ownerAddress.startsWith('df1') &&
       +v.collateralRatio < +v.loanScheme.minColRatio * 2 &&
       (v.loanAmounts.find((l) => l.symbol === 'DUSD') !== undefined ||
-        v.collateralAmounts.find((c) => c.symbol === 'DUSD') !== undefined),
+        v.collateralAmounts.find((c) => c.symbol === 'DUSD') !== undefined) &&
+      v.loanAmounts.length > 0,
   ) as LoanVaultActive[]
 
   let allBotVaults: LoanVaultActive[] = []
@@ -124,6 +147,7 @@ export async function main(event: any, context: any): Promise<Object> {
   let singleMintDFI: LoanVaultActive[] = []
   let wizardVaults: LoanVaultActive[] = []
   let doubleMinVaultsUnclear: LoanVaultActive[] = []
+  let donatingMaxis: LoanVaultActive[] = []
 
   console.log('analysing ' + possibleBotVaults.length + ' vaults with history')
   let done = 0
@@ -134,7 +158,7 @@ export async function main(event: any, context: any): Promise<Object> {
     }
 
     const wantedTypes = ['AddPoolLiquidity', 'WithdrawFromVault', 'TakeLoan', 'PaybackLoan', 'RemovePoolLiquidity']
-    const history = await o.c.address.listAccountHistory(vault.ownerAddress, 400)
+    const history = await o.getAll(() => o.c.address.listAccountHistory(vault.ownerAddress, 200), MAX_HISTORY)
     const dusdHistory = history.filter(
       (h) =>
         h.amounts.find((a) => a.includes('DUSD')) !== undefined && wantedTypes.find((a) => h.type === a) !== undefined,
@@ -151,6 +175,33 @@ export async function main(event: any, context: any): Promise<Object> {
           compArray([prevType, h.type], ['AddPoolLiquidity', 'WithdrawFromVault']))
       ) {
         allBotVaults.push(vault)
+        //check for maxi donation
+        const donations = history.filter(
+          (h) =>
+            h.type === 'AccountToAccount' &&
+            h.amounts.length === 1 &&
+            h.amounts[0].includes('DFI') &&
+            h.amounts[0].startsWith('-'),
+        )
+        for (const don of donations) {
+          const vouts = await o.c.transactions.getVouts(don.txid)
+
+          const dftxData = toOPCodes(SmartBuffer.fromBuffer(Buffer.from(vouts[0].script.hex, 'hex')))
+          if (dftxData[1].type == 'OP_DEFI_TX') {
+            const dftx = (dftxData[1] as OP_DEFI_TX).tx
+            const a2a = dftx.data as AccountToAccount
+            let isDonator = false
+            if (
+              a2a.to.find(
+                (target) =>
+                  fromScript(target.script, MainNet.name)?.address === 'df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07',
+              ) !== undefined
+            ) {
+              donatingMaxis.push(vault)
+              break
+            }
+          }
+        }
         //if takeloan takes only DUSD and AddPool is for DUSD-DFI -> its maxi single mint DFI
         if (prevAmounts.concat(h.amounts).find((a) => a.includes('DUSD-DFI')) !== undefined) {
           //addLiquidity into DUSD-DFI -> single mint DFI
@@ -219,7 +270,9 @@ export async function main(event: any, context: any): Promise<Object> {
   const dusdData = analysevaults(singleMintDUSD)
   const dfiData = analysevaults(singleMintDFI)
   const wizardData = analysevaults(wizardVaults)
-  const unclearDoubleMint = analysevaults(doubleMinVaultsUnclear)
+  const doubleMintMaxi = analysevaults(doubleMinVaultsUnclear)
+  console.log('donating maxis: ' + donatingMaxis.length)
+  console.log('vaults: ' + JSON.stringify(donatingMaxis.map((v) => v.vaultId)))
   console.log('allData:\n' + allData.toString())
   console.log('all data vaults: ' + JSON.stringify(allData.allvaults.map((v) => v.vaultId)))
   console.log('dusd singlemint:\n' + dusdData.toString())
@@ -228,7 +281,64 @@ export async function main(event: any, context: any): Promise<Object> {
   console.log(' vaults: ' + JSON.stringify(dfiData.allvaults.map((v) => v.vaultId)))
   console.log('wizard:\n' + wizardData.toString())
   console.log('vaults: ' + JSON.stringify(wizardData.allvaults.map((v) => v.vaultId)))
-  console.log('unclearDoubleMint:\n' + unclearDoubleMint.toString())
-  console.log('vaults: ' + JSON.stringify(unclearDoubleMint.allvaults.map((v) => v.vaultId)))
+  console.log('doubleMintMaxi:\n' + doubleMintMaxi.toString())
+  console.log('vaults: ' + JSON.stringify(doubleMintMaxi.allvaults.map((v) => v.vaultId)))
+
+  console.log('sending to S3')
+  /*
+  const vaultlist = await o.getAll(() => o.c.loan.listVault(200))
+  const nonEmptyVaults = vaultlist.filter(
+    (v) => v.state == LoanVaultState.ACTIVE && +v.collateralValue > MIN_COLLATERAL,
+  ) as LoanVaultActive[]
+  const usedVaults = nonEmptyVaults.filter((v) => v.loanAmounts.length > 0)
+  // only consider bech32 owner with reasonable collRatio and either DUSD in loan or collateral (double mint and DFI single mint has loan, DUSD singlemint has collateral)
+  const possibleBotVaults = usedVaults.filter(
+  */
+  const date = new Date()
+  const forS3 = {
+    tstamp: date.toISOString(),
+    params: {
+      minCollateral: MIN_COLLATERAL,
+      maxHistory: MAX_HISTORY,
+    },
+    totalVaults: vaultlist.length,
+    nonEmptyVaults: nonEmptyVaults.length,
+    usedVaults: usedVaults.length,
+    allBotVaults: allBotVaults.length,
+    donatingMaxis: donatingMaxis.length,
+    botData: {
+      allBotVaults: allData.toJSON(),
+      dusdSingleMintMaxi: dusdData.toJSON(),
+      dfiSingleMintMaxi: dfiData.toJSON(),
+      doubleMintMaxi: doubleMintMaxi.toJSON(),
+      wizard: wizardData.toJSON(),
+    },
+  }
+
+  const day = date.toISOString().substring(0, 10)
+  const s3 = new S3()
+  await sendToS3(s3, forS3, day + '.json')
+  await sendToS3(s3, forS3, 'latest.json')
+
   return { statusCode: 200 }
+}
+
+async function sendToS3(s3: S3, data: Object, filename: string): Promise<void> {
+  const path = process.env.S3_PATH ?? ''
+  const params = {
+    Bucket: process.env.S3_BUCKET!,
+    Key: path + filename,
+    ACL: 'public-read',
+    Body: JSON.stringify(data),
+  }
+  console.log('putting to s3: ' + JSON.stringify(params))
+  await s3
+    .putObject(params, (err, data) => {
+      if (err) {
+        console.error('error writing object: ' + err)
+      } else {
+        console.log('wrote object: ' + JSON.stringify(data))
+      }
+    })
+    .promise()
 }
