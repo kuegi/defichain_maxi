@@ -81,10 +81,12 @@ function analysevaults(vaults: LoanVaultActive[]): BotData {
   const data = new BotData()
   data.allvaults = vaults
   vaults.forEach((v) => {
-    data.minRatio = Math.min(data.minRatio, +v.collateralRatio)
-    data.maxRatio = Math.max(data.maxRatio, +v.collateralRatio)
-    data.avgRatio += +v.collateralRatio
-    data.avgRatioWeighted += +v.collateralRatio * +v.collateralValue
+    if (+v.collateralRatio > 0) {
+      data.minRatio = Math.min(data.minRatio, +v.collateralRatio)
+      data.maxRatio = Math.max(data.maxRatio, +v.collateralRatio)
+      data.avgRatio += +v.collateralRatio
+      data.avgRatioWeighted += +v.collateralRatio * +v.collateralValue
+    }
     data.aum += +v.collateralValue
     data.minCollateral = Math.min(data.minCollateral, +v.collateralValue)
     data.maxCollateral = Math.max(data.maxCollateral, +v.collateralValue)
@@ -266,15 +268,16 @@ export async function main(event: any, context: any): Promise<Object> {
 
   //analyse Botdata
 
-  const allData = analysevaults(allBotVaults)
+  const usedVaultsData = analysevaults(usedVaults)
+  const allBotData = analysevaults(allBotVaults)
   const dusdData = analysevaults(singleMintDUSD)
   const dfiData = analysevaults(singleMintDFI)
   const wizardData = analysevaults(wizardVaults)
   const doubleMintMaxi = analysevaults(doubleMinVaultsUnclear)
   console.log('donating maxis: ' + donatingMaxis.length)
   console.log('vaults: ' + JSON.stringify(donatingMaxis.map((v) => v.vaultId)))
-  console.log('allData:\n' + allData.toString())
-  console.log('all data vaults: ' + JSON.stringify(allData.allvaults.map((v) => v.vaultId)))
+  console.log('allBotData:\n' + allBotData.toString())
+  console.log('all bot vaults: ' + JSON.stringify(allBotData.allvaults.map((v) => v.vaultId)))
   console.log('dusd singlemint:\n' + dusdData.toString())
   console.log('vaults: ' + JSON.stringify(dusdData.allvaults.map((v) => v.vaultId)))
   console.log('dfi singlemint:\n' + dfiData.toString())
@@ -306,8 +309,12 @@ export async function main(event: any, context: any): Promise<Object> {
     usedVaults: usedVaults.length,
     allBotVaults: allBotVaults.length,
     donatingMaxis: donatingMaxis.length,
+    vaultData: {
+      nonEmptyVaults: analysevaults(nonEmptyVaults).toJSON(),
+      usedVaults: usedVaultsData.toJSON(),
+    },
     botData: {
-      allBotVaults: allData.toJSON(),
+      allBotVaults: allBotData.toJSON(),
       dusdSingleMintMaxi: dusdData.toJSON(),
       dfiSingleMintMaxi: dfiData.toJSON(),
       doubleMintMaxi: doubleMintMaxi.toJSON(),
