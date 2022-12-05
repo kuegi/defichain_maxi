@@ -107,10 +107,13 @@ export class LMReinvestProgram extends CommonProgram {
   }
 
   async checkAndDoReinvest(balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
-    const maxReinvestForDonation = Math.max(this.getSettings().reinvestThreshold!, 20) * 2 //anything below 20 DFI is considered a "reinvest all the time"
+    const maxReinvestThreshold = Math.max(
+      this.getSettings().reinvestThreshold! * 2,
+      +(process.env.VAULTMAXI_MAXREINVEST ?? 40),
+    ) //anything below 20 DFI is considered a "reinvest all the time"
 
     const result = await checkAndDoReinvest(
-      maxReinvestForDonation,
+      maxReinvestThreshold,
       balances,
       telegram,
       this,

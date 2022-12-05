@@ -95,6 +95,11 @@ Besides having parameters in the AWS ParameterStore, there is the possibility to
 
 Currently following keys are respected with a small description on how they alter execution functionality
 
+### VAULTMAXI_MAXREINVEST
+value: number
+
+With default behaviour, a reinvest only happens if the accumulated DFI is less then twice the threshold. Anything above that is assumed to be a transfer of funds and therefore no action is taken (no processing according to reinvest pattern, no auto donation). Setting this environment variable, increases the threshold. With this you can force VaultMaxi to process even larger amounts as reinvests.
+
 ### VAULTMAXI_LOGID
 (overrides the parameter `/defichain-maxi/settings/log-id` but same functionality)
 value: string
