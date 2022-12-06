@@ -443,6 +443,11 @@ export class VaultMaxiProgram extends CommonProgram {
         } else {
           const safeRatio = safeCollRatio / 100
           const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).div(safeRatio))
+          const safetyLevel = await this.calcSafetyLevel(vault, pool, balances)
+          let message =
+            `VaultMaxi could only reach a collRatio of ${safetyLevel.toFixed(0)}%. This is not safe!\n` +
+            'It is highly recommend to fix this!\n' +
+            `To be able to reach a safe collRatio of ${safeCollRatio.toFixed(0)}% it\n`
           if (!this.isSingleMint) {
             const neededStock = neededrepay.div(
               BigNumber.sum(this.getUsedOraclePrice(tokenLoan, false), pool!.priceRatio.ba),
@@ -455,12 +460,10 @@ export class VaultMaxiProgram extends CommonProgram {
               neededDusd.gt(dusdLoan!.amount) ||
               neededStock.gt(tokenLoan.amount)
             ) {
-              const safetyLevel = await this.calcSafetyLevel(vault, pool, balances)
-              const message =
-                `VaultMaxi could only reach a collRatio of ${safetyLevel.toFixed(0)}%. This is not safe!\n` +
-                'It is highly recommend to fix this!\n' +
-                `To be able to reach a safe collRatio of ${safeRatio}% it would ` +
-                `need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${lpTokens.symbol}.\n` +
+              message +=
+                `would need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${
+                  lpTokens.symbol
+                }.\n` +
                 `would need ${neededDusd.toFixed(1)}  but got ${(+dusdLoan!.amount).toFixed(1)}  ${
                   dusdLoan!.symbol
                 }.\n` +
@@ -484,13 +487,11 @@ export class VaultMaxiProgram extends CommonProgram {
 
             const neededAssetA = neededLPtokens.times(pool.tokenA.reserve).div(pool.totalLiquidity.token)
             if (neededLPtokens.gt(lpTokens.amount) || neededAssetA.gt(tokenLoan.amount)) {
-              const safetyLevel = await this.calcSafetyLevel(vault, pool, balances)
-              const message =
-                `VaultMaxi could only reach a collRatio of ${safetyLevel.toFixed(0)}%. This is not safe!\n` +
-                'It is highly recommend to fix this!\n' +
-                `To be able to reach a safe collRatio of ${safeRatio}% it would ` +
-                `need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${lpTokens.symbol}.\n` +
-                `would need ${neededAssetA.toFixed(1)} but got ${(+tokenLoan.amount).toFixed(1)} ${tokenLoan.symbol}.\n`
+              message +=
+                `would need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${
+                  lpTokens.symbol
+                }.\n` +
+                `would need ${neededAssetA.toFixed(4)} but got ${(+tokenLoan.amount).toFixed(4)} ${tokenLoan.symbol}.\n`
 
               await telegram.send(message)
               console.warn(message)
