@@ -267,7 +267,7 @@ async function swapDFIForReinvest(
 }
 
 export async function checkAndDoReinvest(
-  maxReinvestForDonation: number,
+  maxDfiForReinvest: number,
   balances: Map<string, AddressToken>,
   telegram: Telegram,
   program: CommonProgram,
@@ -284,6 +284,16 @@ export async function checkAndDoReinvest(
   const amountFromBalance = new BigNumber(tokenBalance?.amount ?? '0')
   const fromUtxos = utxoBalance.gt(1) ? utxoBalance.minus(1) : new BigNumber(0)
   let amountToUse = fromUtxos.plus(amountFromBalance)
+  if(amountToUse.gt(maxDfiForReinvest)) {
+    //was no pure reinvest but move of funds: ignore and send message
+    
+    await telegram.send(
+      'you activated reinvest, but the amount in your address is too big to be a reinvest. ' +
+        'We assume that this was a transfer of funds, so we skipped reinvestment. ' +
+        'Please process your funds manually or set the VAULTMAXI_MAXREINVEST accordingly.',
+    )
+    return { addressChanged: false, didReinvest: false, donatedAmount: new BigNumber(0) }
+  }
 
   let finalTx: CTransaction | undefined = undefined
   let prevout: Prevout | undefined = undefined
@@ -308,7 +318,7 @@ export async function checkAndDoReinvest(
   }
 
   let donatedAmount = new BigNumber(0)
-  if (settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxReinvestForDonation)) {
+  if (settings.autoDonationPercentOfReinvest > 0 && amountToUse.lt(maxDfiForReinvest)) {
     //send donation and reduce amountToUse
     donatedAmount = amountToUse.times(settings.autoDonationPercentOfReinvest).div(100)
     const donationAddresses = program.isTestnet() ? DONATION_ADDRESSES_TESTNET : DONATION_ADDRESSES
