@@ -1,5 +1,5 @@
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
-import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
+import { LogLevel, VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
 import { Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
@@ -99,8 +99,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         //inform EVERYONE to not miss it in case of an error.
         const message = 'skipped one execution as requested'
         console.log(message)
-        await telegram.send(message)
-        await telegram.log(message)
+        await telegram.send(message, LogLevel.ERROR)
         return { statusCode: 200 }
       }
       const program = new VaultMaxiProgram(store, settings, new WalletSetup(settings, oceansToUse.pop()))
@@ -131,7 +130,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           await fetch(settings.heartBeatUrl)
         } catch (e) {
           console.error('error sending heartbeat: ' + e)
-          await telegram.send('Error sending heartbeat. please check logs and adapt settings')
+          await telegram.send('Error sending heartbeat. please check logs and adapt settings', LogLevel.ERROR)
         }
       }
 
@@ -177,16 +176,20 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           balances = await program.getTokenBalances()
           pool = await program.getPool(program.lmPair)
           //need to get updated vault
-          await telegram.log(
+          await telegram.send(
             'executed clean-up part of script ' +
               (result ? 'successfully' : 'with problems') +
               '. vault ratio after clean-up ' +
               vault.collateralRatio,
+            LogLevel.VERBOSE,
           )
           if (!result) {
             //probably a timeout
             console.error('Error in cleaning up, trying again in safetyMode')
-            await telegram.send('There was an error in recovering from a failed state. please check yourself!')
+            await telegram.send(
+              'There was an error in recovering from a failed state. please check yourself!',
+              LogLevel.ERROR,
+            )
             if (context.getRemainingTimeInMillis() > MIN_TIME_PER_ACTION_MS) {
               result = await program.cleanUp(vault, balances, telegram, cleanUpTries)
               vault = (await program.getVault()) as LoanVaultActive
@@ -195,7 +198,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             }
           } else {
             console.log('cleanup done')
-            await telegram.send('Successfully cleaned up after some error happened')
+            await telegram.send('Successfully cleaned up after some error happened', LogLevel.WARNING)
           }
           //if it worked after multiple times: set to error to clean the whole adress in case of temporary error.
           await program.updateToState(
@@ -216,8 +219,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         console.log('vault is frozen, removing exposure')
         await program.removeExposure(vault, pool!, balances, telegram, true)
         const message = 'vault is frozen. trying again later '
-        await telegram.send(message)
-        console.warn(message)
+        await telegram.send(message, LogLevel.INFO)
         return { statusCode: 200 }
       }
 
@@ -237,8 +239,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             poolApr.toFixed(4),
         )
         if (interest > poolApr) {
-          console.log('interest rate higher than APR -> removing exposure')
-          await telegram.send('interest rate higher than APR -> removing/preventing exposure')
+          await telegram.send('interest rate higher than APR -> removing/preventing exposure', LogLevel.INFO)
           settings.maxCollateralRatio = -1
         }
       }
@@ -275,6 +276,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           console.warn('consistency checks failed. will remove exposure')
           await telegram.send(
             'Consistency checks in ocean data failed. Something is wrong, so will remove exposure to be safe.',
+            LogLevel.WARNING,
           )
           settings.maxCollateralRatio = -1
         }
@@ -308,8 +310,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           const usedCollateralRatio = BigNumber.min(+vault.collateralRatio, program.nextCollateralRatio(vault))
           if (+vault.collateralValue < 10) {
             const message = "less than 10 dollar in the vault. can't work like that"
-            await telegram.send(message)
-            console.error(message)
+            await telegram.send(message, LogLevel.ERROR)
           } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
             result = await program.increaseExposure(vault, pool!, balances, telegram)
             exposureChanged = true
@@ -331,8 +332,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
               'available collateral from ratio (' +
               freeCollateral.toFixed(1) +
               ') is less than batchsize for Arb, please adjust'
-            await telegram.send(message)
-            console.warn(message)
+            await telegram.send(message, LogLevel.WARNING)
             batchSize = freeCollateral.toNumber()
           }
           if (batchSize > 0) {
@@ -346,12 +346,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         }
       }
       if (vault.state === LoanVaultState.MAY_LIQUIDATE) {
-        console.warn(
-          'chain thinks the vault might liquidate, but we had no reason to reduce exposure. There is something wrong. Will remove exposure for safety sake',
-        )
         program.logVaultData(vault)
         await telegram.send(
           'The chain thinks your vault might get liquidated, but data gave us no reason to change something. There is something wrong so we remove exposure for safety sake.',
+          LogLevel.WARNING,
         )
         result = await program.removeExposure(vault, pool!, balances, telegram)
         if (!result) {
@@ -389,7 +387,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       } else {
         message += 'Maxi could bring your vault to a collRatio of ' + safetyLevel.toFixed(0) + '%'
       }
-      await telegram.log(message)
+      await telegram.send(message, LogLevel.VERBOSE)
       console.log('script done, safety level: ' + safetyLevel.toFixed(0))
       return { statusCode: result ? 200 : 500 }
     } catch (e) {
@@ -411,11 +409,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         message = 'There was a timeout from the ocean api. will try again.'
         //TODO: do we have to go to error state in this case? or just continue on current state next time?
       }
-      if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
-        await telegram.send(message)
-      } else {
-        await telegram.log(message)
-      }
+      await telegram.send(message, LogLevel.ERROR)
+
       //program might not be there, so directly the store with no access to ocean
       await store.updateToState({
         state: ProgramState.Error,

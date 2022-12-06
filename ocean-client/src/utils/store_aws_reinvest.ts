@@ -1,4 +1,4 @@
-import SSM from 'aws-sdk/clients/ssm'
+import { LogLevel } from '../programs/vault-maxi-program'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IReinvestSettings } from './reinvestor'
 import { IStore } from './store'
@@ -9,6 +9,7 @@ export class StoredReinvestSettings extends StoredAWSSettings implements IReinve
   token: string = ''
   logChatId: string = ''
   logToken: string = ''
+  logLevel: LogLevel = LogLevel.INFO
 
   address: string = ''
   seed: string[] = []
@@ -88,4 +89,3 @@ export class StoreAWSReinvest extends StoreAWS implements IStore {
     return settings
   }
 }
-

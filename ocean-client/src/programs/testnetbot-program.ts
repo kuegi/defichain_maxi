@@ -6,6 +6,7 @@ import { IStore } from '../utils/store'
 import { WalletSetup } from '../utils/wallet-setup'
 import { StoredTestnetBotSettings } from '../utils/store_aws_testnetbot'
 import { PoolId } from '@defichain/jellyfish-transaction/dist'
+import { LogLevel } from './vault-maxi-program'
 
 export class TestnetBotProgram extends CommonProgram {
   constructor(store: IStore, settings: StoredTestnetBotSettings, walletSetup: WalletSetup) {
@@ -26,8 +27,7 @@ export class TestnetBotProgram extends CommonProgram {
         ', only ' +
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.ERROR)
     }
 
     return true
@@ -54,8 +54,8 @@ export class TestnetBotProgram extends CommonProgram {
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
     console.log('using telegram for notification: ' + telegram.token + ' chatId: ' + telegram.chatId)
-    await telegram.send(message)
-    await telegram.log('log channel active')
+    await telegram.send(message, LogLevel.ERROR)
+    await telegram.send('log channel active', LogLevel.VERBOSE)
 
     return true
   }
@@ -122,12 +122,10 @@ export class TestnetBotProgram extends CommonProgram {
       }
       let result = await this.waitForTx(swap!.txId)
       if (result) {
-        console.log('done arbitrage')
-        telegram.send('done arbitrage')
+        telegram.send('done arbitrage', LogLevel.INFO)
         return true
       } else {
-        console.warn('error doing arbitrage')
-        telegram.send('failed to do arbitrage')
+        telegram.send('failed to do arbitrage', LogLevel.WARNING)
         return false
       }
     } else {

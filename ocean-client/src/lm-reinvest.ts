@@ -6,6 +6,7 @@ import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { LMReinvestProgram, LMReinvestProgramTransaction } from './programs/lm-reinvest-program'
 import { StoreAWSReinvest } from './utils/store_aws_reinvest'
+import { LogLevel } from './programs/vault-maxi-program'
 
 class maxiEvent {
   checkSetup: boolean | undefined
@@ -66,7 +67,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       console.log('starting with ' + DFIinAddress.toFixed(4) + ' in address')
       await program.checkAndDoReinvest(balances, telegram)
       await program.updateToState(ProgramState.Idle, LMReinvestProgramTransaction.None)
-      await telegram.log('executed script with ' + DFIinAddress.toFixed(4) + ' DFI in address')
+      await telegram.send('executed script with ' + DFIinAddress.toFixed(4) + ' DFI in address', LogLevel.VERBOSE)
       console.log('script done ')
       return { statusCode: result ? 200 : 500 }
     } catch (e) {
@@ -77,11 +78,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         message = 'There was a timeout from the ocean api. will try again.'
         //TODO: do we have to go to error state in this case? or just continue on current state next time?
       }
-      if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
-        await telegram.send(message)
-      } else {
-        await telegram.log(message)
-      }
+      await telegram.send(message, LogLevel.ERROR)
       if (ocean != undefined) {
         console.info('falling back to default ocean')
         ocean = undefined

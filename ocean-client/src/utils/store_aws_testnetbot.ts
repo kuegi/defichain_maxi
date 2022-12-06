@@ -1,4 +1,5 @@
 import SSM from 'aws-sdk/clients/ssm'
+import { LogLevel } from '../programs/vault-maxi-program'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
@@ -19,6 +20,7 @@ export class StoredTestnetBotSettings extends StoredAWSSettings implements Teleg
   token: string = ''
   logChatId: string = ''
   logToken: string = ''
+  logLevel: LogLevel = LogLevel.INFO
 
   address: string = ''
   seed: string[] = []

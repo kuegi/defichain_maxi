@@ -39,6 +39,7 @@ import { SmartBuffer } from 'smart-buffer'
 import { fromAddress, fromScript } from '@defichain/jellyfish-address'
 import { StatsData } from '@defichain/whale-api-client/dist/api/stats'
 import { Network } from '@defichain/jellyfish-network'
+import { LogLevel } from './vault-maxi-program'
 
 export enum ProgramState {
   Idle = 'idle',
@@ -94,7 +95,7 @@ export class CommonProgram {
         'trying address: ' +
         this.settings.address +
         '. '
-      await telegram.send(message)
+      await telegram.send(message, LogLevel.ERROR)
       console.error(message)
       return false
     }
@@ -439,7 +440,7 @@ export class CommonProgram {
     txs.forEach((tx) => {
       message += tx.toHex() + '\n'
     })
-    await telegram.send(message)
+    await telegram.send(message, LogLevel.INFO)
   }
 
   //sample code for wallet how to decode and sign outside txs

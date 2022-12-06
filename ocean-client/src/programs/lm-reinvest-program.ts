@@ -16,6 +16,7 @@ import {
   initReinvestTargets,
   ReinvestTarget,
 } from '../utils/reinvestor'
+import { LogLevel } from './vault-maxi-program'
 
 export enum LMReinvestProgramTransaction {
   None = 'none',
@@ -59,7 +60,7 @@ export class LMReinvestProgram extends CommonProgram {
         ', only ' +
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
-      await telegram.send(message)
+      await telegram.send(message, LogLevel.WARNING)
       console.warn(message)
     }
 
@@ -100,8 +101,8 @@ export class LMReinvestProgram extends CommonProgram {
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
     console.log('using telegram for notification: ' + telegram.token + ' chatId: ' + telegram.chatId)
-    await telegram.send(message)
-    await telegram.log('log channel active')
+    await telegram.send(message, LogLevel.ERROR)
+    await telegram.send('log channel active', LogLevel.VERBOSE)
 
     return true
   }
