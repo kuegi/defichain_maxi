@@ -1099,8 +1099,8 @@ export class VaultMaxiProgram extends CommonProgram {
           .lte(additionalLoan.plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))
       ) {
         await telegram.send(
-          "Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral",
-          LogLevel.WARNING,
+          "Wanted to take more loans, but you don't have enough DFI in the collateral",
+          LogLevel.WARNING
         )
         return false
       }
@@ -1144,14 +1144,21 @@ export class VaultMaxiProgram extends CommonProgram {
 
       //check if enough collateral is there to even take new loan
       //dusdDFI-assetB * 2 >= loan+additionLoan * minRatio
+      //assetB is only taken from DusdDFI if B is DFI or there are no DUSD loans,
+      //  otherwise (B == DUSD && has DusdLoans) DUSD didn't count to the dusdDFI in the first place
+      const availableDFIDusd =
+        this.assetB === 'DFI' || !hasDUSDLoan
+          ? dfiDusdCollateralValue.minus(wantedAssetB.times(oracleB))
+          : dfiDusdCollateralValue
       if (
-        dfiDusdCollateralValue
-          .minus(wantedAssetB.times(oracleB))
+        availableDFIDusd
           .times(2)
           .lte(wantedAssetA.times(oracleA).plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))
       ) {
         await telegram.send(
-          "Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral",
+          `Wanted to take more loans, but you don't have enough ${
+            hasDUSDLoan ? 'DFI' : 'DFI or DUSD'
+          } in the collateral`,
           LogLevel.WARNING,
         )
         return false
