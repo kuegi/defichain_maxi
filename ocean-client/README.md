@@ -74,7 +74,7 @@ optional parameters (if you want telegram notifications)
 
 ### LogLevel
 
-the parameter for the loglevel decides which messages are send to the notifications channel and which to the logs channel. Everything below the defined log-leve goes to log-channel. log-level and above goes to notifications.
+the parameter for the loglevel decides which messages are send to the notifications channel and which to the logs channel. Everything below the defined log-level goes to log-channel. log-level and above goes to notifications.
 
 f.e. if log-level is on `info` all info, warn and error messages go to notifications, verbose messages will go to logs.
 

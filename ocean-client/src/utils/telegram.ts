@@ -1,6 +1,6 @@
 import fetch from 'cross-fetch'
 import { isNull } from 'util'
-import { LogLevel } from '../programs/vault-maxi-program'
+import { LogLevel, prefixFromLogLevel } from '../programs/vault-maxi-program'
 import { isNullOrEmpty } from './helpers'
 
 export interface TelegramSettings {
@@ -51,7 +51,7 @@ export class Telegram {
     }
     if (level == LogLevel.CRITICAL && !isNullOrEmpty(this.logChatId) && !isNullOrEmpty(this.logToken)) {
       //errors get sent to both!
-      await this.internalSend(level,message, this.logChatId, this.logToken)
+      await this.internalSend(level, message, this.logChatId, this.logToken)
     }
     if (isNullOrEmpty(chatId) || isNullOrEmpty(token)) {
       if (level == LogLevel.ERROR && !isNullOrEmpty(this.logChatId) && !isNullOrEmpty(this.logToken)) {
@@ -62,7 +62,7 @@ export class Telegram {
         return
       }
     }
-    return await this.internalSend(level,message, chatId, token)
+    return await this.internalSend(level, message, chatId, token)
   }
 
   async internalSend(
@@ -75,11 +75,10 @@ export class Telegram {
     if (retryCount >= 3) {
       return
     }
-    const levelPart = '[' + level.toUpperCase().charAt(0) + ']'
     let endpointUrl = this.endpoint
       .replace('%token', token)
       .replace('%chatId', chatId)
-      .replace('%message', encodeURI(this.prefix + levelPart + ' ' + message))
+      .replace('%message', encodeURI(this.prefix + prefixFromLogLevel(level) + ' ' + message))
 
     await fetch(endpointUrl)
       .then((response) => {

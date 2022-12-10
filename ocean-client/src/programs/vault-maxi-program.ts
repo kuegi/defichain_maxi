@@ -36,11 +36,29 @@ export enum VaultMaxiProgramTransaction {
 }
 
 export enum LogLevel {
-  CRITICAL = 'critical', //could work before but is now not able to work: panic mode, immediate action required
-  ERROR = 'error', //error in config or process, user action required
-  WARNING = 'warn', //not good, but can still work: user action recommended
-  INFO = 'info', //info that something happened, no action required
-  VERBOSE = 'verbose', // ...
+  CRITICAL = 4, //could work before but is now not able to work: panic mode, immediate action required
+  ERROR = 3, //error in config or process, user action required
+  WARNING = 2, //not good, but can still work: user action recommended
+  INFO = 1, //info that something happened, no action required
+  VERBOSE = 0, // ...
+}
+
+export function prefixFromLogLevel(level: LogLevel): string {
+  for (const [key, l] of Object.entries(LogLevel)) {
+    if (l == level) {
+      return '[' + key.charAt(0) + ']'
+    }
+  }
+  return '[?]'
+}
+
+export function nameFromLogLevel(level: LogLevel): string {
+  for (const [key, l] of Object.entries(LogLevel)) {
+    if (l == level) {
+      return key
+    }
+  }
+  return 'unkown'
 }
 
 export function logLevelFromParam(param: string | undefined): LogLevel {
@@ -50,19 +68,19 @@ export function logLevelFromParam(param: string | undefined): LogLevel {
   //CRITICAL not here on purpose. min level for notifications is Error
   const usedParam = param.toLowerCase()
   //tried to make this work with some iteration, but failed
-  if (usedParam.startsWith(LogLevel.ERROR)) {
+  if (usedParam.startsWith('error')) {
     return LogLevel.ERROR
   }
 
-  if (usedParam.startsWith(LogLevel.WARNING)) {
+  if (usedParam.startsWith('warning')) {
     return LogLevel.WARNING
   }
 
-  if (usedParam.startsWith(LogLevel.INFO)) {
+  if (usedParam.startsWith('info')) {
     return LogLevel.INFO
   }
 
-  if (usedParam.startsWith(LogLevel.VERBOSE)) {
+  if (usedParam.startsWith('verbose')) {
     return LogLevel.VERBOSE
   }
 
@@ -645,7 +663,7 @@ export class VaultMaxiProgram extends CommonProgram {
       '\nusing ocean at: ' +
       this.walletSetup.url +
       (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '') +
-      `\nloglevel: ${this.getSettings().logLevel}`
+      `\nloglevel: ${nameFromLogLevel(this.getSettings().logLevel)}`
 
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
