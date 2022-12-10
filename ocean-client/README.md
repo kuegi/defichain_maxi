@@ -62,6 +62,7 @@ optional parameters for extra settings:
 /defichain-maxi/settings/log-id (added to every telegram message for unique identification)
 /defichain-maxi/settings/keep-wallet-clean (default true: means vaultMaxi uses dust and commission to payback loans etc.)
 /defichain-maxi/settings/ocean-urls (comma separated list of alternative ocean-urls that you want to use)
+/defichain-maxi/settings/log-level (one of error, warn, info, verbose)
 ```
 optional parameters (if you want telegram notifications)
 ```
@@ -70,6 +71,18 @@ optional parameters (if you want telegram notifications)
 /defichain-maxi/telegram/logs/chat-id
 /defichain-maxi/telegram/logs/token
 ```
+
+### LogLevel
+
+the parameter for the loglevel decides which messages are send to the notifications channel and which to the logs channel. Everything below the defined log-leve goes to log-channel. log-level and above goes to notifications.
+
+f.e. if log-level is on `info` all info, warn and error messages go to notifications, verbose messages will go to logs.
+
+The levels:
+* error: either an error in the setup or something unexpected from ocean. -> immediate action is required
+* warn: something the user should take care of, but no immediate action required
+* info: VM did something (change exposure, reinvest etc.) no action required
+* verbose: sent on every execution with basic info 
 
 ### Reinvest pattern
 

@@ -48,21 +48,21 @@ export function logLevelFromParam(param: string | undefined): LogLevel {
     return LogLevel.INFO
   }
   //CRITICAL not here on purpose. min level for notifications is Error
-
+  const usedParam = param.toLowerCase()
   //tried to make this work with some iteration, but failed
-  if (param.startsWith(LogLevel.ERROR)) {
+  if (usedParam.startsWith(LogLevel.ERROR)) {
     return LogLevel.ERROR
   }
 
-  if (param.startsWith(LogLevel.WARNING)) {
+  if (usedParam.startsWith(LogLevel.WARNING)) {
     return LogLevel.WARNING
   }
 
-  if (param.startsWith(LogLevel.INFO)) {
+  if (usedParam.startsWith(LogLevel.INFO)) {
     return LogLevel.INFO
   }
 
-  if (param.startsWith(LogLevel.VERBOSE)) {
+  if (usedParam.startsWith(LogLevel.VERBOSE)) {
     return LogLevel.VERBOSE
   }
 
@@ -644,7 +644,8 @@ export class VaultMaxiProgram extends CommonProgram {
         : 'not searching for stablecoin arbitrage') +
       '\nusing ocean at: ' +
       this.walletSetup.url +
-      (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '')
+      (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '') +
+      `\nloglevel: ${this.getSettings().logLevel}`
 
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
@@ -1100,7 +1101,7 @@ export class VaultMaxiProgram extends CommonProgram {
       ) {
         await telegram.send(
           "Wanted to take more loans, but you don't have enough DFI in the collateral",
-          LogLevel.WARNING
+          LogLevel.WARNING,
         )
         return false
       }

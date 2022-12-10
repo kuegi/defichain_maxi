@@ -51,7 +51,7 @@ export class Telegram {
     }
     if (level == LogLevel.CRITICAL && !isNullOrEmpty(this.logChatId) && !isNullOrEmpty(this.logToken)) {
       //errors get sent to both!
-      await this.internalSend(message, this.logChatId, this.logToken)
+      await this.internalSend(level,message, this.logChatId, this.logToken)
     }
     if (isNullOrEmpty(chatId) || isNullOrEmpty(token)) {
       if (level == LogLevel.ERROR && !isNullOrEmpty(this.logChatId) && !isNullOrEmpty(this.logToken)) {
@@ -62,17 +62,24 @@ export class Telegram {
         return
       }
     }
-    return await this.internalSend(message, chatId, token)
+    return await this.internalSend(level,message, chatId, token)
   }
 
-  async internalSend(message: string, chatId: string, token: string, retryCount: number = 0): Promise<void> {
+  async internalSend(
+    level: LogLevel,
+    message: string,
+    chatId: string,
+    token: string,
+    retryCount: number = 0,
+  ): Promise<void> {
     if (retryCount >= 3) {
       return
     }
+    const levelPart = '[' + level.toUpperCase().charAt(0) + ']'
     let endpointUrl = this.endpoint
       .replace('%token', token)
       .replace('%chatId', chatId)
-      .replace('%message', encodeURI(this.prefix + ' ' + message))
+      .replace('%message', encodeURI(this.prefix + levelPart + ' ' + message))
 
     await fetch(endpointUrl)
       .then((response) => {
@@ -80,7 +87,7 @@ export class Telegram {
       })
       .catch((e) => {
         console.error('error in telegram send: ' + e)
-        this.internalSend(message, chatId, token, retryCount + 1)
+        this.internalSend(level, message, chatId, token, retryCount + 1)
       })
     return
   }
