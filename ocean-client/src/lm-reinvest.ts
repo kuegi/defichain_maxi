@@ -1,4 +1,4 @@
-import { Telegram } from './utils/telegram'
+import { LogLevel, Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
 import { delay, isNullOrEmpty } from './utils/helpers'
@@ -6,7 +6,6 @@ import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { LMReinvestProgram, LMReinvestProgramTransaction } from './programs/lm-reinvest-program'
 import { StoreAWSReinvest } from './utils/store_aws_reinvest'
-import { LogLevel } from './programs/vault-maxi-program'
 
 class maxiEvent {
   checkSetup: boolean | undefined

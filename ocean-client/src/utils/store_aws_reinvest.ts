@@ -1,8 +1,8 @@
-import { LogLevel } from '../programs/vault-maxi-program'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IReinvestSettings } from './reinvestor'
 import { IStore } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
+import { LogLevel } from './telegram'
 
 export class StoredReinvestSettings extends StoredAWSSettings implements IReinvestSettings {
   chatId: string = ''

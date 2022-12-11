@@ -1,12 +1,11 @@
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { IStore } from '../utils/store'
 import { WalletSetup } from '../utils/wallet-setup'
 import { StoredTestnetBotSettings } from '../utils/store_aws_testnetbot'
 import { PoolId } from '@defichain/jellyfish-transaction/dist'
-import { LogLevel } from './vault-maxi-program'
 
 export class TestnetBotProgram extends CommonProgram {
   constructor(store: IStore, settings: StoredTestnetBotSettings, walletSetup: WalletSetup) {

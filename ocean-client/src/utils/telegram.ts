@@ -1,7 +1,65 @@
 import fetch from 'cross-fetch'
-import { isNull } from 'util'
-import { LogLevel, prefixFromLogLevel } from '../programs/vault-maxi-program'
 import { isNullOrEmpty } from './helpers'
+
+export enum LogLevel {
+  CRITICAL = 4, //could work before but is now not able to work: panic mode, immediate action required
+  ERROR = 3, //error in config or process, user action required
+  WARNING = 2, //not good, but can still work: user action recommended
+  INFO = 1, //info that something happened, no action required
+  VERBOSE = 0, // ...
+}
+
+export function prefixFromLogLevel(level: LogLevel): string {
+  switch (level) {
+    case LogLevel.CRITICAL:
+      return '🚨🆘🚨'
+    case LogLevel.ERROR:
+      return '🚨'
+    case LogLevel.WARNING:
+      return '⚠️'
+    case LogLevel.INFO:
+      return 'ℹ️'
+    case LogLevel.VERBOSE:
+      return '🗣️'
+    default:
+      return '❔'
+  }
+}
+
+export function nameFromLogLevel(level: LogLevel): string {
+  for (const [key, l] of Object.entries(LogLevel)) {
+    if (l == level) {
+      return key
+    }
+  }
+  return 'unkown'
+}
+
+export function logLevelFromParam(param: string | undefined): LogLevel {
+  if (!param) {
+    return LogLevel.INFO
+  }
+  //CRITICAL not here on purpose. min level for notifications is Error
+  const usedParam = param.toLowerCase()
+  //tried to make this work with some iteration, but failed
+  if (usedParam.startsWith('error')) {
+    return LogLevel.ERROR
+  }
+
+  if (usedParam.startsWith('warning')) {
+    return LogLevel.WARNING
+  }
+
+  if (usedParam.startsWith('info')) {
+    return LogLevel.INFO
+  }
+
+  if (usedParam.startsWith('verbose')) {
+    return LogLevel.VERBOSE
+  }
+
+  return LogLevel.INFO
+}
 
 export interface TelegramSettings {
   chatId: string

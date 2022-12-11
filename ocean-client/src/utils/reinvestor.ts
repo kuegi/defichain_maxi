@@ -4,10 +4,9 @@ import { simplifyAddress } from './helpers'
 import { fromAddress } from '@defichain/jellyfish-address'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
-import { Telegram } from './telegram'
+import { LogLevel, Telegram } from './telegram'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
-import { LogLevel } from '../programs/vault-maxi-program'
 
 //kuegi and krysh 50:50
 const DONATION_ADDRESSES = ['df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07', 'df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm']

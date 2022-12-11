@@ -1,9 +1,7 @@
-import SSM from 'aws-sdk/clients/ssm'
-import { LogLevel } from '../programs/vault-maxi-program'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IStore, StoredSettings } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
-import { TelegramSettings } from './telegram'
+import { LogLevel, TelegramSettings } from './telegram'
 
 enum StoreKey {
   TelegramLogsChatId = '/defichain-maxi/telegram/notifications/chat-id',
@@ -62,4 +60,3 @@ export class StoreAWSTestnetBot extends StoreAWS implements IStore {
     return settings
   }
 }
-

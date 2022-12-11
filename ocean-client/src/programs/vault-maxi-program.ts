@@ -5,13 +5,13 @@ import {
   LoanVaultTokenAmount,
 } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, nameFromLogLevel, Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WalletSetup } from '../utils/wallet-setup'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
-import { CTransaction, PoolId, Script, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
-import { isNullOrEmpty, simplifyAddress } from '../utils/helpers'
+import { PoolId, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
+import { simplifyAddress } from '../utils/helpers'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
 import { VERSION } from '../vault-maxi'
@@ -33,66 +33,6 @@ export enum VaultMaxiProgramTransaction {
   AddLiquidity = 'addliquidity',
   Reinvest = 'reinvest',
   StableArbitrage = 'stablearbitrage',
-}
-
-export enum LogLevel {
-  CRITICAL = 4, //could work before but is now not able to work: panic mode, immediate action required
-  ERROR = 3, //error in config or process, user action required
-  WARNING = 2, //not good, but can still work: user action recommended
-  INFO = 1, //info that something happened, no action required
-  VERBOSE = 0, // ...
-}
-
-export function prefixFromLogLevel(level: LogLevel): string {
-  switch (level) {
-    case LogLevel.CRITICAL:
-      return '🚨🆘🚨'
-    case LogLevel.ERROR:
-      return '🚨'
-    case LogLevel.WARNING:
-      return '⚠️'
-    case LogLevel.INFO:
-      return 'ℹ️'
-    case LogLevel.VERBOSE:
-      return '🗣️'
-    default:
-      return '❔'
-  }
-}
-
-export function nameFromLogLevel(level: LogLevel): string {
-  for (const [key, l] of Object.entries(LogLevel)) {
-    if (l == level) {
-      return key
-    }
-  }
-  return 'unkown'
-}
-
-export function logLevelFromParam(param: string | undefined): LogLevel {
-  if (!param) {
-    return LogLevel.INFO
-  }
-  //CRITICAL not here on purpose. min level for notifications is Error
-  const usedParam = param.toLowerCase()
-  //tried to make this work with some iteration, but failed
-  if (usedParam.startsWith('error')) {
-    return LogLevel.ERROR
-  }
-
-  if (usedParam.startsWith('warning')) {
-    return LogLevel.WARNING
-  }
-
-  if (usedParam.startsWith('info')) {
-    return LogLevel.INFO
-  }
-
-  if (usedParam.startsWith('verbose')) {
-    return LogLevel.VERBOSE
-  }
-
-  return LogLevel.INFO
 }
 
 export class CheckedValues {

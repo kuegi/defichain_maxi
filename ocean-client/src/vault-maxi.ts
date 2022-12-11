@@ -1,6 +1,6 @@
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
-import { LogLevel, VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
-import { Telegram } from './utils/telegram'
+import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
+import { LogLevel, Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
 import { CommonProgram, ProgramState } from './programs/common-program'
 import { ProgramStateConverter } from './utils/program-state-converter'

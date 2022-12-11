@@ -24,14 +24,13 @@ import {
   LoanToken,
   LoanVaultActive,
   LoanVaultLiquidated,
-  LoanVaultTokenAmount,
 } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
 import { TokenData } from '@defichain/whale-api-client/dist/api/tokens'
 import { WhaleWalletAccount } from '@defichain/whale-api-wallet'
 import { IStore, StoredSettings } from '../utils/store'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, Telegram } from '../utils/telegram'
 import { WalletSetup } from '../utils/wallet-setup'
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
@@ -39,7 +38,6 @@ import { SmartBuffer } from 'smart-buffer'
 import { fromAddress, fromScript } from '@defichain/jellyfish-address'
 import { StatsData } from '@defichain/whale-api-client/dist/api/stats'
 import { Network } from '@defichain/jellyfish-network'
-import { LogLevel } from './vault-maxi-program'
 
 export enum ProgramState {
   Idle = 'idle',
