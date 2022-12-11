@@ -44,12 +44,20 @@ export enum LogLevel {
 }
 
 export function prefixFromLogLevel(level: LogLevel): string {
-  for (const [key, l] of Object.entries(LogLevel)) {
-    if (l == level) {
-      return '[' + key.charAt(0) + ']'
-    }
+  switch (level) {
+    case LogLevel.CRITICAL:
+      return '🚨🆘🚨'
+    case LogLevel.ERROR:
+      return '🚨'
+    case LogLevel.WARNING:
+      return '⚠️'
+    case LogLevel.INFO:
+      return 'ℹ️'
+    case LogLevel.VERBOSE:
+      return '🗣️'
+    default:
+      return '❔'
   }
-  return '[?]'
 }
 
 export function nameFromLogLevel(level: LogLevel): string {
