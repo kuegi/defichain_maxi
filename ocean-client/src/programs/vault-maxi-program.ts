@@ -5,7 +5,7 @@ import {
   LoanVaultTokenAmount,
 } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { LogLevel, nameFromLogLevel, Telegram } from '../utils/telegram'
+import { LogLevel, nameFromLogLevel, prefixFromLogLevel, Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WalletSetup } from '../utils/wallet-setup'
@@ -611,7 +611,7 @@ export class VaultMaxiProgram extends CommonProgram {
       '\nusing ocean at: ' +
       this.walletSetup.url +
       (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '') +
-      `\nloglevel: ${nameFromLogLevel(this.getSettings().logLevel)}`
+      `\nloglevel: ${prefixFromLogLevel(this.getSettings().logLevel)} ${nameFromLogLevel(this.getSettings().logLevel)}`
 
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
