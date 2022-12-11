@@ -391,6 +391,22 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       }
       await telegram.log(message)
       console.log('script done, safety level: ' + safetyLevel.toFixed(0))
+      //to prevent problems on chainsplit or any trouble with the chain on this ocean: check blockdata
+      const stats = await program.client.stats.get()
+      const blockcount = stats.count.blocks
+      const refBlocks = 100
+      const lastBlocks = await program.client.blocks.list(refBlocks)
+      const lastTime = lastBlocks[0].time
+      const prevTime = lastBlocks[refBlocks - 1].time
+      if (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * 45) {
+        //more than 15 minutes no block or too long blocktime means this chain is not stable/not the main chain-> redo with other ocean
+        //@Krysh: should we send this to telegram?
+        //@Krysh: is 45 sec as threshold too high?
+        console.warn(
+          `chain feels unstable, doing an extra round with next fallback ocean. ${Date.now()} ${lastTime} ${prevTime}`,
+        )
+        continue
+      }
       return { statusCode: result ? 200 : 500 }
     } catch (e) {
       console.error('Error in script')
