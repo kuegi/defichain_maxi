@@ -396,13 +396,13 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       const lastBlocks = await program.client.blocks.list(refBlocks)
       const lastTime = lastBlocks[0].time
       const prevTime = lastBlocks[refBlocks - 1].time
-      if (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * 45) {
+      if (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * 40) {
         //more than 15 minutes no block or too long blocktime
         //  means this chain is not stable/not the main chain-> redo with other ocean
         //@Krysh: should we send this to telegram?
-        //@Krysh: is 45 sec as threshold too high?
         console.warn(
-          `chain feels unstable, doing an extra round with next fallback ocean. ${Date.now()} ${lastTime} ${prevTime}`,
+          'chain feels unstable, doing an extra round with next fallback ocean.' +
+            `${Date.now() / 1000} vs ${lastTime}, avg blocktime ${(lastTime - prevTime) / refBlocks}`,
         )
         continue
       }
