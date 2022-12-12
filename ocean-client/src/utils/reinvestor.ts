@@ -13,18 +13,18 @@ const DONATION_ADDRESSES = ['df1qqtlz4uw9w5s4pupwgucv4shl6atqw7xlz2wn07', 'df1qw
 const DONATION_ADDRESSES_TESTNET = ['tZ1GuasY57oin5cej1Wp3MA1pAE4y3tmzq', 'tf1qhvhck87423zx7dzr69avm5fhchn9e0q5j8679z']
 export const DONATION_MAX_PERCENTAGE = 50
 
-enum ReinvestTargetTokenType {
+export enum ReinvestTargetTokenType {
   DFI,
   Token,
   LPToken,
 }
 
-enum ReinvestTargetType {
+export enum ReinvestTargetType {
   Wallet,
   Vault,
 }
 
-class TargetWallet {
+export class TargetWallet {
   public readonly address: string
   public readonly script: Script | undefined
 
@@ -38,7 +38,7 @@ class TargetWallet {
   }
 }
 
-class TargetVault {
+export class TargetVault {
   public readonly vaultId: string
 
   constructor(vaultId: string) {
@@ -79,7 +79,7 @@ export class ReinvestTarget {
         : ReinvestTargetTokenType.Token
   }
 
-  getType() {
+  getType(): ReinvestTargetType | undefined {
     if (this.target === undefined) {
       return undefined
     }
@@ -183,7 +183,7 @@ export async function initReinvestTargets(pattern: string, program: CommonProgra
       }
     } else {
       //no target defined -> fallback to own address or vault
-      if (isCollateral) {
+      if (isCollateral && program.getVaultId().length > 0) {
         target = new TargetVault(program.getVaultId())
       } else {
         target = new TargetWallet(program.getAddress(), program.getScript()!)
