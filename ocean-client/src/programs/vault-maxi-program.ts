@@ -1072,8 +1072,10 @@ export class VaultMaxiProgram extends CommonProgram {
           .minus(vault.loanValue)
         if (possibleLoan.lt(1)) {
           //don't mess around for possible rounding errors
-          console.error('not enough collateral of DFI or DUSD to take more loans')
-          await telegram.send("Wanted to take more loans, but you don't have enough DFI in the collateral")
+          await telegram.send(
+            "Wanted to take more loans, but you don't have enough DFI in the collateral",
+            LogLevel.WARNING,
+          )
           return false
         }
         const msg =
@@ -1082,7 +1084,7 @@ export class VaultMaxiProgram extends CommonProgram {
           ' will only take ' +
           possibleLoan.toFixed(2)
         console.info(msg)
-        await telegram.send(msg)
+        await telegram.send(msg, LogLevel.INFO)
         wantedAssetA = possibleLoan.div(BigNumber.sum(oracleA, pool.priceRatio.ba))
         wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
       }
@@ -1108,9 +1110,9 @@ export class VaultMaxiProgram extends CommonProgram {
           this.assetB,
       )
 
-      if (!wantedAssetB.lt(assetBInColl)) {
+      if (wantedAssetB.gt(assetBInColl)) {
         //check whats possible and increase till there
-        if (+assetBInColl < 1) {
+        if (oracleB.times(assetBInColl).lt(1)) {
           //don't mess around for possible rounding errors
           const msg =
             'Could not increase exposure, not enough ' +
@@ -1119,8 +1121,7 @@ export class VaultMaxiProgram extends CommonProgram {
             wantedAssetB.toFixed(4) +
             ' vs. ' +
             assetBInColl
-          await telegram.send(msg,
-          LogLevel.WARNING,)
+          await telegram.send(msg, LogLevel.WARNING)
           return false
         }
         const msg =
@@ -1130,9 +1131,9 @@ export class VaultMaxiProgram extends CommonProgram {
           wantedAssetB.toFixed(4) +
           ' will only take ' +
           assetBInColl
-        await telegram.send(msg,LogLevel.INFO)
+        await telegram.send(msg, LogLevel.INFO)
 
-        wantedAssetB = new BigNumber(assetBInColl)
+        wantedAssetB = BigNumber.min(wantedAssetB, assetBInColl)
         wantedAssetA = wantedAssetB.multipliedBy(pool.priceRatio.ab)
       }
 
@@ -1150,32 +1151,35 @@ export class VaultMaxiProgram extends CommonProgram {
           .lte(wantedAssetA.times(oracleA).plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))
       ) {
         //check whats possible and increase till there
-        const possibleLoan = dfiDusdCollateralValue
-          .times(2)
-          .div(+vault.loanScheme.minColRatio / 100)
-          .minus(vault.loanValue)
-        if (+assetBInColl < 1) {
-          //don't mess around for possible rounding errors
-          await telegram.send(
-          `Wanted to take more loans, but you don't have enough ${
-            hasDUSDLoan ? 'DFI' : 'DFI or DUSD'
-          } in the collateral`,
-          LogLevel.WARNING,
-        )
-          return false
-        }
-        const msg =
-          "Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral. Wanted to take " +
-          additionalLoan.toFixed(2) +
-          ' will only take ' +
-          possibleLoan.toFixed(2)
-        console.info(msg)
-        await telegram.send(msg)
-
-        wantedAssetA = possibleLoan.div(
-          BigNumber.sum(oracleA, oracleB.times(pool.priceRatio.ba).div(this.targetCollateral)),
+        //(availableDfiDusd)*2 >= (loan + assetA)*minRatio
+        // -> assetA <= (availableDfiDusd)*2/minRatio - loan
+        const maxAssetA = wantedAssetA
+        //need min in case that it was reduced due to B in collateral before
+        wantedAssetA = BigNumber.min(
+          wantedAssetA,
+          availableDFIDusd.times(200 / +vault.loanScheme.minColRatio).minus(vault.loanValue),
         )
         wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
+
+        if (wantedAssetB.times(oracleB).lt(1)) {
+          //don't mess around for possible rounding errors
+          await telegram.send(
+            `Wanted to take more loans, but you don't have enough ${
+              hasDUSDLoan ? 'DFI' : 'DFI or DUSD'
+            } in the collateral`,
+            LogLevel.WARNING,
+          )
+          return false
+        }
+
+        const msg =
+          "Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral. Wanted to take " +
+          maxAssetA.toFixed(2) +
+          ' will only take ' +
+          wantedAssetA.toFixed(2) +
+          ' of ' +
+          this.assetA
+        await telegram.send(msg, LogLevel.INFO)
       }
       const withdrawTx = await this.withdrawFromVault(+pool.tokenB.id, wantedAssetB)
       await this.updateToState(
