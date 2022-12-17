@@ -1,5 +1,5 @@
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WalletSetup } from '../utils/wallet-setup'
@@ -59,8 +59,7 @@ export class LMReinvestProgram extends CommonProgram {
         ', only ' +
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
     }
 
     // sanity check for auto-donate feature, do NOT allow auto-donate above our defined max percentage
@@ -100,20 +99,17 @@ export class LMReinvestProgram extends CommonProgram {
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
     console.log('using telegram for notification: ' + telegram.token + ' chatId: ' + telegram.chatId)
-    await telegram.send(message)
-    await telegram.log('log channel active')
+    await telegram.send(message, LogLevel.ERROR)
+    await telegram.send('log channel active', LogLevel.VERBOSE)
 
     return true
   }
 
   async checkAndDoReinvest(balances: Map<string, AddressToken>, telegram: Telegram): Promise<boolean> {
-    const maxReinvestThreshold = Math.max(
-      this.getSettings().reinvestThreshold! * 2,
-      +(process.env.VAULTMAXI_MAXREINVEST ?? 40),
-    ) //anything below 20 DFI is considered a "reinvest all the time"
+    const maxReinvestForDonation = Math.max(this.getSettings().reinvestThreshold!, 20) * 2 //anything below 20 DFI is considered a "reinvest all the time"
 
     const result = await checkAndDoReinvest(
-      maxReinvestThreshold,
+      maxReinvestForDonation,
       balances,
       telegram,
       this,
