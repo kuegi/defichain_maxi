@@ -42,11 +42,11 @@ export function logLevelFromParam(param: string | undefined): LogLevel {
   //CRITICAL not here on purpose. min level for notifications is Error
   const usedParam = param.toLowerCase()
   //tried to make this work with some iteration, but failed
-  if (usedParam.startsWith('error')) {
+  if (usedParam.startsWith('err')) {
     return LogLevel.ERROR
   }
 
-  if (usedParam.startsWith('warning')) {
+  if (usedParam.startsWith('warn')) {
     return LogLevel.WARNING
   }
 
