@@ -336,7 +336,6 @@ export class VaultMaxiProgram extends CommonProgram {
           this.getSettings().address +
           ". Please replenish otherwise you maxi can't protect your vault!"
         await telegram.send(message, LogLevel.CRITICAL)
-        console.warn(message)
         return false
       }
       const message =
@@ -1016,7 +1015,6 @@ export class VaultMaxiProgram extends CommonProgram {
     } else {
       const oracle = await this.getFixedIntervalPrice(this.assetA)
       if (!oracle.isLive || +(oracle.active?.amount ?? '-1') <= 0) {
-        console.warn("No active price for token. can't increase exposure")
         await telegram.send('Could not increase exposure, token has currently no active price', LogLevel.ERROR)
         return false
       }

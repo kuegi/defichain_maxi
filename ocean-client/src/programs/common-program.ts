@@ -94,7 +94,6 @@ export class CommonProgram {
         this.settings.address +
         '. '
       await telegram.send(message, LogLevel.ERROR)
-      console.error(message)
       return false
     }
 
