@@ -1,14 +1,15 @@
-import SSM from 'aws-sdk/clients/ssm'
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
 import { IReinvestSettings } from './reinvestor'
 import { IStore } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
+import { LogLevel } from './telegram'
 
 export class StoredReinvestSettings extends StoredAWSSettings implements IReinvestSettings {
   chatId: string = ''
   token: string = ''
   logChatId: string = ''
   logToken: string = ''
+  logLevel: LogLevel = LogLevel.INFO
 
   address: string = ''
   seed: string[] = []
@@ -88,4 +89,3 @@ export class StoreAWSReinvest extends StoreAWS implements IStore {
     return settings
   }
 }
-

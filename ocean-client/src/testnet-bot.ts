@@ -1,11 +1,7 @@
-import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
-import { VaultMaxiProgram, VaultMaxiProgramTransaction } from './programs/vault-maxi-program'
-import { Telegram } from './utils/telegram'
+import { LogLevel, Telegram } from './utils/telegram'
 import { WalletSetup } from './utils/wallet-setup'
-import { CommonProgram, ProgramState } from './programs/common-program'
-import { ProgramStateConverter } from './utils/program-state-converter'
-import { delay, isNullOrEmpty } from './utils/helpers'
-import { BigNumber } from '@defichain/jellyfish-api-core'
+import { ProgramState } from './programs/common-program'
+import { delay } from './utils/helpers'
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { StoreAWSTestnetBot } from './utils/store_aws_testnetbot'
 import { TestnetBotProgram } from './programs/testnetbot-program'
@@ -73,11 +69,7 @@ export async function main(event: botEvent, context: any): Promise<Object> {
         message = 'There was a timeout from the ocean api. will try again.'
         //TODO: do we have to go to error state in this case? or just continue on current state next time?
       }
-      if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
-        await telegram.send(message)
-      } else {
-        await telegram.log(message)
-      }
+      await telegram.send(message, LogLevel.ERROR)
       if (ocean != undefined) {
         console.info('falling back to default ocean')
         ocean = undefined

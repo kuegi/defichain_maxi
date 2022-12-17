@@ -5,13 +5,13 @@ import {
   LoanVaultTokenAmount,
 } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, nameFromLogLevel, prefixFromLogLevel, Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WalletSetup } from '../utils/wallet-setup'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
-import { CTransaction, PoolId, Script, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
-import { isNullOrEmpty, simplifyAddress } from '../utils/helpers'
+import { PoolId, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction'
+import { simplifyAddress } from '../utils/helpers'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
 import { VERSION } from '../vault-maxi'
@@ -301,32 +301,27 @@ export class VaultMaxiProgram extends CommonProgram {
         ' in ' +
         this.getSettings().address +
         '. '
-      await telegram.send(message)
-      console.error(message)
+      await telegram.send(message, LogLevel.ERROR)
       return false
     }
     if (vaultcheck.ownerAddress !== this.getSettings().address) {
       const message = 'Error: vault not owned by this address'
-      await telegram.send(message)
-      console.error(message)
+      await telegram.send(message, LogLevel.ERROR)
       return false
     }
     if (vaultcheck.state === LoanVaultState.IN_LIQUIDATION) {
       const message = "Error: Can't maximize a vault in liquidation!"
-      await telegram.send(message)
-      console.error(message)
+      await telegram.send(message, LogLevel.ERROR)
       return false
     }
     if (this.assetB != 'DUSD' && this.lmPair != 'DUSD-DFI') {
       const message = 'vaultMaxi only works on dStock-DUSD pools or DUSD-DFI not on ' + this.lmPair
-      await telegram.send(message)
-      console.error(message)
+      await telegram.send(message, LogLevel.ERROR)
       return false
     }
     if (!pool) {
       const message = 'No pool found for this token. tried: ' + this.lmPair
-      await telegram.send(message)
-      console.error(message)
+      await telegram.send(message, LogLevel.ERROR)
       return false
     }
 
@@ -340,19 +335,18 @@ export class VaultMaxiProgram extends CommonProgram {
           'you have no UTXOs left in ' +
           this.getSettings().address +
           ". Please replenish otherwise you maxi can't protect your vault!"
-        await telegram.send(message)
-        await telegram.log(message)
+        await telegram.send(message, LogLevel.CRITICAL)
         console.warn(message)
         return false
       }
       const message =
-        '!!!IMMEDIATE ACTION REQUIRED!!!\n' +
+        '!!!ACTION REQUIRED!!!\n' +
         'your UTXO balance is running low in ' +
         this.getSettings().address +
         ', only ' +
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
-      await telegram.send(message)
+      await telegram.send(message, LogLevel.WARNING)
       console.warn(message)
     }
     // showstoppers checked, now check for warnings or automatic adaptions
@@ -369,8 +363,7 @@ export class VaultMaxiProgram extends CommonProgram {
         ' will use ' +
         (+vaultcheck.loanScheme.minColRatio + 1) +
         ' as minimum'
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       this.getSettings().minCollateralRatio = +vaultcheck.loanScheme.minColRatio + 1
     }
 
@@ -391,16 +384,14 @@ export class VaultMaxiProgram extends CommonProgram {
         this.getSettings().minCollateralRatio +
         ' - ' +
         (this.getSettings().minCollateralRatio + minRange)
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       this.getSettings().maxCollateralRatio = this.getSettings().minCollateralRatio + minRange
     }
     this.targetCollateral = (this.getSettings().minCollateralRatio + this.getSettings().maxCollateralRatio) / 200
 
     if (this.mainCollateralAsset != 'DUSD' && this.mainCollateralAsset != 'DFI') {
       const message = "can't use this main collateral: " + this.mainCollateralAsset + '. falling back to DFI'
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       this.mainCollateralAsset = 'DFI'
     }
     if (this.mainCollateralAsset != 'DFI' && this.assetB != this.mainCollateralAsset) {
@@ -409,8 +400,7 @@ export class VaultMaxiProgram extends CommonProgram {
         this.mainCollateralAsset +
         ' and lmPair ' +
         this.lmPair
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       this.mainCollateralAsset = 'DFI'
     }
 
@@ -438,8 +428,7 @@ export class VaultMaxiProgram extends CommonProgram {
             '!!!IMMEDIATE ACTION REQUIRED!!!\n' +
             'There are no lpTokens in the address or no according loans in the vault.\n' +
             'Did you change the LMToken? VaultMaxi is NOT ABLE TO WORK! Your vault is NOT safe! '
-          await telegram.send(message)
-          console.warn(message)
+          await telegram.send(message, LogLevel.CRITICAL)
         } else {
           const safeRatio = safeCollRatio / 100
           const neededrepay = new BigNumber(vault.loanValue).minus(new BigNumber(vault.collateralValue).div(safeRatio))
@@ -468,8 +457,7 @@ export class VaultMaxiProgram extends CommonProgram {
                   dusdLoan!.symbol
                 }.\n` +
                 `would need ${neededStock.toFixed(4)} but got ${(+tokenLoan.amount).toFixed(4)} ${tokenLoan.symbol}.\n`
-              await telegram.send(message)
-              console.warn(message)
+              await telegram.send(message, LogLevel.WARNING) //@krysh is this warning or error?
             }
           } else {
             let oracleA = this.getUsedOraclePrice(tokenLoan, false)
@@ -493,8 +481,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 }.\n` +
                 `would need ${neededAssetA.toFixed(4)} but got ${(+tokenLoan.amount).toFixed(4)} ${tokenLoan.symbol}.\n`
 
-              await telegram.send(message)
-              console.warn(message)
+              await telegram.send(message, LogLevel.WARNING) //warning or error? action is recommended but not required?
             }
           }
         }
@@ -623,13 +610,14 @@ export class VaultMaxiProgram extends CommonProgram {
         : 'not searching for stablecoin arbitrage') +
       '\nusing ocean at: ' +
       this.walletSetup.url +
-      (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '')
+      (oceansToUse.length > 0 ? ' with fallbacks: ' + oceansToUse.reduce((p, c) => p + ',' + c) : '') +
+      `\nloglevel: ${prefixFromLogLevel(this.getSettings().logLevel)} ${nameFromLogLevel(this.getSettings().logLevel)}`
 
     console.log(message)
     console.log('using telegram for log: ' + telegram.logToken + ' chatId: ' + telegram.logChatId)
     console.log('using telegram for notification: ' + telegram.token + ' chatId: ' + telegram.chatId)
-    await telegram.send(message)
-    await telegram.log('log channel active')
+    await telegram.send(message, LogLevel.ERROR) //highest level for notifications
+    await telegram.send('log channel active', LogLevel.VERBOSE) //lowest level for logs
 
     return true
   }
@@ -652,7 +640,7 @@ export class VaultMaxiProgram extends CommonProgram {
           ' target:' +
           this.targetCollateral,
       )
-      await telegram.send('ERROR: invalid reduce calculation. please check')
+      await telegram.send('ERROR: invalid reduce calculation. please check', LogLevel.ERROR)
       return false
     }
     let tokens = await this.getTokenBalances()
@@ -670,8 +658,7 @@ export class VaultMaxiProgram extends CommonProgram {
     })
     const lptokens: BigNumber = new BigNumber(tokens.get(this.lmPair)?.amount ?? '0')
     if (lptokens.lte(0) || assetALoan.lte(0) || (!this.isSingleMint && assetBLoan.lte(0))) {
-      await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
-      console.error("can't withdraw from pool, no tokens left or no loans left")
+      await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left", LogLevel.ERROR)
       return false
     }
     let wantedTokens: BigNumber
@@ -727,8 +714,7 @@ export class VaultMaxiProgram extends CommonProgram {
     )
 
     if (!(await this.waitForTx(removeTx.txId))) {
-      await telegram.send('ERROR: when removing liquidity')
-      console.error('removing liquidity failed')
+      await telegram.send('ERROR: when removing liquidity', LogLevel.ERROR)
       return false
     }
 
@@ -782,7 +768,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
     //not instant, but sometimes weird error. race condition? -> use explicit prevout now
     if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram, this.prevOutFromTx(removeTx))) {
-      await telegram.send('done reducing exposure')
+      await telegram.send('done reducing exposure', LogLevel.INFO)
       return true
     }
     return false
@@ -805,7 +791,7 @@ export class VaultMaxiProgram extends CommonProgram {
     if (!assetALoan || (!this.isSingleMint && !assetBLoan) || !lpTokens) {
       console.info("can't withdraw from pool, no tokens left or no loans left")
       if (!silentOnNothingToDo) {
-        await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left")
+        await telegram.send("ERROR: can't withdraw from pool, no tokens left or no loans left", LogLevel.ERROR)
       }
       return false
     }
@@ -823,7 +809,7 @@ export class VaultMaxiProgram extends CommonProgram {
     if (usedTokens.lte(0)) {
       console.info("can't withdraw 0 from pool, no tokens left or no loans left")
       if (!silentOnNothingToDo) {
-        await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left")
+        await telegram.send("ERROR: can't withdraw 0 pool, no tokens left or no loans left", LogLevel.ERROR)
       }
       return false
     }
@@ -851,8 +837,7 @@ export class VaultMaxiProgram extends CommonProgram {
     )
 
     if (!(await this.waitForTx(removeTx.txId))) {
-      await telegram.send('ERROR: when removing liquidity')
-      console.error('removing liquidity failed')
+      await telegram.send('ERROR: when removing liquidity', LogLevel.ERROR)
       return false
     }
     const tokens = await this.getTokenBalances()
@@ -898,7 +883,7 @@ export class VaultMaxiProgram extends CommonProgram {
 
     //not instant, but sometimes weird error. race condition? -> use explicit prevout now
     if (await this.paybackTokenBalances(paybackTokens, collateralTokens, telegram, this.prevOutFromTx(removeTx))) {
-      await telegram.send('done removing exposure')
+      await telegram.send('done removing exposure', LogLevel.INFO)
       return true
     }
     return false
@@ -912,8 +897,7 @@ export class VaultMaxiProgram extends CommonProgram {
     oneByOne: boolean = false,
   ): Promise<boolean> {
     if (loanTokens.length == 0 && collateralTokens.length == 0) {
-      await telegram.send('ERROR: want to pay back, but nothing to do. please check logs')
-      console.error('no tokens to pay back or deposit')
+      await telegram.send('ERROR: want to pay back, but nothing to do. please check logs', LogLevel.WARNING)
       return false
     }
     let waitingTx = undefined
@@ -998,8 +982,7 @@ export class VaultMaxiProgram extends CommonProgram {
     if (waitingTx != undefined) {
       const success = await this.waitForTx(waitingTx.txId)
       if (!success) {
-        await telegram.send('ERROR: paying back tokens')
-        console.error('paying back tokens failed')
+        await telegram.send('ERROR: paying back tokens', LogLevel.ERROR)
         result = false
       } else {
         console.log('payback done')
@@ -1034,7 +1017,7 @@ export class VaultMaxiProgram extends CommonProgram {
       const oracle = await this.getFixedIntervalPrice(this.assetA)
       if (!oracle.isLive || +(oracle.active?.amount ?? '-1') <= 0) {
         console.warn("No active price for token. can't increase exposure")
-        await telegram.send('Could not increase exposure, token has currently no active price')
+        await telegram.send('Could not increase exposure, token has currently no active price', LogLevel.ERROR)
         return false
       }
       oracleA = new BigNumber(oracle.active?.amount ?? '0')
@@ -1090,7 +1073,7 @@ export class VaultMaxiProgram extends CommonProgram {
         if (possibleLoan.lt(1)) {
           //don't mess around for possible rounding errors
           console.error('not enough collateral of DFI or DUSD to take more loans')
-          await telegram.send("Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral")
+          await telegram.send("Wanted to take more loans, but you don't have enough DFI in the collateral")
           return false
         }
         const msg =
@@ -1136,8 +1119,8 @@ export class VaultMaxiProgram extends CommonProgram {
             wantedAssetB.toFixed(4) +
             ' vs. ' +
             assetBInColl
-          console.warn(msg)
-          await telegram.send(msg)
+          await telegram.send(msg,
+          LogLevel.WARNING,)
           return false
         }
         const msg =
@@ -1147,8 +1130,7 @@ export class VaultMaxiProgram extends CommonProgram {
           wantedAssetB.toFixed(4) +
           ' will only take ' +
           assetBInColl
-        console.info(msg)
-        await telegram.send(msg)
+        await telegram.send(msg,LogLevel.INFO)
 
         wantedAssetB = new BigNumber(assetBInColl)
         wantedAssetA = wantedAssetB.multipliedBy(pool.priceRatio.ab)
@@ -1156,9 +1138,14 @@ export class VaultMaxiProgram extends CommonProgram {
 
       //check if enough collateral is there to even take new loan
       //dusdDFI-assetB * 2 >= loan+additionLoan * minRatio
+      //assetB is only taken from DusdDFI if B is DFI or there are no DUSD loans,
+      //  otherwise (B == DUSD && has DusdLoans) DUSD didn't count to the dusdDFI in the first place
+      const availableDFIDusd =
+        this.assetB === 'DFI' || !hasDUSDLoan
+          ? dfiDusdCollateralValue.minus(wantedAssetB.times(oracleB))
+          : dfiDusdCollateralValue
       if (
-        dfiDusdCollateralValue
-          .minus(wantedAssetB.times(oracleB))
+        availableDFIDusd
           .times(2)
           .lte(wantedAssetA.times(oracleA).plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))
       ) {
@@ -1169,9 +1156,12 @@ export class VaultMaxiProgram extends CommonProgram {
           .minus(vault.loanValue)
         if (+assetBInColl < 1) {
           //don't mess around for possible rounding errors
-          const msg = "Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral"
-          console.warn(msg)
-          await telegram.send(msg)
+          await telegram.send(
+          `Wanted to take more loans, but you don't have enough ${
+            hasDUSDLoan ? 'DFI' : 'DFI or DUSD'
+          } in the collateral`,
+          LogLevel.WARNING,
+        )
           return false
         }
         const msg =
@@ -1234,12 +1224,10 @@ export class VaultMaxiProgram extends CommonProgram {
 
     await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
     if (!(await this.waitForTx(addTx.txId))) {
-      await telegram.send('ERROR: adding liquidity')
-      console.error('adding liquidity failed')
+      await telegram.send('ERROR: adding liquidity', LogLevel.ERROR)
       return false
     } else {
-      await telegram.send('done increasing exposure')
-      console.log('done ')
+      await telegram.send('done increasing exposure', LogLevel.INFO)
       return true
     }
   }
@@ -1516,12 +1504,12 @@ export class VaultMaxiProgram extends CommonProgram {
           )
           await telegram.send(
             'stableArb: needed to reduce size due to collValue differences. used size: ' + size.toFixed(2),
+            LogLevel.WARNING,
           )
         }
       }
       if (size.lte(0)) {
-        console.log('size 0 after coll value checks')
-        await telegram.send('stableArb: size zero after collValue checks, no stable arb done')
+        await telegram.send('stableArb: size zero after collValue checks, no stable arb done', LogLevel.WARNING)
         return false
       }
       console.log('withdrawing ' + size.toFixed(2) + '@' + coll.symbol)
@@ -1583,7 +1571,7 @@ export class VaultMaxiProgram extends CommonProgram {
         lastTx.txId,
       )
       await this.waitForTx(lastTx.txId)
-      await telegram.send(telegrammsg)
+      await telegram.send(telegrammsg, LogLevel.INFO)
 
       return true
     } else {
@@ -1663,11 +1651,7 @@ export class VaultMaxiProgram extends CommonProgram {
       (donatedAmount.gt(0)
         ? 'Thank your for donating ' + donatedAmount.toFixed(3) + ' DFI!'
         : 'You are very welcome.\nDonations are always appreciated!')
-    if (!isNullOrEmpty(telegram.chatId) && !isNullOrEmpty(telegram.token)) {
-      await telegram.send(message)
-    } else {
-      await telegram.log(message)
-    }
+    await telegram.send(message, LogLevel.INFO)
   }
 
   async checkAndDoReinvest(

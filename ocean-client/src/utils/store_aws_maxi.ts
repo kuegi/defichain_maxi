@@ -2,7 +2,7 @@ import { ProgramStateConverter, ProgramStateInformation } from './program-state-
 import { IReinvestSettings } from './reinvestor'
 import { IStore } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
-import { TelegramSettings } from './telegram'
+import { LogLevel, logLevelFromParam, TelegramSettings } from './telegram'
 
 export class StoredMaxiSettings extends StoredAWSSettings implements TelegramSettings, IReinvestSettings {
   chatId: string = ''
@@ -24,6 +24,7 @@ export class StoredMaxiSettings extends StoredAWSSettings implements TelegramSet
   logId: string | undefined
   keepWalletClean: boolean = true
   oceanUrl: string | undefined
+  logLevel: LogLevel = LogLevel.INFO
 }
 
 enum StoreKey {
@@ -51,6 +52,7 @@ enum StoreKey {
   LogId = '/defichain-maxi/settings/log-id',
   KeepWalletClean = '/defichain-maxi/settings/keep-wallet-clean',
   OceanUrls = '/defichain-maxi/settings/ocean-urls',
+  LogLevel = '/defichain-maxi/settings/log-level',
 
   State = '/defichain-maxi/state',
   Skip = '/defichain-maxi/skip',
@@ -105,6 +107,7 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
     let LogIdKey = this.postfixedKey(StoreKey.LogId)
     let KeepWalletCleanKey = this.postfixedKey(StoreKey.KeepWalletClean)
     let OceanUrlKey = this.postfixedKey(StoreKey.OceanUrls)
+    let LogLevelKey = this.postfixedKey(StoreKey.LogLevel)
 
     //store only allows to get 10 parameters per request
     const parameters = await this.fetchParameters([
@@ -129,6 +132,7 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
       LogIdKey,
       KeepWalletCleanKey,
       OceanUrlKey,
+      LogLevelKey,
     ])
 
     const settings = new StoredMaxiSettings()
@@ -152,6 +156,7 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
     settings.logId = this.getOptionalValue(LogIdKey, parameters)
     settings.keepWalletClean = this.getBooleanValue(KeepWalletCleanKey, parameters) ?? true
     settings.oceanUrl = this.getOptionalValue(OceanUrlKey, parameters)
+    settings.logLevel = logLevelFromParam(this.getOptionalValue(LogLevelKey, parameters))
 
     //optionals
     settings.heartBeatUrl = this.getOptionalValue(HeartBeatKey, parameters)

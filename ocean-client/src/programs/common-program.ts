@@ -24,14 +24,13 @@ import {
   LoanToken,
   LoanVaultActive,
   LoanVaultLiquidated,
-  LoanVaultTokenAmount,
 } from '@defichain/whale-api-client/dist/api/loan'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
 import { TokenData } from '@defichain/whale-api-client/dist/api/tokens'
 import { WhaleWalletAccount } from '@defichain/whale-api-wallet'
 import { IStore, StoredSettings } from '../utils/store'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, Telegram } from '../utils/telegram'
 import { WalletSetup } from '../utils/wallet-setup'
 import { calculateFeeP2WPKH } from '@defichain/jellyfish-transaction-builder'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
@@ -94,7 +93,7 @@ export class CommonProgram {
         'trying address: ' +
         this.settings.address +
         '. '
-      await telegram.send(message)
+      await telegram.send(message, LogLevel.ERROR)
       console.error(message)
       return false
     }
@@ -439,7 +438,7 @@ export class CommonProgram {
     txs.forEach((tx) => {
       message += tx.toHex() + '\n'
     })
-    await telegram.send(message)
+    await telegram.send(message, LogLevel.INFO)
   }
 
   //sample code for wallet how to decode and sign outside txs
