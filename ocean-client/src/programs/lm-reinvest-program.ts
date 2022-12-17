@@ -60,7 +60,6 @@ export class LMReinvestProgram extends CommonProgram {
         utxoBalance.toFixed(5) +
         ' DFI left. Please replenish to prevent any errors'
       await telegram.send(message, LogLevel.WARNING)
-      console.warn(message)
     }
 
     // sanity check for auto-donate feature, do NOT allow auto-donate above our defined max percentage

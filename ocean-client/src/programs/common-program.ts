@@ -94,7 +94,6 @@ export class CommonProgram {
         this.settings.address +
         '. '
       await telegram.send(message, LogLevel.ERROR)
-      console.error(message)
       return false
     }
 
@@ -155,6 +154,9 @@ export class CommonProgram {
   }
 
   async getTokenBalances(): Promise<Map<string, AddressToken>> {
+    if (!this.script) {
+      return new Map()
+    }
     const tokens = await this.aggregatePagedResponse(() => this.client.address.listToken(this.getAddress(), 200))
 
     return new Map(tokens.map((token) => [token.symbol, token]))
