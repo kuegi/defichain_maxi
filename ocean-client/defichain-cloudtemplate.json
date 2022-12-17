@@ -32,7 +32,8 @@
             "HeartBeatURL",
             "OceanUrls",
             "KeepWalletClean",
-            "LogId"
+            "LogId",
+            "LogLevel"
           ]
         },
         {
@@ -95,6 +96,9 @@
         },
         "LogId": {
           "default": "Log id"
+        },
+        "LogLevel": {
+          "default": "Log Level (one of: error, warn, info, verbose)"
         },
         "TelegramNotificationChatId": {
           "default": "Notification Chat Id"
@@ -208,6 +212,11 @@
       "Type": "String",
       "Default": "",
       "Description": "Added to every telegram message to help identify between different vault maxi instances."
+    },
+    "LogLevel": {
+      "Type": "String",
+      "Default": "info",
+      "Description": "Defines what messages are sent to notifications and which to log channel"
     },
     "TelegramNotificationChatId": {
       "Type": "String",
@@ -661,6 +670,18 @@
         "Type": "String",
         "Value": {
           "Ref": "LogId"
+        }
+      }
+    },
+    "vaultMaxiParamLogLevel": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "DataType": "text",
+        "Description": "Log Level for telegram notification",
+        "Name": "/defichain-maxi/settings/log-level",
+        "Type": "String",
+        "Value": {
+          "Ref": "LogLevel"
         }
       }
     },

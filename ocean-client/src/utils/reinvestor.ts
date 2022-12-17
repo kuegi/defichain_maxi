@@ -4,7 +4,7 @@ import { simplifyAddress } from './helpers'
 import { fromAddress } from '@defichain/jellyfish-address'
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { AddressToken } from '@defichain/whale-api-client/dist/api/address'
-import { Telegram } from './telegram'
+import { LogLevel, Telegram } from './telegram'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { Prevout } from '@defichain/jellyfish-transaction-builder'
 
@@ -209,19 +209,16 @@ export async function checkReinvestTargets(reinvestTargets: ReinvestTarget[], te
   for (const target of reinvestTargets) {
     if (target.target === undefined) {
       const message = 'invalid reinvest target, likely a vault target with non-collateral asset. please check logs'
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       reinvestError = true
     } else if (target.getType() === ReinvestTargetType.Wallet && (target.target as TargetWallet).script === undefined) {
       const message = 'reinvest target address ' + (target.target as TargetWallet).address + ' is not valid'
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       reinvestError = true
     }
     if (target.percent! < 0 || target.percent! > 100) {
       const message = 'invalid percent (' + target.percent + ') in reinvest target ' + target.tokenName
-      await telegram.send(message)
-      console.warn(message)
+      await telegram.send(message, LogLevel.WARNING)
       reinvestError = true
     }
     totalSum += target.percent!
@@ -229,14 +226,12 @@ export async function checkReinvestTargets(reinvestTargets: ReinvestTarget[], te
   totalSum = Math.round(totalSum)
   if (totalSum != 100) {
     const message = 'sum of reinvest targets is not 100%. Its ' + totalSum
-    await telegram.send(message)
-    console.warn(message)
+    await telegram.send(message, LogLevel.WARNING)
     reinvestError = true
   }
   if (reinvestError) {
     const message = 'will not do any reinvest until errors are fixed'
-    await telegram.send(message)
-    console.warn(message)
+    await telegram.send(message, LogLevel.WARNING)
     return false
   }
   return true
@@ -292,6 +287,7 @@ export async function checkAndDoReinvest(
       'you activated reinvest, but the amount in your address is too big to be a reinvest. ' +
         'We assume that this was a transfer of funds, so we skipped reinvestment. ' +
         'Please process your funds manually or set the VAULTMAXI_MAXREINVEST accordingly.',
+      LogLevel.WARNING,
     )
     return { addressChanged: false, didReinvest: false, donatedAmount: new BigNumber(0) }
   }
@@ -442,8 +438,7 @@ export async function checkAndDoReinvest(
     }
     if (token === undefined) {
       const msg = 'could not find token ' + target.tokenName + ' in reinvest. skipping this target'
-      console.warn(msg)
-      await telegram.send(msg)
+      await telegram.send(msg, LogLevel.WARNING)
       continue
     }
     const targetScript =
@@ -475,8 +470,7 @@ export async function checkAndDoReinvest(
     let pool = allPools.find((p) => p.symbol === target.tokenName)
     if (pool === undefined) {
       const msg = 'could not find pool ' + target.tokenName + ' in reinvest. skipping this target'
-      console.warn(msg)
-      await telegram.send(msg)
+      await telegram.send(msg, LogLevel.WARNING)
       continue
     }
     console.log('swaping ' + inputAmount + ' DFI to ' + pool.tokenA.symbol + ' and ' + pool.tokenB.symbol)
@@ -506,8 +500,7 @@ export async function checkAndDoReinvest(
     console.log('sent swaps, waiting for them to get confirmed before continuing')
     await program.updateToState(ProgramState.WaitingForTransaction, ReinvestTransaction.Swap, finalTx.txId)
     if (!(await program.waitForTx(finalTx.txId))) {
-      await telegram.send('ERROR: swapping reinvestment failed')
-      console.error('swapping reinvestment failed')
+      await telegram.send('ERROR: swapping reinvestment failed', LogLevel.ERROR)
       //throw error?
       return { addressChanged: true, didReinvest: false, donatedAmount: new BigNumber(0) }
     }
@@ -622,7 +615,7 @@ export async function checkAndDoReinvest(
 
   await program.updateToState(ProgramState.WaitingForTransaction, ReinvestTransaction.DepositOrLM, finalTx!.txId)
   if (!(await program.waitForTx(finalTx!.txId))) {
-    await telegram.send('ERROR: reinvestment tx failed, please check')
+    await telegram.send('ERROR: reinvestment tx failed, please check', LogLevel.ERROR)
     console.error('final reinvest tx failed')
   } else {
     let msg =
@@ -654,7 +647,7 @@ export async function checkAndDoReinvest(
         '\n'
     })
 
-    await telegram.send(msg)
+    await telegram.send(msg, LogLevel.INFO)
     console.log('done ')
     if (settings.autoDonationPercentOfReinvest > 0 && donatedAmount.lte(0)) {
       console.log('sending manual donation suggestion')
@@ -662,6 +655,7 @@ export async function checkAndDoReinvest(
         'you activated auto donation, but the reinvested amount was too big to be a reinvest. ' +
           'We assume that this was a transfer of funds, so we skipped auto-donation. ' +
           'Feel free to manually donate anyway.',
+        LogLevel.WARNING,
       )
     }
   }
