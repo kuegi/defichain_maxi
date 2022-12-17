@@ -80,12 +80,16 @@ function analysevaults(vaults: LoanVaultActive[]): BotData {
   console.log('analysing data of ' + vaults.length + ' vaults')
   const data = new BotData()
   data.allvaults = vaults
+  let vaultsWithRatio = 0
+  let aumInRatioVaults = 0
   vaults.forEach((v) => {
     if (+v.collateralRatio > 0) {
       data.minRatio = Math.min(data.minRatio, +v.collateralRatio)
       data.maxRatio = Math.max(data.maxRatio, +v.collateralRatio)
       data.avgRatio += +v.collateralRatio
       data.avgRatioWeighted += +v.collateralRatio * +v.collateralValue
+      vaultsWithRatio++
+      aumInRatioVaults += +v.collateralValue
     }
     data.aum += +v.collateralValue
     data.minCollateral = Math.min(data.minCollateral, +v.collateralValue)
@@ -100,8 +104,8 @@ function analysevaults(vaults: LoanVaultActive[]): BotData {
       data.miovaults.push(v)
     }
   })
-  data.avgRatio /= vaults.length
-  data.avgRatioWeighted /= data.aum
+  data.avgRatio /= vaultsWithRatio
+  data.avgRatioWeighted /= aumInRatioVaults
   return data
 }
 
@@ -119,21 +123,26 @@ function compArray(array1: string[], array2: string[]) {
   return true
 }
 
+class Parameters {
+  minCollateral = 50
+  minLoansForUsed = 10
+  maxHistory = 400
+}
+
 export async function main(event: any, context: any): Promise<Object> {
   const o = new Ocean()
 
-  const MIN_COLLATERAL = 50
-  const MAX_HISTORY = 400
+  const params = new Parameters()
 
   //read all vaults
   console.log('reading vaults')
-  const vaultlist = await o.getAll(() => o.c.loan.listVault(200))
+  const vaultlist = await o.getAll(() => o.c.loan.listVault(500))
   console.log('got ' + vaultlist.length + ' vaults, now filtering')
   //filter for actives with min collateral and loan and bech32 owner
   const nonEmptyVaults = vaultlist.filter(
-    (v) => v.state == LoanVaultState.ACTIVE && +v.collateralValue > MIN_COLLATERAL,
+    (v) => v.state == LoanVaultState.ACTIVE && +v.collateralValue > params.minCollateral,
   ) as LoanVaultActive[]
-  const usedVaults = nonEmptyVaults.filter((v) => v.loanAmounts.length > 0)
+  const usedVaults = nonEmptyVaults.filter((v) => +v.loanValue > params.minLoansForUsed)
   // only consider bech32 owner with reasonable collRatio and either DUSD in loan or collateral (double mint and DFI single mint has loan, DUSD singlemint has collateral)
   const possibleBotVaults = usedVaults.filter(
     (v) =>
@@ -160,7 +169,10 @@ export async function main(event: any, context: any): Promise<Object> {
     }
 
     const wantedTypes = ['AddPoolLiquidity', 'WithdrawFromVault', 'TakeLoan', 'PaybackLoan', 'RemovePoolLiquidity']
-    const history = await o.getAll(() => o.c.address.listAccountHistory(vault.ownerAddress, 200), MAX_HISTORY)
+    const history = await o.getAll(
+      () => o.c.address.listAccountHistory(vault.ownerAddress, params.maxHistory),
+      params.maxHistory,
+    )
     const dusdHistory = history.filter(
       (h) =>
         h.amounts.find((a) => a.includes('DUSD')) !== undefined && wantedTypes.find((a) => h.type === a) !== undefined,
@@ -300,10 +312,7 @@ export async function main(event: any, context: any): Promise<Object> {
   const date = new Date()
   const forS3 = {
     tstamp: date.toISOString(),
-    params: {
-      minCollateral: MIN_COLLATERAL,
-      maxHistory: MAX_HISTORY,
-    },
+    params: params,
     totalVaults: vaultlist.length,
     nonEmptyVaults: nonEmptyVaults.length,
     usedVaults: usedVaults.length,

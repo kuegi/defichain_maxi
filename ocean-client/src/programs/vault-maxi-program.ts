@@ -1615,17 +1615,20 @@ export class VaultMaxiProgram extends CommonProgram {
   ): Promise<boolean> {
     let dfiCollateral = vault.collateralAmounts.find((coll) => coll.symbol === 'DFI')
     let dfiPrice = dfiCollateral?.activePrice?.active?.amount
-    let maxReinvestThreshold = this.getSettings().reinvestThreshold ?? 0
+    let maxReinvestForDonation = this.getSettings().reinvestThreshold ?? 0
     if (dfiPrice && pool.apr) {
       //35040 executions per year -> this is the expected reward per maxi trigger in DFI, every reinvest below that number is pointless
-      maxReinvestThreshold = Math.max(maxReinvestThreshold, (+vault.loanValue * pool.apr.reward) / (35040 * +dfiPrice))
+      maxReinvestForDonation = Math.max(
+        maxReinvestForDonation,
+        (+vault.loanValue * pool.apr.reward) / (35040 * +dfiPrice),
+      )
     } else {
-      maxReinvestThreshold = Math.max(maxReinvestThreshold, 10) //fallback to min 10 DFI reinvest
+      maxReinvestForDonation = Math.max(maxReinvestForDonation, 10) //fallback to min 10 DFI reinvest
     }
-    maxReinvestThreshold *= 2 //anything above twice the expected reinvest value is considered a transfer of funds
-    maxReinvestThreshold = Math.max(maxReinvestThreshold, +(process.env.VAULTMAXI_MAXREINVEST ?? 0))
+    maxReinvestForDonation *= 2 //anything above twice the expected reinvest value is considered a transfer of funds
+
     const result = await checkAndDoReinvest(
-      maxReinvestThreshold,
+      maxReinvestForDonation,
       balances,
       telegram,
       this,
