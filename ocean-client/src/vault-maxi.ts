@@ -397,10 +397,10 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       if (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * 40) {
         //more than 15 minutes no block or too long blocktime
         //  means this chain is not stable/not the main chain-> redo with other ocean
-        //@Krysh: should we send this to telegram?
-        console.warn(
+        await telegram.send(
           'chain feels unstable, doing an extra round with next fallback ocean.' +
             `${Date.now() / 1000} vs ${lastTime}, avg blocktime ${(lastTime - prevTime) / refBlocks}`,
+          LogLevel.INFO,
         )
         continue
       }
