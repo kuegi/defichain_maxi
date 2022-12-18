@@ -394,12 +394,18 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       const lastBlocks = await program.client.blocks.list(refBlocks)
       const lastTime = lastBlocks[0].time
       const prevTime = lastBlocks[refBlocks - 1].time
-      if (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * 40) {
+      const blockTimeThreshold = program.isTestnet() ? 75 : 40
+      if (
+        oceansToUse.length > 0 &&
+        (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * blockTimeThreshold)
+      ) {
         //more than 15 minutes no block or too long blocktime
         //  means this chain is not stable/not the main chain-> redo with other ocean
         await telegram.send(
           'chain feels unstable, doing an extra round with next fallback ocean.' +
-            `${Date.now() / 1000} vs ${lastTime}, avg blocktime ${(lastTime - prevTime) / refBlocks}`,
+            `${Date.now() / 1000} vs ${lastTime} (diff ${((Date.now() / 1000 - lastTime) / 60).toFixed(
+              1,
+            )} min), avg blocktime ${(lastTime - prevTime) / refBlocks}`,
           LogLevel.INFO,
         )
         continue
