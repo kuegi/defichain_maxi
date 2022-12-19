@@ -1035,7 +1035,6 @@ export class VaultMaxiProgram extends CommonProgram {
         dfiDusdCollateralValue = dfiDusdCollateralValue.plus(this.getUsedOraclePrice(coll, true).times(coll.amount))
       }
     })
-    // TODO: check 50%
     if (!this.isSingleMint) {
       wantedAssetA = additionalLoan.div(BigNumber.sum(oracleA, pool.priceRatio.ba))
       wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
@@ -1148,13 +1147,16 @@ export class VaultMaxiProgram extends CommonProgram {
           .lte(wantedAssetA.times(oracleA).plus(vault.loanValue).times(vault.loanScheme.minColRatio).div(100))
       ) {
         //check whats possible and increase till there
-        //(availableDfiDusd)*2 >= (loan + assetA)*minRatio
-        // -> assetA <= (availableDfiDusd)*2/minRatio - loan
+        //(availableDfiDusd)*2 >= (loan + assetA*oracleA)*minRatio
+        // -> assetA <= ((availableDfiDusd)*2/minRatio - loan)/oracleA
         const maxAssetA = wantedAssetA
         //need min in case that it was reduced due to B in collateral before
         wantedAssetA = BigNumber.min(
           wantedAssetA,
-          availableDFIDusd.times(200 / +vault.loanScheme.minColRatio).minus(vault.loanValue),
+          availableDFIDusd
+            .times(200 / +vault.loanScheme.minColRatio)
+            .minus(vault.loanValue)
+            .div(oracleA),
         )
         wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
 
