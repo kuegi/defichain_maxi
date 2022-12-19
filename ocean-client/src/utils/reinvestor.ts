@@ -411,7 +411,28 @@ export async function checkAndDoReinvest(
     let inputAmount = amountToUse.times(target.percent! / 100)
     if (target.getType() === ReinvestTargetType.Wallet) {
       console.log('sending ' + inputAmount.toFixed(2) + ' DFI as UTXOs')
-      finalTx = await program.accountToUTXO(inputAmount, (target.target as TargetWallet).script!, prevout) //converts and sends in one tx
+      //has to do accountToUTXO on own address and then send, cause some exchanges (hallo cake) can't process them directly
+      const firstTarget = program.getScript()! //swap to (target.target as TargetWallet).script! if using directly again
+      finalTx = await program.accountToUTXO(inputAmount, firstTarget, prevout)
+      if ((target.target as TargetWallet).script! !== firstTarget) {
+        const prevoutsForUTXOSend = [
+          {
+            txid: finalTx.txId,
+            vout: 1,
+            value: finalTx.vout[1].value,
+            script: finalTx.vout[1].script,
+            tokenId: finalTx.vout[1].tokenId,
+          },
+          {
+            txid: finalTx.txId,
+            vout: 2,
+            value: finalTx.vout[2].value,
+            script: finalTx.vout[2].script,
+            tokenId: finalTx.vout[2].tokenId,
+          },
+        ]
+        finalTx = await program.sendUTXO(inputAmount, (target.target as TargetWallet).script!, prevoutsForUTXOSend)
+      }
       prevout = program.prevOutFromTx(finalTx)
       sentTokens.get((target.target as TargetWallet).address)!.push(inputAmount.toFixed(2) + '@DFI')
     } else {

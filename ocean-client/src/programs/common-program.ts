@@ -317,6 +317,30 @@ export class CommonProgram {
     )
   }
 
+  async sendUTXO(
+    amount: BigNumber,
+    destinationScript: Script,
+    prevouts: Prevout[] | undefined = undefined,
+  ): Promise<CTransaction> {
+    const txn = await this.buildTx(
+      [
+        {
+          value: amount,
+          script: destinationScript,
+          tokenId: 0x00,
+        },
+      ],
+      this.script!,
+      prevouts,
+    )
+    if (this.canSign()) {
+      //send directly
+      return this.send(txn as TransactionSegWit, prevouts ? 3000 : 0) //initial wait time when depending on other tx
+    } else {
+      return new CTransaction(txn)
+    }
+  }
+
   async accountToUTXO(
     amount: BigNumber,
     destinationScript: Script,
@@ -515,14 +539,37 @@ export class CommonProgram {
     outValue: BigNumber = new BigNumber('0'),
     extraVout: Vout | undefined = undefined,
   ): Promise<Transaction> {
-    const minFee = outValue.plus(0.001) // see JSDoc above
-    let total = new BigNumber(0)
-    let prevouts: Prevout[]
-    if (prevout === undefined) {
-      //TODO: only use necessary unspent
+    return await this.buildTx(
+      [
+        {
+          value: outValue,
+          script: {
+            stack: [OP_CODES.OP_RETURN, opDeFiTx],
+          },
+          tokenId: 0x00,
+        },
+      ],
+      changeScript,
+      prevout ? [prevout] : undefined,
+      extraVout,
+    )
+  }
+
+  protected async buildTx(
+    vouts: Vout[],
+    changeScript: Script,
+    prevouts: Prevout[] | undefined = undefined,
+    dftxExtraVout: Vout | undefined = undefined,
+  ): Promise<Transaction> {
+    let neededOut = vouts.map((v) => v.value).reduce((a, b) => a.plus(b), new BigNumber(0))
+    //dftxExtraVout is not part of neededOut, cause it gets minted from the account layer!
+    const minVinValue = neededOut.plus(0.001) // see JSDoc above
+    let totalVinValue = new BigNumber(0)
+    if (prevouts === undefined) {
+      //TODO: only use necessary unspent, but keep in mind that we chain multiple txs, so better on the safe side!
       const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 10)
       prevouts = unspent.map((item): Prevout => {
-        total = total.plus(item.vout.value)
+        totalVinValue = totalVinValue.plus(item.vout.value)
         return {
           txid: item.vout.txid,
           vout: item.vout.n,
@@ -534,12 +581,12 @@ export class CommonProgram {
           tokenId: item.vout.tokenId ?? 0x00,
         }
       })
-      if (total.lt(minFee)) {
+      if (totalVinValue.lt(minVinValue)) {
         //take more unspent
-        total = new BigNumber(0)
+        totalVinValue = new BigNumber(0)
         const unspent = await this.client.address.listTransactionUnspent(this.settings.address, 1000)
         prevouts = unspent.map((item): Prevout => {
-          total = total.plus(item.vout.value)
+          totalVinValue = totalVinValue.plus(item.vout.value)
           return {
             txid: item.vout.txid,
             vout: item.vout.n,
@@ -553,8 +600,7 @@ export class CommonProgram {
         })
       }
     } else {
-      prevouts = [prevout]
-      total = prevout.value
+      totalVinValue = prevouts.map((p) => p.value).reduce((a, b) => a.plus(b), new BigNumber(0))
     }
     const vin = prevouts.map((prevout: Prevout): Vin => {
       return {
@@ -565,36 +611,29 @@ export class CommonProgram {
       }
     })
 
-    const deFiOut: Vout = {
-      value: outValue,
-      script: {
-        stack: [OP_CODES.OP_RETURN, opDeFiTx],
-      },
-      tokenId: 0x00,
-    }
-
     const change: Vout = {
-      value: total,
+      value: totalVinValue.minus(neededOut),
       script: changeScript,
       tokenId: 0x00,
     }
+    vouts.push(change)
 
+    if (dftxExtraVout != undefined) {
+      vouts.push(dftxExtraVout)
+    }
     const txn: Transaction = {
       version: DeFiTransactionConstants.Version,
       vin: vin,
-      vout: [deFiOut, change],
+      vout: vouts,
       lockTime: 0x00000000,
-    }
-    if (extraVout != undefined) {
-      txn.vout.push(extraVout)
     }
 
     //no need to estimate, we are fine with minimum fee
     const fee = calculateFeeP2WPKH(new BigNumber(0.00001), txn)
-    if (total.lt(fee.plus(outValue))) {
-      console.error('not enough input to pay fee!')
+    if (totalVinValue.lt(fee.plus(neededOut))) {
+      throw new Error('not enough input to pay fee!')
     }
-    change.value = total.minus(outValue).minus(fee)
+    change.value = totalVinValue.minus(neededOut).minus(fee)
 
     if (this.canSign()) {
       const signed = await this.account!.signTx(txn, prevouts)
