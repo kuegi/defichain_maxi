@@ -5,7 +5,7 @@ import { BigNumber } from '@defichain/jellyfish-api-core'
 import { IStore } from '../utils/store'
 import { WalletSetup } from '../utils/wallet-setup'
 import { StoredTestnetBotSettings } from '../utils/store_aws_testnetbot'
-import { PoolId, TokenAmount } from '@defichain/jellyfish-transaction/dist'
+import { PoolId, TokenAmount, TokenBalanceUInt32 } from '@defichain/jellyfish-transaction/dist'
 import { StoredBalancerSettings } from '../utils/store_aws_portbalancer'
 import {
   checkReinvestTargets,
@@ -132,7 +132,7 @@ export class BalancerProgram extends CommonProgram {
     }
 
     const balances = await this.getTokenBalances()
-    // TODO:
+    const pools = await this.getPools()
     // check current portfolio based on pattern
     let tokenToTarget: Map<string, PortfolioEntry> = new Map()
     this.portfolioTargets.forEach((target) => {
@@ -144,7 +144,9 @@ export class BalancerProgram extends CommonProgram {
     let totalValue = new BigNumber(0)
     for (const entry of tokenToTarget.values()) {
       if (entry.target.tokenType === ReinvestTargetTokenType.LPToken) {
-        const pool = await this.getPool(entry.target.tokenName)
+        const pool = pools.find((pool) => {
+          return pool.symbol == entry.target.tokenName
+        })
         if (!pool) {
           await telegram.send(
             'could not find pool for ' + entry.target.tokenName + ". please fix. won't continue until fixed.",
@@ -163,7 +165,7 @@ export class BalancerProgram extends CommonProgram {
         }
         const oracleB = oracles.get(tokenB)?.active?.amount ?? 0
 
-        const myLPTokens = new BigNumber(balances.get(entry.target.tokenName)?.amount ?? 0)
+        const myLPTokens = new BigNumber(entry.currentAmount?.amount ?? 0)
         const myA = myLPTokens.multipliedBy(pool.tokenA.reserve).div(pool.totalLiquidity.token)
         const myB = myLPTokens.multipliedBy(pool.tokenB.reserve).div(pool.totalLiquidity.token)
 
@@ -195,16 +197,28 @@ export class BalancerProgram extends CommonProgram {
     const sortedEntries: PortfolioEntry[] = []
     let usdToDistribute = new BigNumber(0)
     const tokenMatch: Map<string, TokenMatch> = new Map()
+    const LMToRemove: TokenBalanceUInt32[] = []
+    const LPToAdd: { assetA: TokenBalanceUInt32; assetB: TokenBalanceUInt32 }[] = []
+
     for (const entry of tokenToTarget.values()) {
       entry.currentPercent = entry.currentValue.div(totalValue)
       entry.usdDelta = entry.currentValue.minus(totalValue.times(entry.target.percent ?? 0).div(100))
       sortedEntries.push(entry)
-      if (entry.currentPercent.gt(entry.target.percent ?? 0 - this.getSettings().rebalanceThreshold)) {
+      //TODO: target+threshold or target*(1+threshold)? so threshold it percentage-points or relative to position?
+      if (entry.currentPercent.gt(entry.target.percent ?? 0 + this.getSettings().rebalanceThreshold)) {
+        // overexposed -> reduce exposure
         entriesAboveThreshold.push(entry)
         usdToDistribute = usdToDistribute.plus(
+          //TODO: decide: reduce to target, or have a "rebalanceTo" level. f.e. "rebalances above 10% overexposure, reduce to 2% overexposure"?
           totalValue.times(entry.currentPercent.minus(entry.target.percent ?? 0).div(100)),
         )
         const ratioToDistribute = usdToDistribute.div(entry.currentValue)
+        if (entry.target.tokenType === ReinvestTargetTokenType.LPToken) {
+          LMToRemove.push({
+            token: +(pools.find((p) => p.symbol === entry.target.tokenName)?.id ?? '-1'),
+            amount: ratioToDistribute.multipliedBy(entry.currentAmount?.amount ?? 0),
+          })
+        }
         entry.resultingTokens.forEach((t) => {
           if (!tokenMatch.has(t.token.symbol)) {
             tokenMatch.set(t.token.symbol, {
@@ -217,6 +231,7 @@ export class BalancerProgram extends CommonProgram {
             .get(t.token.symbol)!
             .toDistribute.plus(t.amount.times(ratioToDistribute))
         })
+        //TODO: add distribution of LM Tokens to list of txs (removeLiquidity)
       }
     }
     sortedEntries.sort((a, b) => a.usdDelta.minus(b.usdDelta).toNumber())
@@ -232,14 +247,31 @@ export class BalancerProgram extends CommonProgram {
       entriesToIncrease.push(entry)
 
       if (sumInTargets.gte(usdToDistribute)) {
+        //TODO: decide if we
+        // * fill lowest targets fully till usd is gone -> break here
+        // or fill all targets below 0 equally -> no break here
         break
       }
     }
+
+    //TODO: decide: fillfactor like this (all "holes" get filled by X%) or fill to equal amount (every target is filled equally "close" to the target)
+
     const fillFactor = BigNumber.min(sumInTargets, usdToDistribute).div(usdToDistribute)
+    const gapPerEntry = sumInTargets.minus(usdToDistribute).div(entriesToIncrease.length)
     // fill list of token : tokenToDistribute , wantedTokenForIncrease
     entriesToIncrease.forEach((entry) => {
       //filling "neededDUSD * fillFactor". so will fill factor <filledDUSD>/<currentDUSDValue> of current tokenAmount
-      const entryFillFactor = fillFactor.times(entry.usdDelta.negated()).div(entry.currentValue)
+      const dollarToAdd = fillFactor.times(entry.usdDelta.negated())
+      //if filling with fixed gap:
+      //const dollarToAdd= entry.usdDelta.negated().minus(gapPerEntry)
+
+      if (dollarToAdd.lt(1)) {
+        //ignore micro txs
+        console.log(`ignoring increase of ${dollarToAdd.toFixed(2)} in ${entry.target.tokenName}`)
+        return
+      }
+      const increaseFactor = dollarToAdd.div(entry.currentValue)
+
       entry.resultingTokens.forEach((t) => {
         if (!tokenMatch.has(t.token.symbol)) {
           tokenMatch.set(t.token.symbol, {
@@ -250,15 +282,27 @@ export class BalancerProgram extends CommonProgram {
         }
         tokenMatch.get(t.token.symbol)!.forIncrease = tokenMatch
           .get(t.token.symbol)!
-          .forIncrease.plus(t.amount.times(entryFillFactor))
+          .forIncrease.plus(t.amount.times(increaseFactor))
       })
+      if (entry.target.tokenType === ReinvestTargetTokenType.LPToken) {
+        const a = entry.resultingTokens[0]
+        const b = entry.resultingTokens[1]
+        LPToAdd.push({
+          assetA: { token: +a.token.id, amount: a.amount.times(increaseFactor) },
+          assetB: { token: +b.token.id, amount: b.amount.times(increaseFactor) },
+        })
+      }
     })
 
-    //no tokenMatch is a list of amounts how many token we need and how many we have.
+    //now tokenMatch is a list of amounts how many token we need and how many we have.
     // split to sourceTokens ( where more tokens exist than we need) and targetTokens (where less exist than we need)
     // match sourceTokens with targetTokens based on USD value
     // !! Challenge: oracle prices might not reflect real prices we get on dex.
-    //
+
+    //log recommended actions for now
+
+    const introMsg = 'Your portfolio is imbalanced, here are some recommended steps to rebalance it:'
+    await telegram.send(introMsg)
   }
 }
 
