@@ -1,5 +1,5 @@
 import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { Telegram } from '../utils/telegram'
+import { LogLevel, Telegram } from '../utils/telegram'
 import { CommonProgram, ProgramState } from './common-program'
 import { BigNumber } from '@defichain/jellyfish-api-core'
 import { IStore } from '../utils/store'
@@ -197,8 +197,11 @@ export class BalancerProgram extends CommonProgram {
     const sortedEntries: PortfolioEntry[] = []
     let usdToDistribute = new BigNumber(0)
     const tokenMatch: Map<string, TokenMatch> = new Map()
-    const LMToRemove: TokenBalanceUInt32[] = []
-    const LPToAdd: { assetA: TokenBalanceUInt32; assetB: TokenBalanceUInt32 }[] = []
+    const LMToRemove: { poolId: number; poolSymbol: string; amount: BigNumber }[] = []
+    const LPToAdd: {
+      assetA: { tokenId: number; tokenSymbol: string; amount: BigNumber }
+      assetB: { tokenId: number; tokenSymbol: string; amount: BigNumber }
+    }[] = []
 
     for (const entry of tokenToTarget.values()) {
       entry.currentPercent = entry.currentValue.div(totalValue)
@@ -214,10 +217,14 @@ export class BalancerProgram extends CommonProgram {
         )
         const ratioToDistribute = usdToDistribute.div(entry.currentValue)
         if (entry.target.tokenType === ReinvestTargetTokenType.LPToken) {
-          LMToRemove.push({
-            token: +(pools.find((p) => p.symbol === entry.target.tokenName)?.id ?? '-1'),
-            amount: ratioToDistribute.multipliedBy(entry.currentAmount?.amount ?? 0),
-          })
+          const pool = pools.find((p) => p.symbol === entry.target.tokenName)
+          if (pool) {
+            LMToRemove.push({
+              poolId: +pool.id,
+              poolSymbol: pool.name,
+              amount: ratioToDistribute.multipliedBy(entry.currentAmount?.amount ?? 0),
+            })
+          }
         }
         entry.resultingTokens.forEach((t) => {
           if (!tokenMatch.has(t.token.symbol)) {
@@ -288,8 +295,8 @@ export class BalancerProgram extends CommonProgram {
         const a = entry.resultingTokens[0]
         const b = entry.resultingTokens[1]
         LPToAdd.push({
-          assetA: { token: +a.token.id, amount: a.amount.times(increaseFactor) },
-          assetB: { token: +b.token.id, amount: b.amount.times(increaseFactor) },
+          assetA: { tokenId: +a.token.id, tokenSymbol: a.token.symbol, amount: a.amount.times(increaseFactor) },
+          assetB: { tokenId: +b.token.id, tokenSymbol: b.token.symbol, amount: b.amount.times(increaseFactor) },
         })
       }
     })
@@ -299,10 +306,88 @@ export class BalancerProgram extends CommonProgram {
     // match sourceTokens with targetTokens based on USD value
     // !! Challenge: oracle prices might not reflect real prices we get on dex.
 
+    //calcSwaps
+    const wantedSwaps: {
+      sourceId: number
+      sourceSymbol: string
+      targetId: number
+      targetSymbol: string
+      amount: BigNumber
+    }[] = []
+    const sources = [...tokenMatch.values()]
+      .filter((m) => m.toDistribute.gt(m.forIncrease))
+      .map((m) => {
+        return { token: m.id, amount: m.toDistribute.minus(m.forIncrease) }
+      })
+      .sort((a, b) => a.amount.comparedTo(b.amount))
+    const targets = [...tokenMatch.values()]
+      .filter((m) => m.toDistribute.lt(m.forIncrease))
+      .map((m) => {
+        return { token: m.id, amount: m.forIncrease.minus(m.toDistribute) }
+      })
+      .sort((a, b) => a.amount.comparedTo(b.amount))
+
+    //TODO: run throu source and targets and fill wanted swaps
+    let currentTarget = 0
+    let remainingTargetAmount = targets[0].amount
+    for (const source of sources) {
+      if (currentTarget >= targets.length) {
+        break //TODO: what to do with remaining sources?
+      }
+      const target = targets[currentTarget]
+      let remainingSource = source.amount
+
+      while (remainingSource.gt(0)) {
+        const path = await this.client.poolpairs.getBestPath('' + source.token, '' + target.token)
+        const usedAmount = BigNumber.min(remainingSource, remainingTargetAmount.div(path.estimatedReturnLessDexFees))
+        wantedSwaps.push({
+          sourceId: source.token,
+          sourceSymbol: path.fromToken.symbol,
+          targetId: target.token,
+          targetSymbol: path.toToken.symbol,
+          amount: usedAmount,
+        })
+        remainingSource = remainingSource.minus(usedAmount)
+        remainingTargetAmount = remainingTargetAmount.minus(usedAmount.times(path.estimatedReturnLessDexFees))
+        if (remainingTargetAmount.lte(0)) {
+          currentTarget++
+          if (currentTarget < targets.length) {
+            remainingTargetAmount = targets[currentTarget].amount
+          }
+        }
+      }
+    }
+
     //log recommended actions for now
 
     const introMsg = 'Your portfolio is imbalanced, here are some recommended steps to rebalance it:'
-    await telegram.send(introMsg)
+    await telegram.send(introMsg, LogLevel.INFO)
+
+    if (LMToRemove.length > 0) {
+      let removeLMtokens = 'remove the following liquidity:\n'
+      LMToRemove.forEach((balance) => {
+        removeLMtokens += `${balance.amount.toFixed(8)}@${balance.poolSymbol}\n`
+      })
+      await telegram.send(removeLMtokens, LogLevel.INFO)
+    }
+    if (wantedSwaps.length > 0) {
+      //log swaps
+
+      let msg = 'do the following swaps:\n'
+      wantedSwaps.forEach((swap) => {
+        msg += `${swap.amount.toFixed(8)}@${swap.sourceSymbol} \u{27a1} ${swap.targetSymbol}\n`
+      })
+      await telegram.send(msg, LogLevel.INFO)
+    }
+    if (LPToAdd.length > 0) {
+      let msg = 'add the following liquidity:\n'
+      LPToAdd.forEach((balance) => {
+        msg += `${balance.assetA.amount.toFixed(8)}@${balance.assetA.tokenSymbol} with ${balance.assetB.amount.toFixed(
+          8,
+        )}@${balance.assetB.tokenSymbol}\n`
+      })
+      await telegram.send(msg, LogLevel.INFO)
+    }
   }
 }
 
