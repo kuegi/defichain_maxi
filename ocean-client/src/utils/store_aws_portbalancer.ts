@@ -2,9 +2,10 @@ import { ProgramStateConverter, ProgramStateInformation } from './program-state-
 import { IReinvestSettings } from './reinvestor'
 import { IStore } from './store'
 import { StoreAWS, StoredAWSSettings } from './store_aws'
-import { TelegramSettings } from './telegram'
+import { LogLevel, TelegramSettings } from './telegram'
 
 export class StoredBalancerSettings extends StoredAWSSettings implements TelegramSettings {
+  logLevel: LogLevel = LogLevel.INFO
   chatId: string = ''
   token: string = ''
   logChatId: string = ''
@@ -74,7 +75,7 @@ export class StoreAWSBalancer extends StoreAWS {
     settings.logToken = this.getValue(StoreKey.TelegramLogsToken, parameters)
     settings.address = this.getValue(DeFiAddressKey, parameters)
     settings.portfolioPattern = this.getValue(PortfolioPatternKey, parameters)
-    settings.rebalanceThreshold = this.getNumberValue(RebalanceThresholdKey, parameters)
+    settings.rebalanceThreshold = this.getNumberValue(RebalanceThresholdKey, parameters) ?? 10
     settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
     settings.oceanUrl = this.getOptionalValue(OceanUrlKey, parameters)
 

@@ -6,6 +6,7 @@
         "build-addon": "node build-addon.js",
         "build:vault-maxi": "node build.js",
         "build:lm-reinvest": "node build.js",
+        "build:portfolio-balancer": "node build.js",
         "build:command-center": "node build-addon.js",
         "test": "jest --silent"
     },
