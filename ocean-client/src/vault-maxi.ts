@@ -106,7 +106,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       commonProgram = program
       await program.init()
       blockHeight = await program.getBlockHeight()
-      console.log('starting at block ' + blockHeight)
+
+      const blockLog = await program.client.blocks.list(5)
+      console.log('starting at block ' + blockHeight + ' last blocks: ' + JSON.stringify(blockLog))
 
       const vaultcheck = await program.getVault()
       let pool = await program.getPool(program.lmPair)
