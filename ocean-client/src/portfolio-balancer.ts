@@ -69,7 +69,6 @@ export async function main(event: botEvent, context: any): Promise<Object> {
         console.info('falling back to default ocean')
         ocean = undefined
       }
-      break //FIXME: no loops during development and debug
       await delay(errorCooldown) // cooldown and not to spam telegram
       errorCooldown += 60000 //increase cooldown. if error is serious -> less spam in telegram
     }

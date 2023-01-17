@@ -199,38 +199,40 @@ export class BalancerProgram extends CommonProgram {
       console.log(JSON.stringify(entry) + ' vs total: ' + totalValue.toFixed(2))
       entry.usdDelta = entry.currentValue.minus(totalValue.times(entry.target.percent ?? 0).div(100))
       sortedEntries.push(entry)
-      //TODO: target+threshold or target*(1+threshold)? so threshold it percentage-points or relative to position?
+      //threshold is percentage-points
       if (entry.currentPercent.gt((entry.target.percent ?? 0) + this.getSettings().rebalanceThreshold)) {
         // overexposed -> reduce exposure
-        entriesAboveThreshold.push(entry)
-        usdToDistribute = usdToDistribute.plus(
-          //TODO: decide: reduce to target, or have a "rebalanceTo" level. f.e. "rebalances above 10% overexposure, reduce to 2% overexposure"?
-          totalValue.times(entry.currentPercent.minus(entry.target.percent ?? 0).div(100)),
-        )
-        const ratioToDistribute = usdToDistribute.div(entry.currentValue)
-        if (entry.target.tokenType === ReinvestTargetTokenType.LPToken) {
-          const pool = pools.find((p) => p.symbol === entry.target.tokenName)
-          if (pool) {
-            LMToRemove.push({
-              poolId: +pool.id,
-              poolSymbol: pool.symbol,
-              amount: ratioToDistribute.multipliedBy(entry.currentAmount?.amount ?? 0),
-            })
+        //TODO: decide: reduce to target, or have a "rebalanceTo" level. f.e. "rebalances above 10% overexposure, reduce to 2% overexposure"?
+
+        const myUsdToDistribute = totalValue.times(entry.currentPercent.minus(entry.target.percent ?? 0).div(100))
+        if (myUsdToDistribute.gt(1)) {
+          //only distribute at least 1$, otherwise its waste of fee and floating errors
+          entriesAboveThreshold.push(entry)
+          usdToDistribute = usdToDistribute.plus(myUsdToDistribute)
+          const ratioToDistribute = myUsdToDistribute.div(entry.currentValue)
+          if (entry.target.tokenType === ReinvestTargetTokenType.LPToken) {
+            const pool = pools.find((p) => p.symbol === entry.target.tokenName)
+            if (pool) {
+              LMToRemove.push({
+                poolId: +pool.id,
+                poolSymbol: pool.symbol,
+                amount: ratioToDistribute.multipliedBy(entry.currentAmount?.amount ?? 0),
+              })
+            }
           }
+          entry.resultingTokens.forEach((t) => {
+            if (!tokenMatch.has(t.token.symbol)) {
+              tokenMatch.set(t.token.symbol, {
+                id: +t.token.id,
+                toDistribute: new BigNumber(0),
+                forIncrease: new BigNumber(0),
+              })
+            }
+            tokenMatch.get(t.token.symbol)!.toDistribute = tokenMatch
+              .get(t.token.symbol)!
+              .toDistribute.plus(t.amount.times(ratioToDistribute))
+          })
         }
-        entry.resultingTokens.forEach((t) => {
-          if (!tokenMatch.has(t.token.symbol)) {
-            tokenMatch.set(t.token.symbol, {
-              id: +t.token.id,
-              toDistribute: new BigNumber(0),
-              forIncrease: new BigNumber(0),
-            })
-          }
-          tokenMatch.get(t.token.symbol)!.toDistribute = tokenMatch
-            .get(t.token.symbol)!
-            .toDistribute.plus(t.amount.times(ratioToDistribute))
-        })
-        //TODO: add distribution of LM Tokens to list of txs (removeLiquidity)
       }
     }
     sortedEntries.sort((a, b) => a.usdDelta.minus(b.usdDelta).toNumber())
@@ -245,6 +247,8 @@ export class BalancerProgram extends CommonProgram {
     if (entriesAboveThreshold.length == 0) {
       return //nothing to do
     }
+    usdToDistribute = usdToDistribute.times(1 - 0.005) //remove 0.5% from total amount to allow for fees
+    console.log('going to distribute ' + usdToDistribute.toFixed(1) + ' USD')
 
     const entriesToIncrease: PortfolioEntry[] = []
     let sumInTargets = new BigNumber(0)
@@ -259,19 +263,20 @@ export class BalancerProgram extends CommonProgram {
         //TODO: decide if we
         // * fill lowest targets fully till usd is gone -> break here
         // or fill all targets below 0 equally -> no break here
-        break
+        //break
       }
     }
 
-    //TODO: decide: fillfactor like this (all "holes" get filled by X%) or fill to equal amount (every target is filled equally "close" to the target)
+    //fill to equal amount (every target is filled equally "close" to the target)
     const fillFactor = BigNumber.min(sumInTargets, usdToDistribute).div(usdToDistribute)
     const gapPerEntry = sumInTargets.minus(usdToDistribute).div(entriesToIncrease.length)
     // fill list of token : tokenToDistribute , wantedTokenForIncrease
     entriesToIncrease.forEach((entry) => {
       //filling "neededDUSD * fillFactor". so will fill factor <filledDUSD>/<currentDUSDValue> of current tokenAmount
-      const dollarToAdd = fillFactor.times(entry.usdDelta.negated())
+      //const dollarToAdd = fillFactor.times(entry.usdDelta.negated())
+
       //if filling with fixed gap:
-      //const dollarToAdd= entry.usdDelta.negated().minus(gapPerEntry)
+      const dollarToAdd = entry.usdDelta.negated().minus(gapPerEntry)
 
       if (dollarToAdd.lt(1)) {
         //ignore micro txs
@@ -302,7 +307,6 @@ export class BalancerProgram extends CommonProgram {
         })
       }
     })
-    console.log('target entries after processing: ' + JSON.stringify(sortedEntries))
 
     console.log('entriesToIncrease: ' + JSON.stringify(entriesToIncrease))
     //now tokenMatch is a list of amounts how many token we need and how many we have.
@@ -340,13 +344,14 @@ export class BalancerProgram extends CommonProgram {
     let remainingTargetAmount = targets.length > 0 ? targets[0].amount : new BigNumber(0)
     for (const source of sources) {
       if (currentTarget >= targets.length) {
+        console.log('out of targets but still sources at source token ' + source.token)
         break //TODO: what to do with remaining sources?
       }
       let target = targets[currentTarget]
       let remainingSource = source.amount
 
       while (remainingSource.gt(0)) {
-        const path = await this.client.poolpairs.getBestPath('' + source.token, '' + target.token)
+        const path = await this.getRealBestPath(source.token, target.token)
         const usedAmount = BigNumber.min(remainingSource, remainingTargetAmount.div(path.estimatedReturnLessDexFees))
         if (usedAmount.lte(1e-8)) {
           console.warn(
@@ -374,45 +379,54 @@ export class BalancerProgram extends CommonProgram {
             remainingTargetAmount = targets[currentTarget].amount
             target = targets[currentTarget]
           } else {
+            console.log('remaining source ' + remainingSource.toFixed(8) + ' of ' + source.token)
             break //no more targets
           }
         }
       }
     }
+    if (currentTarget < targets.length && remainingTargetAmount.gt(0)) {
+      console.warn('remaining ' + remainingTargetAmount.toFixed(8) + ' of target token ' + targets[currentTarget].token)
+      if (currentTarget < targets.length - 1) {
+        console.warn('remaining targets: ' + JSON.stringify(targets.filter((v, idx) => idx > currentTarget)))
+      }
+      await telegram.send("Error rebalancing, wasn't able to fill all targets. please check logs.", LogLevel.WARNING)
+    }
 
     console.log('swaps ' + JSON.stringify(wantedSwaps))
     //log recommended actions for now
 
-    const introMsg = 'Your portfolio is imbalanced, here are some recommended steps to rebalance it:'
-    await telegram.send(introMsg, LogLevel.INFO)
+    if (!this.canSign()) {
+      let changeMsg = 'Your portfolio is imbalanced, here are some recommended steps to rebalance it: \n'
 
-    console.log('got ' + LMToRemove.length + ' LP to remove')
-    if (LMToRemove.length > 0) {
-      let removeLMtokens = 'remove the following liquidity:\n'
-      LMToRemove.forEach((balance) => {
-        removeLMtokens += `${balance.amount.toFixed(8)}@${balance.poolSymbol}\n`
-      })
-      await telegram.send(removeLMtokens, LogLevel.INFO)
-    }
-    console.log('got ' + wantedSwaps.length + ' swaps')
-    if (wantedSwaps.length > 0) {
-      //log swaps
-
-      let msg = 'do the following swaps:\n'
-      wantedSwaps.forEach((swap) => {
-        msg += `${swap.amount.toFixed(8)}@${swap.sourceSymbol} \u{27a1} ${swap.targetSymbol}\n`
-      })
-      await telegram.send(msg, LogLevel.INFO)
-    }
-    console.log('got ' + LPToAdd.length + ' LP to add')
-    if (LPToAdd.length > 0) {
-      let msg = 'add the following liquidity:\n'
-      LPToAdd.forEach((balance) => {
-        msg += `${balance.assetA.amount.toFixed(8)}@${balance.assetA.tokenSymbol} with ${balance.assetB.amount.toFixed(
-          8,
-        )}@${balance.assetB.tokenSymbol}\n`
-      })
-      await telegram.send(msg, LogLevel.INFO)
+      if (LMToRemove.length > 0) {
+        changeMsg += '\nremove the following liquidity:\n'
+        LMToRemove.forEach((balance) => {
+          changeMsg += `${balance.amount.toFixed(8)}@${balance.poolSymbol}\n`
+        })
+      }
+      console.log('got ' + wantedSwaps.length + ' swaps')
+      if (wantedSwaps.length > 0) {
+        changeMsg += '\ndo the following swaps:\n'
+        wantedSwaps.forEach((swap) => {
+          changeMsg += `${swap.amount.toFixed(8)}@${swap.sourceSymbol} \u{27a1} ${swap.targetSymbol}\n`
+        })
+      }
+      console.log('got ' + LPToAdd.length + ' LP to add')
+      if (LPToAdd.length > 0) {
+        changeMsg += '\nadd the following liquidity:\n'
+        LPToAdd.forEach((balance) => {
+          changeMsg += `${balance.assetA.amount.toFixed(8)}@${
+            balance.assetA.tokenSymbol
+          } with ${balance.assetB.amount.toFixed(8)}@${balance.assetB.tokenSymbol}\n`
+        })
+      }
+      await telegram.send(changeMsg, LogLevel.INFO)
+    } else {
+      console.log('can sign, doing txs')
+      //Do all removeLiq at once
+      //wait for block if something done, do all swaps
+      //wait for block, do add liquidities
     }
   }
 }
