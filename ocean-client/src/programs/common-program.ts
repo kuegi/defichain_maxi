@@ -25,7 +25,7 @@ import {
   LoanVaultActive,
   LoanVaultLiquidated,
 } from '@defichain/whale-api-client/dist/api/loan'
-import { PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
+import { BestSwapPathResult, PoolPairData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { ActivePrice } from '@defichain/whale-api-client/dist/api/prices'
 import { TokenData } from '@defichain/whale-api-client/dist/api/tokens'
 import { WhaleWalletAccount } from '@defichain/whale-api-wallet'
@@ -181,6 +181,46 @@ export class CommonProgram {
     return pools.find((pool) => {
       return pool.symbol == poolId
     })
+  }
+
+  async getRealBestPath(fromToken: number, toToken: number): Promise<BestSwapPathResult> {
+    const paths = await this.client.poolpairs.getAllPaths('' + fromToken, '' + toToken)
+    let best: BestSwapPathResult = {
+      fromToken: paths.fromToken,
+      toToken: paths.toToken,
+      bestPath: [],
+      estimatedReturn: '0',
+      estimatedReturnLessDexFees: '0',
+    }
+    paths.paths.forEach((path) => {
+      let inToken = paths.fromToken.id
+      let retValue = new BigNumber(1)
+      let returnLessFee = new BigNumber(1)
+      path.forEach((pair) => {
+        if (inToken === pair.tokenA.id) {
+          retValue = retValue.times(pair.priceRatio.ba)
+          returnLessFee = returnLessFee.times(pair.priceRatio.ba)
+          inToken = pair.tokenB.id
+          if (pair.estimatedDexFeesInPct) {
+            returnLessFee = returnLessFee.times(1 - +pair.estimatedDexFeesInPct.ba)
+          }
+        } else {
+          retValue = retValue.times(pair.priceRatio.ab)
+          returnLessFee = returnLessFee.times(pair.priceRatio.ab)
+          inToken = pair.tokenA.id
+          if (pair.estimatedDexFeesInPct) {
+            returnLessFee = returnLessFee.times(1 - +pair.estimatedDexFeesInPct.ab)
+          }
+        }
+        returnLessFee = returnLessFee.times(1 - +pair.commissionFeeInPct)
+      })
+      if (returnLessFee.gt(best.estimatedReturnLessDexFees)) {
+        best.bestPath = path
+        best.estimatedReturn = retValue.toFixed(8)
+        best.estimatedReturnLessDexFees = returnLessFee.toFixed(8)
+      }
+    })
+    return best
   }
 
   async getFixedIntervalPrice(token: string): Promise<ActivePrice> {

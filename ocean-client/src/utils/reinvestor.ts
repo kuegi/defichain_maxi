@@ -244,8 +244,7 @@ async function swapDFIForReinvest(
   prevout: Prevout | undefined,
   program: CommonProgram,
 ): Promise<[CTransaction, BigNumber]> {
-  const path = await program.client.poolpairs.getBestPath('0', targetToken.id)
-  //TODO: maybe get all paths and choose best manually?
+  const path = await program.getRealBestPath(0, +targetToken.id)
   console.log('swaping ' + amount + 'DFI to ' + targetToken.symbol)
   const swap = await program.compositeswap(
     amount,
