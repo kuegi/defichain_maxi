@@ -1,25 +1,7 @@
 import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
-import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
-
-import {
-  AccountToAccount,
-  AnyAccountToAccount,
-  CAccountToAccount,
-  CAnyAccountToAccount,
-  CTransaction,
-  CTransactionSegWit,
-  DeFiTransactionConstants,
-  OP_CODES,
-  OP_DEFI_TX,
-  Script,
-  ScriptBalances,
-  toOPCodes,
-  Transaction,
-  TransactionSegWit,
-  Vout,
-} from '@defichain/jellyfish-transaction/dist'
 import BigNumber from 'bignumber.js'
-import { PoolPairData, PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
+import { PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
+import { sendToS3 } from './utils/helpers'
 
 class Ocean {
   public readonly c: WhaleApiClient
@@ -47,7 +29,7 @@ class Ocean {
   }
 }
 
-class YieldForPool {
+class YieldForToken {
   public paidCommission = new BigNumber(0)
   public fee = new BigNumber(0)
   public usdValue = new BigNumber(0)
@@ -65,12 +47,10 @@ class YieldForPool {
 async function getSwaps(o: Ocean, id: string, untilBlock: number): Promise<PoolSwapData[]> {
   let lastResult = await o.c.poolpairs.listPoolSwapsVerbose(id, 20)
   const pages = [lastResult]
-  let total = 0
   while (lastResult.hasNext && lastResult[lastResult.length - 1].block.height > untilBlock) {
     try {
-      lastResult = await o.c.poolpairs.listPoolSwapsVerbose(id, 20, pages[pages.length - 1].nextToken)
+      lastResult = await o.c.poolpairs.listPoolSwapsVerbose(id, 20, lastResult.nextToken)
       pages.push(lastResult)
-      total += pages[pages.length - 1].length
     } catch (e) {
       break
     }
@@ -85,27 +65,30 @@ export async function main(event: any, context: any): Promise<Object> {
   const startHeight = (await o.c.stats.get()).count.blocks
   const analysisWindow = 2880
   const endHeight = startHeight - analysisWindow
-  console.log('starting at block ' + startHeight + ' analysing until ' + endHeight)
+  console.log('starting at block ' + startHeight + ' analysing down until ' + endHeight)
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
 
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
-  const yields: Map<string, YieldForPool> = new Map()
+  const yields: Map<string, YieldForToken> = new Map()
   for (const pool of activePools) {
-    console.log('processing pool ' + pool.symbol)
+    console.debug('processing pool ' + pool.symbol)
     if (!yields.has(pool.tokenA.symbol)) {
-      yields.set(pool.tokenA.symbol, new YieldForPool(pool.tokenA.symbol))
+      yields.set(pool.tokenA.symbol, new YieldForToken(pool.tokenA.symbol))
     }
     const dataA = yields.get(pool.tokenA.symbol)!
     if (!yields.has(pool.tokenB.symbol)) {
-      yields.set(pool.tokenB.symbol, new YieldForPool(pool.tokenB.symbol))
+      yields.set(pool.tokenB.symbol, new YieldForToken(pool.tokenB.symbol))
     }
     const dataB = yields.get(pool.tokenB.symbol)!
 
     const swaps = await getSwaps(o, pool.id, endHeight)
-    console.log('got ' + swaps.length + ' swaps to process')
+    console.debug('got ' + swaps.length + ' swaps to process')
     for (const swap of swaps) {
+      if (swap.block.height > startHeight) {
+        continue
+      }
       if (swap.block.height < endHeight) {
         break
       }
@@ -149,9 +132,13 @@ export async function main(event: any, context: any): Promise<Object> {
       if (amountB === undefined && amountA !== undefined) {
         amountB = amountA.multipliedBy(pool.priceRatio.ba)
         if (AtoB) {
+          amountB = amountB
+            .times(1 - +pool.commission)
+            .times(1 - +(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)) //reduced by fee
           const fee = new BigNumber(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
           dataB.fee = dataB.fee.plus(amountB.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
         } else {
+          amountB = amountB.div(1 - +pool.commission).div(1 - +(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)) //result already reduced by fee
           const fee = new BigNumber(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)
           dataB.fee = dataB.fee.plus(amountB.multipliedBy(fee))
           dataB.paidCommission = dataB.paidCommission.plus(amountB.multipliedBy(pool.commission))
@@ -160,10 +147,14 @@ export async function main(event: any, context: any): Promise<Object> {
       if (amountA === undefined && amountB !== undefined) {
         amountA = amountB.multipliedBy(pool.priceRatio.ab)
         if (AtoB) {
+          amountA = amountA.div(1 - +pool.commission).div(1 - +(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)) //result already reduced by fee
           const fee = new BigNumber(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)
           dataA.fee = dataA.fee.plus(amountA.multipliedBy(fee))
           dataA.paidCommission = dataA.paidCommission.plus(amountA.multipliedBy(pool.commission))
         } else {
+          amountA = amountA
+            .times(1 - +pool.commission)
+            .times(1 - +(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)) //reduced by fee
           const fee = new BigNumber(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)
           dataA.fee = dataA.fee.plus(amountA.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
         }
@@ -259,6 +250,10 @@ export async function main(event: any, context: any): Promise<Object> {
   totalFee = totalFee.plus(data.fee)
 
   const result = {
+    meta: {
+      startHeight: endHeight,
+      endHeight: startHeight,
+    },
     totalUSD: {
       commission: totalCommission.decimalPlaces(8).toNumber(),
       fee: totalFee.decimalPlaces(8).toNumber(),
@@ -274,6 +269,10 @@ export async function main(event: any, context: any): Promise<Object> {
   })
 
   console.log('total ' + totalCommission.toFixed(2) + '$ comm + ' + totalFee.toFixed(2) + '$ fees')
+
+  const day = new Date().toISOString().substring(0, 10)
+  await sendToS3(result, day + '.json')
+  await sendToS3(result, 'latest.json')
 
   console.log(JSON.stringify(result))
 
