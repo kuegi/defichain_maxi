@@ -1,0 +1,15 @@
+{
+  "chatId": "-886899679",
+  "token": "5904965332:AAFfiAnYGZoTuUkHGHEHwnhGvbDNMA_RcHg",
+  "logChatId": "-690109944",
+  "logToken": "5904965332:AAFfiAnYGZoTuUkHGHEHwnhGvbDNMA_RcHg",
+  "address": "tf1qk369a9rt0jrqdrlq20erh759u590m2h927cyel",
+  "vault": "18b704a76caebd7c5c3f7174624bbea1947d7f4f5565ff881c0f853988bd4b57",
+  "seedfile": "/root/.vault-maxi/seed.txt",
+  "minCollateralRatio": 160,
+  "maxCollateralRatio": 165,
+  "LMToken": "MSFT",
+  "mainCollateralAsset": "DFI",
+  "reinvestThreshold": 1,
+  "stableArbBatchSize": -1
+}
