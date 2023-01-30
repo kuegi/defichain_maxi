@@ -396,7 +396,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       const lastBlocks = await program.client.blocks.list(refBlocks)
       const lastTime = lastBlocks[0].time
       const prevTime = lastBlocks[refBlocks - 1].time
-      const blockTimeThreshold = program.isTestnet() ? 75 : 40
+      const blockTimeThreshold = program.isTestnet() ? 75 : 45
       if (
         oceansToUse.length > 0 &&
         (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * blockTimeThreshold)
