@@ -14,6 +14,8 @@
 find /root -type d -exec chmod 700 {} +
 find /root -type f -exec chmod 600 {} +
 
+touch /root/.vault-maxi/seed.txt
+
 while true
 do
    node /root/app/index.js 2>&1
