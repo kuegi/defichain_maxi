@@ -5,4 +5,19 @@
 
 #### Settings ##################################################################################################
 
+#settings_file=/root/.vault-maxi/settings.json
+#seed_file_enc=
+#seed_file_dec=
+
 ################################################################################################################
+
+find /root -type d -exec chmod 700 {} +
+find /root -type f -exec chmod 600 {} +
+
+while true
+do
+   node /root/app/index.js 2>&1
+   sleep ${TRIGGER_MINS}m
+done
+
+exit 0

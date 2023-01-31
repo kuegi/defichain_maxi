@@ -17,8 +17,15 @@ RUN npm i \
    && npm audit fix \
    && npm run build-app
 
+
 FROM node:alpine3.17
 
-WORKDIR /app
+RUN apk add bash
 
-COPY --from=build /build/ocean-client/dist.app /app
+COPY start.sh /root/
+
+COPY --from=build /build/ocean-client/dist.app /root/app
+
+WORKDIR /root/
+
+ENTRYPOINT ["/bin/bash", "/root/start.sh"]

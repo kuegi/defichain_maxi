@@ -2,6 +2,7 @@ version: '3'
 
 services:
   vault-maxi:
+    image: vault-maxi:v2.5.0
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,17 +10,7 @@ services:
         VAULT_MAXI_VERSION: v2.5.0
         VAULT_MAXI_REPO_URL: https://github.com/kuegi/defichain_maxi.git
     volumes:
-      - /opt/vault-maxi/:/root/.vault-maxi/
-    container_name: vault-maxi-01
-
-
-
-
-
-
-#  vault-maxi:
-#    image: registry:tag
-#    volumes:
-#      - /opt/vault-maxi/:/root/.vault-maxi/
-#    container_name: vault-maxi-01
-#    restart: always
+      - /opt/vault-maxi:/root/.vault-maxi
+    environment:
+      - TRIGGER_MINS=2 #trigger every x minutes
+    restart: always
