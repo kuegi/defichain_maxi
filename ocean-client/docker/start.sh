@@ -16,9 +16,11 @@ find /root -type f -exec chmod 600 {} +
 
 touch /root/.vault-maxi/seed.txt
 
+node /root/app/index.js
+
 while true
 do
-   node /root/app/index.js 2>&1
+   node /root/app/index.js run 2>&1
    sleep ${TRIGGER_MINS}m
 done
 
