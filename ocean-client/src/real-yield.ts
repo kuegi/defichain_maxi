@@ -1,6 +1,6 @@
 import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import BigNumber from 'bignumber.js'
-import { PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
+import { PoolPairData, PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { sendToS3 } from './utils/helpers'
 
 class Ocean {
@@ -59,6 +59,22 @@ async function getSwaps(o: Ocean, id: string, untilBlock: number): Promise<PoolS
   return pages.flatMap((page) => page as PoolSwapData[])
 }
 
+function inFeeA(pool: PoolPairData): number {
+  return +(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)
+}
+
+function outFeeA(pool: PoolPairData): number {
+  return +(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)
+}
+
+function inFeeB(pool: PoolPairData): number {
+  return +(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)
+}
+
+function outFeeB(pool: PoolPairData): number {
+  return +(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
+}
+
 export async function main(event: any, context: any): Promise<Object> {
   console.log('real yield calculator')
   const o = new Ocean()
@@ -96,134 +112,118 @@ export async function main(event: any, context: any): Promise<Object> {
       let amountB = undefined
       let AtoB = true
       if (swap.fromTokenId == +pool.tokenA.id) {
-        const amount = new BigNumber(swap.fromAmount)
-        const fee = new BigNumber(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)
-        dataA.fee = dataA.fee.plus(amount.multipliedBy(fee))
-        dataA.paidCommission = dataA.paidCommission.plus(amount.multipliedBy(pool.commission))
-        amountA = amount
+        amountA = new BigNumber(swap.fromAmount)
+        AtoB = true
       }
       if (swap.fromTokenId == +pool.tokenB.id) {
-        const amount = new BigNumber(swap.fromAmount)
-        const fee = new BigNumber(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)
-        dataB.fee = dataB.fee.plus(amount.multipliedBy(fee))
-        dataB.paidCommission = dataB.paidCommission.plus(amount.multipliedBy(pool.commission))
-        amountB = amount
+        amountB = new BigNumber(swap.fromAmount)
         AtoB = false
       }
 
       //outAmount = swapResult * (1-outPct)
       //outFee = outAmount* outPct/(1-outPct)
       if (swap.to?.symbol == pool.tokenA.symbol) {
-        const amount = new BigNumber(swap.to.amount)
-        const fee = new BigNumber(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)
-        dataA.fee = dataA.fee.plus(amount.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
-        amountA = amount
+        amountA = new BigNumber(swap.to.amount)
         AtoB = false
       }
       if (swap.to?.symbol == pool.tokenB.symbol) {
-        const amount = new BigNumber(swap.to.amount)
-        const fee = new BigNumber(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
-        dataB.fee = dataB.fee.plus(amount.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
-        amountB = amount
+        amountB = new BigNumber(swap.to.amount)
+        AtoB = true
       }
 
       //estimations
-      // got one, but not the other
-      if (amountB === undefined && amountA !== undefined) {
-        amountB = amountA.multipliedBy(pool.priceRatio.ba)
-        if (AtoB) {
-          amountB = amountB
-            .times(1 - +pool.commission)
-            .times(1 - +(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)) //reduced by fee
-          const fee = new BigNumber(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
-          dataB.fee = dataB.fee.plus(amountB.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
-        } else {
-          amountB = amountB.div(1 - +pool.commission).div(1 - +(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)) //result already reduced by fee
-          const fee = new BigNumber(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)
-          dataB.fee = dataB.fee.plus(amountB.multipliedBy(fee))
-          dataB.paidCommission = dataB.paidCommission.plus(amountB.multipliedBy(pool.commission))
-        }
-      }
-      if (amountA === undefined && amountB !== undefined) {
-        amountA = amountB.multipliedBy(pool.priceRatio.ab)
-        if (AtoB) {
-          amountA = amountA.div(1 - +pool.commission).div(1 - +(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)) //result already reduced by fee
-          const fee = new BigNumber(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)
-          dataA.fee = dataA.fee.plus(amountA.multipliedBy(fee))
-          dataA.paidCommission = dataA.paidCommission.plus(amountA.multipliedBy(pool.commission))
-        } else {
-          amountA = amountA
-            .times(1 - +pool.commission)
-            .times(1 - +(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)) //reduced by fee
-          const fee = new BigNumber(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)
-          dataA.fee = dataA.fee.plus(amountA.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
-        }
-      }
+      //got none-> estimate from and to will follow afterwards
       if (amountA === undefined && amountB === undefined) {
-        if (swap.to !== undefined && swap.from !== undefined && swap.type !== undefined) {
+        if (swap.from !== undefined && swap.type !== undefined) {
+          AtoB = swap.type === 'SELL'
           //swap type BUY means token A of pool is bought
-          let poolSymbolFrom = swap.from.symbol + '-' + (swap.type === 'BUY' ? pool.tokenB.symbol : pool.tokenA.symbol)
+          let poolSymbolFrom = swap.from.symbol + '-' + (!AtoB ? pool.tokenB.symbol : pool.tokenA.symbol)
           let poolFrom = pools.find((p) => p.symbol === poolSymbolFrom)
           let fromAtoB = true
           if (poolFrom === undefined) {
-            poolSymbolFrom = (swap.type === 'BUY' ? pool.tokenB.symbol : pool.tokenA.symbol) + '-' + swap.from.symbol
+            poolSymbolFrom = (!AtoB ? pool.tokenB.symbol : pool.tokenA.symbol) + '-' + swap.from.symbol
             poolFrom = pools.find((p) => p.symbol === poolSymbolFrom)
             fromAtoB = false
           }
           if (poolFrom !== undefined) {
             let myFrom = new BigNumber(swap.from.amount)
-              .times(1 - +((fromAtoB ? poolFrom.tokenA.fee?.inPct : poolFrom.tokenB.fee?.inPct) ?? 0))
-              .times(fromAtoB ? poolFrom.priceRatio.ba : poolFrom.priceRatio.ab)
-              .times(1 - +((fromAtoB ? poolFrom.tokenB.fee?.outPct : poolFrom.tokenA.fee?.outPct) ?? 0))
               .times(1 - +poolFrom.commission)
-
-            amountA = swap.type === 'BUY' ? myFrom.times(pool.priceRatio.ab) : myFrom
-            amountB = myFrom.multipliedBy(pool.priceRatio.ba)
-            if (swap.type !== 'BUY') {
-              let fee = new BigNumber(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
-              dataB.fee = dataB.fee.plus(amountB.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
-
-              fee = new BigNumber(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)
-              dataA.fee = dataA.fee.plus(amountA.multipliedBy(fee))
-              dataA.paidCommission = dataA.paidCommission.plus(amountA.multipliedBy(pool.commission))
+              .times(1 - (fromAtoB ? inFeeA(poolFrom) : inFeeB(poolFrom)))
+              .times(fromAtoB ? poolFrom.priceRatio.ba : poolFrom.priceRatio.ab)
+              .times(1 - (fromAtoB ? outFeeB(poolFrom) : outFeeA(poolFrom)))
+            if (AtoB) {
+              amountA = myFrom
             } else {
-              let fee = new BigNumber(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)
-              dataB.fee = dataB.fee.plus(amountB.multipliedBy(fee))
-              dataB.paidCommission = dataB.paidCommission.plus(amountB.multipliedBy(pool.commission))
-
-              fee = new BigNumber(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)
-              dataA.fee = dataA.fee.plus(amountA.multipliedBy(fee.dividedBy(new BigNumber(1).minus(fee))))
+              amountB = myFrom
             }
-            /*
-              console.log(
-                'got 3 way swap: ' +
-                  JSON.stringify(swap) +
-                  '\n' +
-                  'assuming swap ' +
-                  swap.from.amount +
-                  '@' +
-                  swap.from.symbol +
-                  '->' +
-                  myFrom.toFixed(8) +
-                  '@' +
-                  (swap.type === 'BUY' ? pool.tokenB.symbol : pool.tokenA.symbol) +
-                  '->' +
-                  (swap.type === 'BUY'
-                    ? amountA.toFixed(8) + '@' + pool.tokenA.symbol
-                    : amountB.toFixed(8) + '@' + pool.tokenB.symbol),
-              )
-              //*/
+            //TODO: could estimate the other side based on the output with same logic, not sure what is more accurate, probably the same
           } else {
             console.warn(
               'unable to find other pools for 3-way swap: ' +
                 swap.from.symbol +
                 '->' +
-                swap.to.symbol +
+                swap.to?.symbol +
                 ' in pool ' +
                 pool.symbol +
                 ' type ' +
                 swap.type,
             )
+          }
+        }
+      }
+      // got one, but not the other
+      if (amountB === undefined && amountA !== undefined) {
+        if (AtoB) {
+          amountB = amountA
+            .times(1 - inFeeA(pool))
+            .times(1 - +pool.commission)
+            .times(pool.priceRatio.ba)
+            .times(1 - outFeeB(pool)) //also apply outFee here, for simplicity we assume amountB to be the result of the total swap
+        } else {
+          amountB = amountA
+            .div(1 - outFeeA(pool))
+            .div(1 - +pool.commission)
+            .div(pool.priceRatio.ab)
+            .div(1 - inFeeB(pool))
+        }
+      }
+      if (amountA === undefined && amountB !== undefined) {
+        if (AtoB) {
+          amountA = amountB
+            .div(1 - outFeeB(pool))
+            .div(pool.priceRatio.ba)
+            .div(1 - +pool.commission)
+            .div(1 - inFeeA(pool))
+        } else {
+          amountA = amountB
+            .times(1 - inFeeB(pool))
+            .times(1 - +pool.commission)
+            .times(pool.priceRatio.ab)
+            .times(1 - outFeeA(pool)) //also apply outFee here, for simplicity we assume amountB to be the result of the total swap
+        }
+      }
+      if (amountA !== undefined && amountB !== undefined) {
+        if (AtoB) {
+          const inFee = inFeeA(pool)
+          const outFee = outFeeB(pool)
+          const commission = amountA.multipliedBy(pool.commission)
+          dataA.paidCommission = dataA.paidCommission.plus(commission)
+          if (inFee > 0) {
+            dataA.fee = dataA.fee.plus(amountA.minus(commission).multipliedBy(inFeeA(pool)))
+          }
+          if (outFee > 0) {
+            dataB.fee = dataB.fee.plus(amountB.multipliedBy(outFee).dividedBy(new BigNumber(1).minus(outFee)))
+          }
+        } else {
+          const inFee = inFeeB(pool)
+          const outFee = outFeeA(pool)
+          const commission = amountB.multipliedBy(pool.commission)
+          dataB.paidCommission = dataB.paidCommission.plus(commission)
+          if (inFee > 0) {
+            dataB.fee = dataB.fee.plus(amountB.minus(commission).multipliedBy(inFee))
+          }
+          if (outFee > 0) {
+            dataA.fee = dataA.fee.plus(amountA.multipliedBy(outFee).dividedBy(new BigNumber(1).minus(outFee)))
           }
         }
       }
