@@ -9,7 +9,7 @@ RUN apk add git \
 
 WORKDIR /build
 
-RUN git checkout tags/${VAULT_MAXI_VERSION}
+RUN git checkout ${VAULT_MAXI_VERSION}
 
 WORKDIR /build/ocean-client
 
@@ -20,7 +20,7 @@ RUN npm i \
 
 FROM node:alpine3.17
 
-RUN apk add bash
+RUN apk add bash age
 
 COPY start.sh /root/
 

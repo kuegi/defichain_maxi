@@ -2,15 +2,20 @@ version: '3'
 
 services:
   vault-maxi:
-    image: vault-maxi:v2.5.0
+    #image: vault-maxi:v2.5.0
+    image: vault-maxi:develop
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        VAULT_MAXI_VERSION: v2.5.0
+        #VAULT_MAXI_VERSION: tags/v2.5.0
+        VAULT_MAXI_VERSION: develop
         VAULT_MAXI_REPO_URL: https://github.com/kuegi/defichain_maxi.git
     volumes:
-      - /opt/vault-maxi:/root/.vault-maxi
+      - /opt/vault-maxi:/root/.vault-maxi-ext
     environment:
-      - TRIGGER_MINS=10 #trigger every x minutes
+      # trigger every x minutes
+      - TRIGGER_MINS=10
+      # passphrase for de- and encryption of the seed file
+      - SEED_ENCRYPTION_PASSPHRASE=eeV8ooshahkae2puxap4ahza9Gohgh
     restart: always
