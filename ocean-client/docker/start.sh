@@ -81,6 +81,8 @@ sleep 1m
 exit 1
 # testing... end
 
+
+
 while true
 do
    for setting in $path_extern$settings_file_filter
