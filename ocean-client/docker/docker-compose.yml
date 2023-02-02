@@ -17,5 +17,5 @@ services:
       # trigger every x minutes
       - TRIGGER_MINS=10
       # passphrase for de- and encryption of the seed file
-      - SEED_ENCRYPTION_PASSPHRASE=eeV8ooshahkae2puxap4ahza9Gohgh
+      - SEED_ENCRYPTION_PASSPHRASE= #eeV8ooshahkae2puxap4ahza9Gohgh
     restart: always

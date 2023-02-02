@@ -24,7 +24,7 @@ internal_vaultmaxi_folder=/root/.vault-maxi
 tmpfs_vaultmaxi_folder=/dev/vault-maxi
 
 internal_settings_file=/root/.vault-maxi/settings.json
-internal_seed_file=/root/.vault-maxi/settings.json
+internal_seed_file=/root/.vault-maxi/seed.txt
 
 settings_file_filter=settings_*.json
 
@@ -50,10 +50,13 @@ function sleep_cycle(){
    sleep ${TRIGGER_MINS}m
 }
 
+# encrypt_seed $in $out
 function encrypt_seed(){
    openssl enc -aes-256-cbc -pbkdf2 -iter 20000 -in $1 -out $2 -k $SEED_ENCRYPTION_PASSPHRASE
+   rm $1
 }
 
+# decrypt_seed $in $out
 function decrypt_seed(){
    openssl enc -d -aes-256-cbc -pbkdf2 -iter 20000 -in $1 -out $2 -k $SEED_ENCRYPTION_PASSPHRASE
 }
@@ -61,6 +64,23 @@ function decrypt_seed(){
 function setup_tmpfs_folder(){
    mkdir $tmpfs_vaultmaxi_folder
    ln -s $tmpfs_vaultmaxi_folder $internal_vaultmaxi_folder
+}
+
+# process_vault $seed($1) $setting($2)
+function process_vault(){
+   # handling decrypt
+   if [[ ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
+   then
+      decrypt_seed $1 $internal_seed_file
+   else
+      cp $1 $internal_seed_file
+   fi
+
+   #handling settings.json
+   cp $2 $internal_settings_file
+   sed 's/  "seedfile": ".*/  "seedfile": "\/root\/.vault-maxi\/seed.txt"/g' -i $internal_settings_file
+
+   sleep 20s
 }
 
 
@@ -76,12 +96,54 @@ then
    sleep_cycle
 fi
 
+while true
+do
+   for setting in $path_extern$settings_file_filter
+   do
+      settings_name=$(echo $setting | awk -F'_' '{print $2}' | sed s/.json//g)
+
+      echo $setting
+      echo $settings_name
+
+      if [[ ! -s ${path_extern}"seed_"${settings_name}".txt" && ! -f ${path_extern}"seed_"${settings_name}".enc" ]]
+      then
+         echo "seed empty, not encrypted -> skip setting, stdout error msg"
+
+      elif [[ -s ${path_extern}"seed_"${settings_name}".txt" && ! -f ${path_extern}"seed_"${settings_name}".enc" && ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
+      then
+         echo "seed not empty, not encrypted, passphrase is set -> encrypt seed, process vault"
+         encrypt_seed ${path_extern}"seed_"${settings_name}".txt" ${path_extern}"seed_"${settings_name}".enc"
+         process_vault ${path_extern}"seed_"${settings_name}".enc" $setting
+
+      elif [[ -s ${path_extern}"seed_"${settings_name}".txt" && ! -f ${path_extern}"seed_"${settings_name}".enc" && -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
+      then
+         echo "seed not empty, not encrypted, passphrase is not set -> process vault, warn that seed is unencrypted on stdout"
+         process_vault ${path_extern}"seed_"${settings_name}".txt" $setting
+
+      elif [[ -f ${path_extern}"seed_"${settings_name}".enc" && ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
+      then
+         echo "seed encrypted, passphrase is set -> process vault"
+         process_vault ${path_extern}"seed_"${settings_name}".enc" $setting
+
+      elif [[ -f ${path_extern}"seed_"${settings_name}".enc" && -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
+      then
+         echo "seed encrypted, passphrase is not set -> skip setting, stdout error msg"
+
+
+
+
+
+      fi
+
+   done
+   echo " "
+   sleep 5s
+done
+
 # testing... start
 sleep 1m
 exit 1
 # testing... end
-
-
 
 while true
 do
