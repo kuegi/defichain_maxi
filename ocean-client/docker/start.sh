@@ -141,6 +141,8 @@ do
    done
 
    echo " "
+   
+   set_root_dir_and_file_permissions
    sleep_cycle
 
 done
