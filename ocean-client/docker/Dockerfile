@@ -20,7 +20,7 @@ RUN npm i \
 
 FROM node:alpine3.17
 
-RUN apk add bash age
+RUN apk add bash openssl
 
 COPY start.sh /root/
 

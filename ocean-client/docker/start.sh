@@ -6,79 +6,105 @@
 #  - write ordinary readme
 #  - check defichain_maxi/ocean-client/src/utils/store_config.ts and add missing config paramters
 
+# Notices:
+#  Ablauf:
+#  1. Docker mount leer -> vault-maxi inital run, kopiere init settings file in den mount, erstelle leere initial seed file im mount, permissions setzen, sleep
+#  2. Inital Settings vorhanden, seed leer -> skippe diese abarbeitung
+#  3. Settings vorhanden, seed unencrypted, passphrase definiert -> unverschlüsselte seeds verschlüsseln, setting abarbeiten
+#  4. Settings vorhanden, seed unencrypted, passphrase nicht definiert -> seed unverschlüsselt lassen, setting abarbeiten, verschlüsselte seeds skippen, fehlermeldung nach stdout
+
 #### Settings ##################################################################################################
 
 path_extern=/root/.vault-maxi-ext/
 
-first_settings_file=/root/.vault-maxi-ext/settings_01.json
-first_seed_file_unenc=/root/.vault-maxi-ext/seed_01.unencrypted
-first_seed_file_enc=/root/.vault-maxi-ext/seed_01.encrypted
+inital_settings_file=/root/.vault-maxi-ext/settings_Name01.json
+inital_seed_file_unenc=/root/.vault-maxi-ext/seed_Name01.txt
+
+internal_vaultmaxi_folder=/root/.vault-maxi
+tmpfs_vaultmaxi_folder=/dev/vault-maxi
 
 internal_settings_file=/root/.vault-maxi/settings.json
+internal_seed_file=/root/.vault-maxi/settings.json
 
 settings_file_filter=settings_*.json
 
 app_path=/root/app/
 app_settings_check=index.js
-app_run=index.js run
+app_run='index.js run'
 
 ################################################################################################################
 
 # function definitions
-function set_dir_and_file_permissions(){
+function set_root_dir_and_file_permissions(){
    find /root -type d -exec chmod 700 {} +
    find /root -type f -exec chmod 600 {} +
 }
 
 function create_inital_files(){
    node $app_path$app_settings_check
-   cp -a $internal_settings_file $first_settings_file
-   touch $first_seed_file_unenc
+   cp -a $internal_settings_file $inital_settings_file
+   touch $inital_seed_file_unenc
 }
 
 function sleep_cycle(){
    sleep ${TRIGGER_MINS}m
 }
 
-function encrypt_seed($file){
-   openssl enc -aes-256-cbc -pbkdf2 -iter 20000 -in unenc.txt -out enc.txt -k passwd
+function encrypt_seed(){
+   openssl enc -aes-256-cbc -pbkdf2 -iter 20000 -in $1 -out $2 -k $SEED_ENCRYPTION_PASSPHRASE
 }
 
-function decrypt_seed($enc_file, $unenc_file){
-   openssl enc -d -aes-256-cbc -pbkdf2 -iter 20000 -in $enc_file -out $unenc_file -k $SEED_ENCRYPTION_PASSPHRASE
+function decrypt_seed(){
+   openssl enc -d -aes-256-cbc -pbkdf2 -iter 20000 -in $1 -out $2 -k $SEED_ENCRYPTION_PASSPHRASE
+}
+
+function setup_tmpfs_folder(){
+   mkdir $tmpfs_vaultmaxi_folder
+   ln -s $tmpfs_vaultmaxi_folder $internal_vaultmaxi_folder
 }
 
 
 # script start
 
-if [[ ! -f "first_settings_file" ]];
+setup_tmpfs_folder
+
+# create inital files
+if [[ -z "$(ls -A $path_extern)" ]]
 then
    create_inital_files
-   set_dir_and_file_permissions
+   set_root_dir_and_file_permissions
    sleep_cycle
-else
-   for setting in $settings_file_filter
-   do
-
-   done
 fi
+
+# testing... start
+sleep 1m
+exit 1
+# testing... end
 
 while true
 do
-   for setting in $settings_file_filter
+   for setting in $path_extern$settings_file_filter
    do
-      echo -E "Working on: "${setting}"\n"
+      settings_name=$(echo $setting | awk -F'_' '{print $2}' | sed s/.json//g)
 
+      if [[ ! -s ${path_extern}"seed_"${settings_name}".txt" || -f ${path_extern}"seed_"${settings_name}".enc" ]]
 
-
-      node $app_path$app_run 2>&1
-      set_dir_and_file_permissions
-      sleep_cycle
-
-
-
-
+      then
+         echo "Working on: "${settings_name}
+         export VAULTMAXI_LOGID=$settings_name
+         if [[ ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
+         then
+            if [[ -f ${path_extern}"seed_"${settings_name}".txt" ]]
+            then
+               encrypt_seed ${path_extern}"seed_"${settings_name}".txt" ${path_extern}"seed_"${settings_name}".enc"
+               rm ${path_extern}"seed_"${settings_name}".txt"
+            fi
+         fi
+      fi
    done
+
+   sleep_cycle
+
 done
 
 exit 0
