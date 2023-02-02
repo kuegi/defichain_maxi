@@ -66,7 +66,7 @@ function setup_tmpfs_folder(){
    ln -s $tmpfs_vaultmaxi_folder $internal_vaultmaxi_folder
 }
 
-# process_vault $seed($1) $setting($2)
+# process_vault $seed($1) $setting($2) $settings_name($3)
 function process_vault(){
    # handling decrypt
    if [[ ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
@@ -76,11 +76,18 @@ function process_vault(){
       cp $1 $internal_seed_file
    fi
 
-   #handling settings.json
+   # handling settings.json
    cp $2 $internal_settings_file
-   sed 's/  "seedfile": ".*/  "seedfile": "\/root\/.vault-maxi\/seed.txt"/g' -i $internal_settings_file
+   sed 's/  "seedfile": ".*/  "seedfile": "\/root\/.vault-maxi\/seed.txt",/g' -i $internal_settings_file
 
-   sleep 20s
+   # set VAULTMAXI_LOGID env var
+   export VAULTMAXI_LOGID=$3
+
+   # run vault maxi
+   node $app_path$app_run
+
+   # clear internal vault maxi folder
+   rm ${internal_vaultmaxi_folder}/*
 }
 
 
@@ -113,60 +120,27 @@ do
       then
          echo "seed not empty, not encrypted, passphrase is set -> encrypt seed, process vault"
          encrypt_seed ${path_extern}"seed_"${settings_name}".txt" ${path_extern}"seed_"${settings_name}".enc"
-         process_vault ${path_extern}"seed_"${settings_name}".enc" $setting
+         process_vault ${path_extern}"seed_"${settings_name}".enc" $setting $settings_name
 
       elif [[ -s ${path_extern}"seed_"${settings_name}".txt" && ! -f ${path_extern}"seed_"${settings_name}".enc" && -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
       then
          echo "seed not empty, not encrypted, passphrase is not set -> process vault, warn that seed is unencrypted on stdout"
-         process_vault ${path_extern}"seed_"${settings_name}".txt" $setting
+         process_vault ${path_extern}"seed_"${settings_name}".txt" $setting $settings_name
 
       elif [[ -f ${path_extern}"seed_"${settings_name}".enc" && ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
       then
          echo "seed encrypted, passphrase is set -> process vault"
-         process_vault ${path_extern}"seed_"${settings_name}".enc" $setting
+         process_vault ${path_extern}"seed_"${settings_name}".enc" $setting $settings_name
 
       elif [[ -f ${path_extern}"seed_"${settings_name}".enc" && -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
       then
          echo "seed encrypted, passphrase is not set -> skip setting, stdout error msg"
 
-
-
-
-
       fi
 
    done
+
    echo " "
-   sleep 5s
-done
-
-# testing... start
-sleep 1m
-exit 1
-# testing... end
-
-while true
-do
-   for setting in $path_extern$settings_file_filter
-   do
-      settings_name=$(echo $setting | awk -F'_' '{print $2}' | sed s/.json//g)
-
-      if [[ ! -s ${path_extern}"seed_"${settings_name}".txt" || -f ${path_extern}"seed_"${settings_name}".enc" ]]
-
-      then
-         echo "Working on: "${settings_name}
-         export VAULTMAXI_LOGID=$settings_name
-         if [[ ! -z "$SEED_ENCRYPTION_PASSPHRASE" ]]
-         then
-            if [[ -f ${path_extern}"seed_"${settings_name}".txt" ]]
-            then
-               encrypt_seed ${path_extern}"seed_"${settings_name}".txt" ${path_extern}"seed_"${settings_name}".enc"
-               rm ${path_extern}"seed_"${settings_name}".txt"
-            fi
-         fi
-      fi
-   done
-
    sleep_cycle
 
 done
