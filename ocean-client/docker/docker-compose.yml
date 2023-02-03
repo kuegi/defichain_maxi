@@ -1,0 +1,69 @@
+#########################################################################
+#                                                                       #
+#     Author:              RoMi1981                                     #
+#     Github:              https://github.com/RoMi1981                  #
+#                                                                       #
+#     Website Vault-Maxi:  https://www.vault-maxi.live                  #
+#     Github Vault-Maxi:   https://github.com/kuegi/defichain_maxi      #
+#                                                                       #
+#########################################################################
+
+version: '3'
+
+services:
+  vault-maxi:
+    image: vault-maxi:v2.5.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VAULT_MAXI_VERSION: tags/v2.5.0
+        VAULT_MAXI_REPO_URL: https://github.com/kuegi/defichain_maxi.git
+    environment:
+      ### Vault-Maxi Docker Main Settings
+      - TRIGGER_MINS=10             # trigger every x minutes
+      - MAX_SETTINGS=10             # max settings in loop
+
+      ### Vault-Maxi Settings Block 01 - START ####################################################
+      - CFG_01_LogID=Name01
+      - CFG_01_chatId=
+      - CFG_01_token=
+      - CFG_01_logChatId=
+      - CFG_01_logToken=
+      - CFG_01_address=
+      - CFG_01_vault=
+      - CFG_01_EncryptedSeed=
+      - CFG_01_minCollateralRatio=160
+      - CFG_01_maxCollateralRatio=165
+      - CFG_01_LMToken=MSFT
+      - CFG_01_mainCollateralAsset=DFI
+      - CFG_01_reinvestThreshold=1
+      - CFG_01_stableArbBatchSize=-1
+      - CFG_01_MaxReinvest=1
+      # - CFG_01_VaultSafetyOverride=
+      # - CFG_01_OceanUrl=
+      # - CFG_01_KeepClean=
+      ### Vault-Maxi Settings Block 01 - END ######################################################
+
+      ### Vault-Maxi Settings Block 02 - START ####################################################
+      - CFG_02_LogID=Name02
+      - CFG_02_chatId=
+      - CFG_02_token=
+      - CFG_02_logChatId=
+      - CFG_02_logToken=
+      - CFG_02_address=
+      - CFG_02_vault=
+      - CFG_02_EncryptedSeed=
+      - CFG_02_minCollateralRatio=160
+      - CFG_02_maxCollateralRatio=165
+      - CFG_02_LMToken=MSFT
+      - CFG_02_mainCollateralAsset=DFI
+      - CFG_02_reinvestThreshold=1
+      - CFG_02_stableArbBatchSize=-1
+      - CFG_02_MaxReinvest=1
+      # - CFG_02_VaultSafetyOverride=
+      # - CFG_02_OceanUrl=
+      # - CFG_02_KeepClean=
+      ### Vault-Maxi Settings Block 02 - END ######################################################
+
+    restart: always
