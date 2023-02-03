@@ -98,11 +98,19 @@ export class Telegram {
     let endpointUrl = this.endpoint
       .replace('%token', token)
       .replace('%chatId', chatId)
-      .replace('%message', encodeURI(this.prefix + ' ' + message))
+      .replace('%message', this.encodeMarkdown(encodeURI(this.prefix + ' ' + message)))
 
     const response = await fetch(endpointUrl)
     const json = await response.json()
     console.log('telegram api response', json)
     return json
   }
+
+  encodeMarkdown(message: string): string {
+    return replaceAll(message, '_', '\\_')
+  }
+}
+
+function replaceAll(str: string, find: string, replace: string) {
+  return str.replace(new RegExp(find, 'g'), replace)
 }
