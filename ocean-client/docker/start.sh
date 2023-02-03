@@ -177,6 +177,8 @@ do
          process_vault
 
          clear_vaultmaxi_folder
+
+         echo ""
       fi
 
    done
