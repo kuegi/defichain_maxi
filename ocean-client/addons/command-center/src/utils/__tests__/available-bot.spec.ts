@@ -67,6 +67,7 @@ describe('AvailableBots', () => {
     expect(availableBots.list()).toStrictEqual([
       {
         name: 'defichain-vault-maxi',
+        postfix: '',
         type: BotType.MAXI,
         version: 'v2.1',
         lastBlock: 2145914,
@@ -80,6 +81,7 @@ describe('AvailableBots', () => {
     expect(availableBots.list()).toStrictEqual([
       {
         name: 'defichain-lm-reinvest',
+        postfix: '',
         type: BotType.REINVEST,
         version: 'v1.0',
         lastBlock: 2145910,
@@ -93,6 +95,7 @@ describe('AvailableBots', () => {
     expect(availableBots.list()).toStrictEqual([
       {
         name: 'defichain-vault-maxi',
+        postfix: '',
         type: BotType.MAXI,
         version: 'v2.1',
         lastBlock: 2145914,
@@ -100,6 +103,7 @@ describe('AvailableBots', () => {
       },
       {
         name: 'defichain-vault-maxi-test',
+        postfix: '-test',
         type: BotType.MAXI,
         version: 'v2.1',
         lastBlock: 2145914,
@@ -107,6 +111,7 @@ describe('AvailableBots', () => {
       },
       {
         name: 'defichain-lm-reinvest',
+        postfix: '',
         type: BotType.REINVEST,
         version: 'v1.0',
         lastBlock: 2145910,
