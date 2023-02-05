@@ -22,9 +22,11 @@ services:
     environment:
       ### Vault-Maxi Docker Main Settings
       - TRIGGER_MINS=10             # trigger every x minutes
-      - MAX_SETTINGS=10             # max settings in loop
+
+      # up to 99 setting blocks can be added
 
       ### Vault-Maxi Settings Block 01 - START ####################################################
+      - CFG_01_SettingEnabled=true
       - CFG_01_LogID=Name01
       - CFG_01_chatId=
       - CFG_01_token=
@@ -46,6 +48,7 @@ services:
       ### Vault-Maxi Settings Block 01 - END ######################################################
 
       ### Vault-Maxi Settings Block 02 - START ####################################################
+      - CFG_02_SettingEnabled=true
       - CFG_02_LogID=Name02
       - CFG_02_chatId=
       - CFG_02_token=

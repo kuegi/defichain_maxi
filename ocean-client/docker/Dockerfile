@@ -30,7 +30,9 @@ RUN npm i \
 
 FROM node:alpine3.17
 
-RUN apk add --update bash openssl coreutils && rm -rf /var/cache/apk/*
+RUN apk update && apk upgrade \
+   && apk add bash openssl coreutils \
+   && rm -rf /var/cache/apk/*
 
 COPY start.sh /root/
 

@@ -86,13 +86,18 @@ function clear_vaultmaxi_folder(){
 
 # process_vault
 function process_vault(){
-   # run vault maxi
    node $app_path$app_run
 }
 
+# check settings
+function check_vault_settings(){
+   node $app_path$app_settings_check
+}
+
 function process_info(){
-   echo "Working on"
+   echo "Working on:"
    echo "########################################################################################################"
+   echo "LogID: "$LogID
    echo "Adress: "$address
    echo "Vault: "$vault
    echo "Collaterial target range: "$minCollateralRatio" - "$maxCollateralRatio
@@ -103,14 +108,37 @@ function process_info(){
 }
 
 function set_env_vars(){
-   if [[ ! -z $MaxReinvest ]]; then export VAULTMAXI_MAXREINVEST=$MaxReinvest;fi
-   if [[ ! -z $LogID ]]; then export VAULTMAXI_LOGID=$LogID;fi
-   if [[ ! -z $KeepClean ]]; then export VAULTMAXI_KEEP_CLEAN=$KeepClean;fi
-   if [[ ! -z $OceanUrl ]]; then export VAULTMAXI_OCEAN_URL=$OceanUrl;fi
-   if [[ ! -z $VaultSafetyOverride ]]; then export VAULTMAXI_VAULT_SAFETY_OVERRIDE=$VaultSafetyOverride;fi
+   if [[ ! -z $MaxReinvest ]]; then export VAULTMAXI_MAXREINVEST=$MaxReinvest; else unset VAULTMAXI_MAXREINVEST;fi
+   if [[ ! -z $LogID ]]; then export VAULTMAXI_LOGID=$LogID; else unset VAULTMAXI_LOGID;fi
+   if [[ ! -z $KeepClean ]]; then export VAULTMAXI_KEEP_CLEAN=$KeepClean; else unset VAULTMAXI_KEEP_CLEAN;fi
+   if [[ ! -z $OceanUrl ]]; then export VAULTMAXI_OCEAN_URL=$OceanUrl; else unset VAULTMAXI_OCEAN_URL;fi
+   if [[ ! -z $VaultSafetyOverride ]]; then export VAULTMAXI_VAULT_SAFETY_OVERRIDE=$VaultSafetyOverride; else unset VAULTMAXI_VAULT_SAFETY_OVERRIDE;fi
 }
 
-function encrypt_seed_interactive(){
+# handover_env_vars $setting
+function handover_env_vars(){
+   var="CFG_${1}_SettingEnabled"; SettingEnabled=${!var}
+   var="CFG_${1}_LogID"; LogID=${!var}
+   var="CFG_${1}_chatId"; chatId=${!var}
+   var="CFG_${1}_token"; token=${!var}
+   var="CFG_${1}_logChatId"; logChatId=${!var}
+   var="CFG_${1}_logToken"; logToken=${!var}
+   var="CFG_${1}_address"; address=${!var}
+   var="CFG_${1}_vault"; vault=${!var}
+   var="CFG_${1}_EncryptedSeed"; EncryptedSeed=${!var}
+   var="CFG_${1}_minCollateralRatio"; minCollateralRatio=${!var}
+   var="CFG_${1}_maxCollateralRatio"; maxCollateralRatio=${!var}
+   var="CFG_${1}_LMToken"; LMToken=${!var}
+   var="CFG_${1}_mainCollateralAsset"; mainCollateralAsset=${!var}
+   var="CFG_${1}_reinvestThreshold"; reinvestThreshold=${!var}
+   var="CFG_${1}_stableArbBatchSize"; stableArbBatchSize=${!var}
+   var="CFG_${1}_MaxReinvest"; MaxReinvest=${!var}
+   var="CFG_${1}_VaultSafetyOverride"; VaultSafetyOverride=${!var}
+   var="CFG_${1}_OceanUrl"; OceanUrl=${!var}
+   var="CFG_${1}_KeepClean"; KeepClean=${!var}
+}
+
+function encrypt_seed_interactive_docker_cmd(){
    echo $seed_creation_prompt
    echo ""
    read -e -p "Seed: " seed
@@ -125,44 +153,15 @@ function encrypt_seed_interactive(){
    echo ""
    echo "Exiting..."
 
-   exit 1
+   exit 0
 }
 
-#### Regular Script Start ######################################################################################
+function check_config_docker_cmd(){
+   setup_tmpfs_folder
 
-# call function to encrypt the seed
-if [[ $1 == "create_seed_string" ]]
-then
-   encrypt_seed_interactive
-fi
-
-# setup tmpfs folder
-setup_tmpfs_folder
-
-# start normal loop
-while true
-do
-   for setting in $(seq -w 1 $MAX_SETTINGS)
+   for setting in $(seq -w 1 99)
    do
-      # handover env vars
-      var="CFG_${setting}_LogID"; LogID=${!var}
-      var="CFG_${setting}_chatId"; chatId=${!var}
-      var="CFG_${setting}_token"; token=${!var}
-      var="CFG_${setting}_logChatId"; logChatId=${!var}
-      var="CFG_${setting}_logToken"; logToken=${!var}
-      var="CFG_${setting}_address"; address=${!var}
-      var="CFG_${setting}_vault"; vault=${!var}
-      var="CFG_${setting}_EncryptedSeed"; EncryptedSeed=${!var}
-      var="CFG_${setting}_minCollateralRatio"; minCollateralRatio=${!var}
-      var="CFG_${setting}_maxCollateralRatio"; maxCollateralRatio=${!var}
-      var="CFG_${setting}_LMToken"; LMToken=${!var}
-      var="CFG_${setting}_mainCollateralAsset"; mainCollateralAsset=${!var}
-      var="CFG_${setting}_reinvestThreshold"; reinvestThreshold=${!var}
-      var="CFG_${setting}_stableArbBatchSize"; stableArbBatchSize=${!var}
-      var="CFG_${setting}_MaxReinvest"; MaxReinvest=${!var}
-      var="CFG_${setting}_VaultSafetyOverride"; VaultSafetyOverride=${!var}
-      var="CFG_${setting}_OceanUrl"; OceanUrl=${!var}
-      var="CFG_${setting}_KeepClean"; KeepClean=${!var}
+      handover_env_vars $setting
 
       # check if needed variables are set
       if [[ ! -z $address || ! -z $vault || ! -z $EncryptedSeed || ! -z $LMToken ]]
@@ -174,7 +173,69 @@ do
          create_tmp_setting_file
          create_tmp_seed_file $(decrypt_seed $EncryptedSeed)
 
-         process_vault
+         echo "Settings file:"
+         cat $settings_file
+
+         echo ""
+
+         check_vault_settings
+
+         clear_vaultmaxi_folder
+
+         echo ""
+
+         read -p "Press enter to continue"
+      fi
+
+   done
+
+   exit 0
+}
+
+#### Regular Script Start ######################################################################################
+
+# call function to encrypt the seed
+if [[ $1 == "create_seed_string" ]]
+then
+   encrypt_seed_interactive_docker_cmd
+elif [[ $1 == "check_config" ]]
+then
+   check_config_docker_cmd
+fi
+
+setup_tmpfs_folder
+
+check_cfg=0
+
+# start normal loop
+while true
+do
+   for setting in $(seq -w 1 99)
+   do
+      handover_env_vars $setting
+
+      # check if needed variables are set
+      if [[ ! -z $address || ! -z $vault || ! -z $EncryptedSeed || ! -z $LMToken ]]
+      then
+         set_env_vars
+
+         process_info
+
+         create_tmp_setting_file
+         create_tmp_seed_file $(decrypt_seed $EncryptedSeed)
+
+         if [[ $check_cfg == 1 ]]
+         then
+            if [[ $SettingEnabled == "true" ]]
+            then
+            process_vault
+            else
+               echo "Setting disabled, skip processing..."
+            fi
+
+         else
+            check_vault_settings
+         fi
 
          clear_vaultmaxi_folder
 
@@ -185,7 +246,12 @@ do
 
    echo ""
 
-   sleep_cycle
+   if [[ $check_cfg == 1 ]]
+   then
+      sleep_cycle
+   else
+      check_cfg=1
+   fi
 
 done
 
