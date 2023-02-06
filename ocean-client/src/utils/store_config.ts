@@ -104,6 +104,6 @@ class ConfigFile {
   reinvestThreshold: number | undefined = 0
   reinvestPattern: string | undefined = 'DFI'
   stableArbBatchSize: number | undefined = -1
-  AutoDonationPercent: number | undefined = 0
-  logLevel: string = 'info'
+  AutoDonationPercent: number = 0
+  logLevel: LogLevel = LogLevel.INFO
 }
