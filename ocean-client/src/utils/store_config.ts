@@ -1,7 +1,9 @@
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
+import { IReinvestSettings } from './reinvestor'
 import { IStore, StoredSettings } from './store'
 import fs from 'fs'
 import { IStoreMaxi, StoredMaxiSettings } from './store_aws_maxi'
+import { LogLevel, logLevelFromParam, TelegramSettings } from './telegram'
 
 // handle Parameter in local config on Linux and Windows
 export class StoreConfig implements IStoreMaxi {
@@ -82,7 +84,8 @@ export class StoreConfig implements IStoreMaxi {
     let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, ' ')
     this.settings.seed = seedList?.trim().split(' ') ?? []
     this.settings.autoDonationPercentOfReinvest = this.config.AutoDonationPercent
-    this.settings.logLevel = this.config.logLevel
+    this.settings.oceanUrl = this.config.oceanUrl
+    this.settings.logLevel = logLevelFromParam(this.config.logLevel)
     return this.settings
   }
 }
@@ -102,8 +105,9 @@ class ConfigFile {
   LMPair: string | undefined
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
-  reinvestPattern: string | undefined = 'DFI'
+  reinvestPattern: string = 'DFI'
   stableArbBatchSize: number | undefined = -1
   AutoDonationPercent: number = 0
-  logLevel: LogLevel = LogLevel.INFO
+  oceanUrl: string ''
+  logLevel: string = 'INFO'
 }
