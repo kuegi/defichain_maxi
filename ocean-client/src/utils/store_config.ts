@@ -60,6 +60,7 @@ export class StoreConfig implements IStoreMaxi {
   }
 
   async fetchSettings(): Promise<StoredMaxiSettings> {
+    this.settings.logId = this.config.logId
     this.settings.chatId = this.config.chatId
     this.settings.token = this.config.token
     this.settings.logChatId = this.config.logChatId
@@ -75,15 +76,19 @@ export class StoreConfig implements IStoreMaxi {
     this.settings.LMPair = lmPair
     this.settings.mainCollateralAsset = this.config.mainCollateralAsset
     this.settings.reinvestThreshold = this.config.reinvestThreshold
+    this.settings.reinvestPattern = this.config.reinvestPattern
     this.settings.stableCoinArbBatchSize = this.config.stableArbBatchSize ?? -1
     this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile))
     let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, ' ')
     this.settings.seed = seedList?.trim().split(' ') ?? []
+    this.settings.autoDonationPercentOfReinvest = this.config.AutoDonationPercent
+    this.settings.logLevel = this.config.logLevel
     return this.settings
   }
 }
 
 class ConfigFile {
+  logId: string = ''
   chatId: string = ''
   token: string = ''
   logChatId: string = ''
@@ -97,5 +102,8 @@ class ConfigFile {
   LMPair: string | undefined
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
+  reinvestPattern: string | undefined = 'DFI'
   stableArbBatchSize: number | undefined = -1
+  AutoDonationPercent: number | undefined = 0
+  logLevel: string = 'info'
 }
