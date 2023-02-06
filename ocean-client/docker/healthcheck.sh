@@ -17,7 +17,7 @@ vm_status_file=/root/.vault-maxi/status.txt
 
 file_age=1  # minutes
 
-#### Functions #################################################################################################
+#### Regular Script Start ######################################################################################
 
 if [[ -f /root/.vault-maxi/status.txt ]]
 then
