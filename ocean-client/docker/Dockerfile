@@ -30,14 +30,21 @@ RUN npm i \
 
 FROM node:alpine3.17
 
+LABEL author="RoMi1981 - https://github.com/RoMi1981"
+LABEL website="https://www.vault-maxi.live"
+LABEL github="https://github.com/kuegi/defichain_maxi"
+
 RUN apk update && apk upgrade \
-   && apk add bash openssl coreutils \
+   && apk add bash openssl coreutils findutils \
    && rm -rf /var/cache/apk/*
 
 COPY start.sh /root/
+COPY healthcheck.sh /root/
 
 COPY --from=build /build/ocean-client/dist.app /root/app
 
 WORKDIR /root/
+
+HEALTHCHECK --start-period=10s CMD bash healthcheck.sh || exit 1
 
 ENTRYPOINT ["/bin/bash", "/root/start.sh"]

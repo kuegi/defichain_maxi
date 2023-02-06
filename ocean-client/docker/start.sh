@@ -27,10 +27,32 @@ seed_creation_hint='Copy the output and paste it into docker-compose.yml as valu
 
 #### Functions #################################################################################################
 
-function sleep_cycle(){
-   echo "Next run at: "$(date -d "+ ${TRIGGER_MINS} minutes")
+function heartbeat(){
+   touch $healtcheck_file
+}
 
-   sleep ${TRIGGER_MINS}m
+function timestamp(){
+   echo $(date +%s)
+}
+
+function sleep_cycle(){
+   now=$(timestamp)
+   next_run=$((start_timestamp+TRIGGER_MINUTES*60))
+
+   if [[ $next_run > $now ]]
+   then
+      echo "Next run at: "$(date -d @$next_run)
+   fi
+
+   while [[ $next_run > $now ]]
+   do
+      now=$(timestamp)
+      next_run=$((start_timestamp+TRIGGER_MINUTES*60))
+
+      heartbeat
+
+      sleep 1s
+   done
 }
 
 # encrypt_seed $in
@@ -49,6 +71,8 @@ function decrypt_seed(){
 }
 
 function setup_tmpfs_folder(){
+   mkdir $tmpfs_tmp_folder
+
    mkdir $tmpfs_vaultmaxi_folder
    ln -s $tmpfs_vaultmaxi_folder $vaultmaxi_folder
 }
@@ -205,17 +229,25 @@ fi
 
 setup_tmpfs_folder
 
+heartbeat
+
 check_cfg=0
 
 # start normal loop
 while true
 do
+   heartbeat
+
+   start_timestamp=$(timestamp)
+
    for setting in $(seq -w 1 99)
    do
+      heartbeat
+
       handover_env_vars $setting
 
       # check if needed variables are set
-      if [[ ! -z $address || ! -z $vault || ! -z $EncryptedSeed || ! -z $LMToken ]]
+      if [[ ! -z $address && ! -z $vault && ! -z $EncryptedSeed && ! -z $LMToken ]]
       then
          set_env_vars
 
