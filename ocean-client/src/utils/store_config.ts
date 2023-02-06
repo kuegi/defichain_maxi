@@ -108,6 +108,6 @@ class ConfigFile {
   reinvestPattern: string = 'DFI'
   stableArbBatchSize: number | undefined = -1
   AutoDonationPercent: number = 0
-  oceanUrl: string ''
+  oceanUrl: string = ''
   logLevel: string = 'INFO'
 }
