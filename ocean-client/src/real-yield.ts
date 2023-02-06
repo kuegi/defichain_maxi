@@ -249,8 +249,10 @@ export async function main(event: any, context: any): Promise<Object> {
   totalCommission = totalCommission.plus(data.paidCommission)
   totalFee = totalFee.plus(data.fee)
 
+  const date = new Date()
   const result = {
     meta: {
+      tstamp: date.toISOString(),
       startHeight: endHeight,
       endHeight: startHeight,
     },
@@ -261,16 +263,19 @@ export async function main(event: any, context: any): Promise<Object> {
     tokens: Object(),
   }
   yields.forEach((v, k) => {
+    const total = v.fee.plus(v.paidCommission)
     result.tokens[v.token] = {
       commission: v.paidCommission.decimalPlaces(8).toNumber(),
       fee: v.fee.decimalPlaces(8).toNumber(),
       usdValue: v.usdValue.decimalPlaces(8).toNumber(),
+      feeInUSD: total.gt(0) ? v.usdValue.times(v.fee).div(total).decimalPlaces(8).toNumber() : 0,
+      commissionInUSD: total.gt(0) ? v.usdValue.times(v.paidCommission).div(total).decimalPlaces(8).toNumber() : 0,
     }
   })
 
   console.log('total ' + totalCommission.toFixed(2) + '$ comm + ' + totalFee.toFixed(2) + '$ fees')
 
-  const day = new Date().toISOString().substring(0, 10)
+  const day = date.toISOString().substring(0, 10)
   await sendToS3(result, day + '.json')
   await sendToS3(result, 'latest.json')
 
