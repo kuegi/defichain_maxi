@@ -15,6 +15,10 @@
 vaultmaxi_folder=/root/.vault-maxi
 tmpfs_vaultmaxi_folder=/dev/vault-maxi
 
+tmpfs_tmp_folder=/dev/tmp
+
+healtcheck_file=/dev/tmp/healtcheck
+
 settings_file=/root/.vault-maxi/settings.json
 seed_file=/root/.vault-maxi/seed.txt
 
