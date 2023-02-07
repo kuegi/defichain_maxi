@@ -62,7 +62,10 @@ export class StoreConfig implements IStoreMaxi {
   }
 
   async fetchSettings(): Promise<StoredMaxiSettings> {
-    this.settings.logId = this.config.logId
+    let logId = this.config.logId
+    if (logId != "") {
+      this.settings.logId = this.config.logId
+    }
     this.settings.chatId = this.config.chatId
     this.settings.token = this.config.token
     this.settings.logChatId = this.config.logChatId
