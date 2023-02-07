@@ -101,8 +101,8 @@ class ConfigFile {
   seedfile: string = 'V:/store/vault-maxi-seed.txt'
   minCollateralRatio: number = 200
   maxCollateralRatio: number = 250
-  LMToken: string = 'GLD'
-  LMPair: string | undefined
+  LMToken: string | undefined
+  LMPair: string = 'GLD-DUSD'
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
   reinvestPattern: string = 'DFI'
