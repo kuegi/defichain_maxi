@@ -2,9 +2,9 @@ import { MainNet } from '@defichain/jellyfish-network'
 import { AccountToAccount, OP_DEFI_TX, toOPCodes } from '@defichain/jellyfish-transaction/dist'
 import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import { LoanVaultActive, LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
-import { S3 } from 'aws-sdk'
 import { SmartBuffer } from 'smart-buffer'
 import { fromScript } from '@defichain/jellyfish-address'
+import { sendToS3 } from './utils/helpers'
 
 class Ocean {
   public readonly c: WhaleApiClient
@@ -332,29 +332,9 @@ export async function main(event: any, context: any): Promise<Object> {
   }
 
   const day = date.toISOString().substring(0, 10)
-  const s3 = new S3()
-  await sendToS3(s3, forS3, day + '.json')
-  await sendToS3(s3, forS3, 'latest.json')
+  await sendToS3(forS3, day + '.json')
+  await sendToS3(forS3, 'latest.json')
 
   return { statusCode: 200 }
 }
 
-async function sendToS3(s3: S3, data: Object, filename: string): Promise<void> {
-  const path = process.env.S3_PATH ?? ''
-  const params = {
-    Bucket: process.env.S3_BUCKET!,
-    Key: path + filename,
-    ACL: 'public-read',
-    Body: JSON.stringify(data),
-  }
-  console.log('putting to s3: ' + JSON.stringify(params))
-  await s3
-    .putObject(params, (err, data) => {
-      if (err) {
-        console.error('error writing object: ' + err)
-      } else {
-        console.log('wrote object: ' + JSON.stringify(data))
-      }
-    })
-    .promise()
-}
