@@ -108,7 +108,7 @@ class ConfigFile {
   LMPair: string = 'GLD-DUSD'
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
-  reinvestPattern: string = 'DFI'
+  reinvestPattern: string = ''
   stableArbBatchSize: number | undefined = -1
   AutoDonationPercent: number = 0
   oceanUrl: string = ''
