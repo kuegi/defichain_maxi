@@ -75,7 +75,7 @@ export class VaultMaxiProgram extends CommonProgram {
   private mainCollateralAsset: string
   private isSingleMint: boolean
   private readonly keepWalletClean: boolean
-  private readonly minValueForCleanup: number = 0.1
+  private readonly minValueForCleanup: number = 1
   private readonly maxPercentDiffInConsistencyChecks: number = 1
 
   private negInterestWorkaround: boolean = false
@@ -95,6 +95,7 @@ export class VaultMaxiProgram extends CommonProgram {
     this.keepWalletClean =
       (process.env.VAULTMAXI_KEEP_CLEAN ? process.env.VAULTMAXI_KEEP_CLEAN !== 'false' : settings.keepWalletClean) ??
       true
+    this.minValueForCleanup = +(process.env.VAULTMAXI_MINVALUE_CLEANUP ?? 1)
   }
 
   private getSettings(): StoredMaxiSettings {
@@ -116,7 +117,9 @@ export class VaultMaxiProgram extends CommonProgram {
         ' ' +
         (this.negInterestWorkaround ? 'using negative interest workaround' : '') +
         ' dusd CollValue is ' +
-        this.getCollateralFactor('' + this.dusdTokenId).toFixed(3),
+        this.getCollateralFactor('' + this.dusdTokenId).toFixed(3) +
+        ' min value for cleanup is $' +
+        this.minValueForCleanup.toFixed(2),
     )
     let pattern = this.getSettings().reinvestPattern
     if (pattern === undefined || pattern === '') {
@@ -1711,9 +1714,6 @@ export class VaultMaxiProgram extends CommonProgram {
           const interest = new BigNumber(
             vault.interestAmounts.find((interest) => interest.symbol == loan.symbol)?.amount ?? '0',
           )
-          if (interest.lt(0)) {
-            token.amount = '' + interest.times(1.005).plus(token.amount) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
-          }
         }
         if (previousTries > 1) {
           token.amount = '' + +token.amount / 2 //last cleanup failed -> try with half the amount
