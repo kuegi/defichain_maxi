@@ -63,8 +63,12 @@ export class StoreConfig implements IStoreMaxi {
 
   async fetchSettings(): Promise<StoredMaxiSettings> {
     let logId = this.config.logId
-    if (logId != "") {
-      this.settings.logId = this.config.logId
+    if (envlogId != "") {
+      this.settings.logId = envlogId
+    } else if (envlogId == "" && logId != "") {
+      this.settings.logId = logId
+    } else {
+      this.settings.logId = 'on ' + hostname
     }
     this.settings.chatId = this.config.chatId
     this.settings.token = this.config.token
@@ -104,8 +108,8 @@ class ConfigFile {
   seedfile: string = 'V:/store/vault-maxi-seed.txt'
   minCollateralRatio: number = 200
   maxCollateralRatio: number = 250
-  LMToken: string | undefined
-  LMPair: string = 'GLD-DUSD'
+  LMToken: string = 'GLD'
+  LMPair: string | undefined
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
   reinvestPattern: string = ''
