@@ -149,6 +149,13 @@ value: string
 
 This value overwrites the default seed key parameter to another SecureString parameter, which is further used to initialise your wallet.
 
+### VAULTMAXI_MINVALUE_CLEANUP
+value: number
+default: 1
+
+Defines the minimum $ value of a token in the address to be considered during a cleanup. IF a cleanup is needed, but the $-value of one tokenamount in the address is less than this value, this token is ignored during the cleanup.
+This is here to prevent micro tx on dust.
+
 ### VAULTMAXI_KEEP_CLEAN
 (overrides parameter `/defichain-maxi/settings/keep-wallet-clean` but same functionality)
 value: string
