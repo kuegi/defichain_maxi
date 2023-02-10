@@ -4,6 +4,7 @@ import { IStore, StoredSettings } from './store'
 import fs from 'fs'
 import { IStoreMaxi, StoredMaxiSettings } from './store_aws_maxi'
 import { LogLevel, logLevelFromParam, TelegramSettings } from './telegram'
+import os from 'os'
 
 // handle Parameter in local config on Linux and Windows
 export class StoreConfig implements IStoreMaxi {
@@ -62,14 +63,11 @@ export class StoreConfig implements IStoreMaxi {
   }
 
   async fetchSettings(): Promise<StoredMaxiSettings> {
-    let logId = this.config.logId
-    if (envlogId != "") {
-      this.settings.logId = envlogId
-    } else if (envlogId == "" && logId != "") {
-      this.settings.logId = logId
-    } else {
-      this.settings.logId = 'on ' + hostname
+    let logId: string | undefined
+    if (this.config.logId != "") {
+      logId = this.config.logId
     }
+    this.settings.logId = process.env.VAULTMAXI_LOGID ?? logId ?? 'on ' + os.hostname()
     this.settings.chatId = this.config.chatId
     this.settings.token = this.config.token
     this.settings.logChatId = this.config.logChatId

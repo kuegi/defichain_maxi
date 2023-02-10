@@ -8,9 +8,6 @@ class contexTimer {
   } //on AWS max. 15 min execution time
 }
 
-let envlogId = process.env.VAULTMAXI_LOGID
-let hostname = os.hostname()
-
 const myArgs = process.argv.slice(2)
 var event = undefined
 if (!(myArgs.length > 0 && myArgs[0] == 'run')) event = { overrideSettings: undefined, checkSetup: true }
