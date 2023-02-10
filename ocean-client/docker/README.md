@@ -57,11 +57,11 @@ Attention must be paid to the correct indentation.
 
 **Check config**
 
-Before commissioning, it is recommended to check the configuration.
+Before the first start, it is recommended to check the configuration.
 
     docker-compose run --build vault-maxi check_config
 
-This way, possible configuration errors can be excluded in advance.
+This way, possible configuration errors can be avoided.
 
  **Start vault-maxi container detached (normal)**
 
