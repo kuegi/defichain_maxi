@@ -61,3 +61,7 @@ export function multiBotDescriptionFor(
   if (bots.includes(BotType.REINVEST)) return reinvest.description
   return undefined
 }
+
+export function replaceAll(str: string, find: string, replace: string) {
+  return str.replace(new RegExp(find, 'g'), replace)
+}

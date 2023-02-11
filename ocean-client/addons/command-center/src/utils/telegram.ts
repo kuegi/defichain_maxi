@@ -1,5 +1,5 @@
 import fetch from 'cross-fetch'
-import { isNullOrEmpty } from './helpers'
+import { isNullOrEmpty, replaceAll } from './helpers'
 import { StoredSettings } from './store'
 
 interface TelegramNotification {
@@ -42,8 +42,7 @@ export class Telegram {
   private readonly prefix: string = '[CommandCenter]'
   readonly chatId: string = ''
   readonly token: string = ''
-  private readonly endpoint: string =
-    'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message&parse_mode=Markdown'
+  private readonly endpoint: string = 'https://api.telegram.org/bot%token/sendMessage?chat_id=%chatId&text=%message'
   private readonly messages: string = 'https://api.telegram.org/bot%token/getUpdates'
 
   constructor(settings: StoredSettings, prefix: string = '') {
@@ -86,19 +85,25 @@ export class Telegram {
     })
   }
 
-  async send(message: string): Promise<unknown> {
+  async send(message: string, asMarkdown: boolean = false): Promise<unknown> {
     if (isNullOrEmpty(this.chatId) || isNullOrEmpty(this.token)) {
       return
     }
-    return this.internalSend(message, this.chatId, this.token)
+    return this.internalSend(message, this.chatId, this.token, asMarkdown)
   }
 
-  async internalSend(message: string, chatId: string, token: string): Promise<unknown> {
+  async internalSend(message: string, chatId: string, token: string, asMarkdown: boolean): Promise<unknown> {
     console.log(message)
     let endpointUrl = this.endpoint
       .replace('%token', token)
       .replace('%chatId', chatId)
-      .replace('%message', this.encodeMarkdown(encodeURI(this.prefix + ' ' + message)))
+      .replace(
+        '%message',
+        asMarkdown
+          ? encodeURI(this.encodeMarkdown('\\' + this.prefix + ' ' + message))
+          : encodeURI(this.prefix + ' ' + message),
+      )
+      .concat(asMarkdown ? '&parse_mode=Markdown' : '')
 
     const response = await fetch(endpointUrl)
     const json = await response.json()
@@ -109,8 +114,4 @@ export class Telegram {
   encodeMarkdown(message: string): string {
     return replaceAll(message, '_', '\\_')
   }
-}
-
-function replaceAll(str: string, find: string, replace: string) {
-  return str.replace(new RegExp(find, 'g'), replace)
 }

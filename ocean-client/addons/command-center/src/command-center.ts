@@ -96,7 +96,7 @@ export async function main(event: CommandCenterEvent): Promise<Object> {
   const settings = await store.fetchSettings()
 
   const logId = process.env.VAULTMAXI_LOGID ? ' ' + process.env.VAULTMAXI_LOGID : ''
-  const telegram = new Telegram(settings, '\\[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + logId + ']')
+  const telegram = new Telegram(settings, '[CommandCenter ' + process.env.AWS_REGION + ' ' + VERSION + logId + ']')
 
   if (event && event.checkSetup) {
     await SetupCheck.with(settings, telegram)
