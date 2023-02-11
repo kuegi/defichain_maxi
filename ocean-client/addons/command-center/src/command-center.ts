@@ -19,7 +19,7 @@ import { Store, StoredSettings } from './utils/store'
 import { Message, Telegram } from './utils/telegram'
 import { VersionCheck } from './utils/version-check'
 
-const VERSION = 'v1.1'
+const VERSION = 'v1.2'
 
 export const MIN_MAXI_VERSION = { major: '2', minor: '0' }
 export const MIN_REINVEST_VERSION = { major: '1', minor: '0' }
