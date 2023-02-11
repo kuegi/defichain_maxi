@@ -41,7 +41,7 @@ export class Bots extends Command {
   }
 
   doExecution(): Promise<unknown> {
-    return this.telegram.send('\n' + this.listOfBots())
+    return this.telegram.send('\n' + this.listOfBots(), true)
   }
 
   private rowFor(data: Bot): string[] {
