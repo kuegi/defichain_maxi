@@ -75,6 +75,7 @@ export class StoreConfig implements IStoreMaxi {
     this.settings.LMPair = lmPair
     this.settings.mainCollateralAsset = this.config.mainCollateralAsset
     this.settings.reinvestThreshold = this.config.reinvestThreshold
+    this.settings.reinvestPattern = this.config.reinvestPattern
     this.settings.stableCoinArbBatchSize = this.config.stableArbBatchSize ?? -1
     this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile))
     let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, ' ')
@@ -97,5 +98,6 @@ class ConfigFile {
   LMPair: string | undefined
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
+  reinvestPattern: string = ''
   stableArbBatchSize: number | undefined = -1
 }
