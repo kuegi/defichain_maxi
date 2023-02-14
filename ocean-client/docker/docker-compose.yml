@@ -17,7 +17,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VAULT_MAXI_VERSION: tags/v2.5.0
+        VAULT_MAXI_VERSION: tags/v2.5.1
         VAULT_MAXI_REPO_URL: https://github.com/kuegi/defichain_maxi.git
     environment:
       ### Vault-Maxi Docker Main Settings

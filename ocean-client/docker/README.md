@@ -13,6 +13,10 @@ All docker-compose commands must be executed in the project directory.
 
 You need to install Docker Engine, containerd, and Docker Compose to be able to run vault-maxi in a docker container. Please refer to the official docs how to install these packages on your Windows machine or Linux distribution. Follow this Link: https://docs.docker.com/engine/install/
 
+**Help commands inside the container**
+
+    docker-compose run --build vault-maxi help
+
 **Encrypt seed interactively**
 
     docker-compose run --build vault-maxi create_seed_string

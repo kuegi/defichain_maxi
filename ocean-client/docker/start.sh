@@ -29,6 +29,8 @@ app_run='index.js run'
 seed_creation_prompt='Enter your 24 seed words separated by comma -> word1,word2,...,word24:'
 seed_creation_hint='Copy the output and paste it into docker-compose.yml as value of the environment variable XX_CFG_EncryptedSeed.'
 
+help_docker='Direct commands available: create_seed_string, check_config and help.'
+
 #### Functions #################################################################################################
 
 function heartbeat(){
@@ -97,7 +99,7 @@ cat << EOF >> $settings_file
   "LMToken": "$LMToken",
   "mainCollateralAsset": "$mainCollateralAsset",
   "reinvestThreshold": $reinvestThreshold,
-  "reinvestPattern": $reinvestPattern,
+  "reinvestPattern": "$reinvestPattern",
   "stableArbBatchSize": $stableArbBatchSize
 }
 EOF
@@ -169,6 +171,15 @@ function handover_env_vars(){
    var="CFG_${1}_KeepClean"; KeepClean=${!var}
 }
 
+function help_docker_cmd(){
+   echo $help_docker
+
+   echo ""
+   echo "Exiting..."
+
+   exit 0
+}
+
 function encrypt_seed_interactive_docker_cmd(){
    echo $seed_creation_prompt
    echo ""
@@ -232,6 +243,9 @@ then
 elif [[ $1 == "check_config" ]]
 then
    check_config_docker_cmd
+elif [[ $1 == "help" ]]
+then
+   help_docker_cmd
 fi
 
 setup_tmpfs_folder
