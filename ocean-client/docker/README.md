@@ -9,6 +9,10 @@ This docker-compose stack uses local image build functions, i.e. no need to down
 
 All docker-compose commands must be executed in the project directory.
 
+**System requirements**
+
+You need to install Docker Engine, containerd, and Docker Compose to be able to run vault-maxi in a docker container. Please refer to the official docs how to install these packages on your Windows machine or Linux distribution. Follow this Link: https://docs.docker.com/engine/install/
+
 **Encrypt seed interactively**
 
     docker-compose run --build vault-maxi create_seed_string
@@ -41,9 +45,10 @@ Address and vault config block:
       - CFG_01_EncryptedSeed=
       - CFG_01_minCollateralRatio=160
       - CFG_01_maxCollateralRatio=165
-      - CFG_01_LMToken=MSFT
+      - CFG_01_LMToken=GLD
       - CFG_01_mainCollateralAsset=DFI
       - CFG_01_reinvestThreshold=1
+      - CFG_01_reinvestPattern=
       - CFG_01_stableArbBatchSize=-1
       - CFG_01_MaxReinvest=1
       # - CFG_01_VaultSafetyOverride=
@@ -86,11 +91,11 @@ Edit the VAULT_MAXI_VERSION argument in the docker-compose.yml file, example:
 
 From:
 
-    VAULT_MAXI_VERSION: tags/v2.5.0
+    VAULT_MAXI_VERSION: tags/v2.5.1
 
 To:
 
-    VAULT_MAXI_VERSION: tags/v2.5.1
+    VAULT_MAXI_VERSION: tags/v2.5.2
 
 Then restart the container with
 

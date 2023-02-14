@@ -97,6 +97,7 @@ cat << EOF >> $settings_file
   "LMToken": "$LMToken",
   "mainCollateralAsset": "$mainCollateralAsset",
   "reinvestThreshold": $reinvestThreshold,
+  "reinvestPattern": $reinvestPattern,
   "stableArbBatchSize": $stableArbBatchSize
 }
 EOF
@@ -132,6 +133,7 @@ function process_info(){
    echo "LM-Pair: d"$LMToken"-dUSD"
    echo "Main Collateral Asset: "$mainCollateralAsset
    echo "Reinvest Threshold: "$reinvestThreshold
+   echo "Reinvest Pattern: "$reinvestPattern
    echo ""
 }
 
@@ -159,6 +161,7 @@ function handover_env_vars(){
    var="CFG_${1}_LMToken"; LMToken=${!var}
    var="CFG_${1}_mainCollateralAsset"; mainCollateralAsset=${!var}
    var="CFG_${1}_reinvestThreshold"; reinvestThreshold=${!var}
+   var="CFG_${1}_reinvestPattern"; reinvestPattern=${!var}
    var="CFG_${1}_stableArbBatchSize"; stableArbBatchSize=${!var}
    var="CFG_${1}_MaxReinvest"; MaxReinvest=${!var}
    var="CFG_${1}_VaultSafetyOverride"; VaultSafetyOverride=${!var}

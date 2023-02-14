@@ -12,7 +12,7 @@ version: '3'
 
 services:
   vault-maxi:
-    image: vault-maxi:v2.5.0
+    image: vault-maxi:v2.5.1
     build:
       context: .
       dockerfile: Dockerfile
@@ -40,6 +40,7 @@ services:
       - CFG_01_LMToken=MSFT
       - CFG_01_mainCollateralAsset=DFI
       - CFG_01_reinvestThreshold=1
+      - CFG_01_reinvestPattern=
       - CFG_01_stableArbBatchSize=-1
       - CFG_01_MaxReinvest=1
       # - CFG_01_VaultSafetyOverride=
@@ -62,6 +63,7 @@ services:
       # - CFG_02_LMToken=MSFT
       # - CFG_02_mainCollateralAsset=DFI
       # - CFG_02_reinvestThreshold=1
+      # - CFG_02_reinvestPattern=
       # - CFG_02_stableArbBatchSize=-1
       # - CFG_02_MaxReinvest=1
       # - CFG_02_VaultSafetyOverride=
