@@ -67,7 +67,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
     }
     console.log('using oceans ' + JSON.stringify(oceansToUse))
 
-    const usedLogId = settings.logId
+    const usedLogId = process.env.VAULTMAXI_LOGID ?? settings.logId
     const logId = usedLogId && usedLogId.length > 0 ? ' ' + usedLogId : ''
     const telegram = new Telegram(settings, '[Maxi' + store.paramPostFix + ' ' + VERSION + logId + ']')
 
