@@ -1,7 +1,10 @@
 import { ProgramStateConverter, ProgramStateInformation } from './program-state-converter'
+import { IReinvestSettings } from './reinvestor'
 import { IStore, StoredSettings } from './store'
 import fs from 'fs'
 import { IStoreMaxi, StoredMaxiSettings } from './store_aws_maxi'
+import { LogLevel, logLevelFromParam, TelegramSettings } from './telegram'
+import os from 'os'
 
 // handle Parameter in local config on Linux and Windows
 export class StoreConfig implements IStoreMaxi {
@@ -60,6 +63,11 @@ export class StoreConfig implements IStoreMaxi {
   }
 
   async fetchSettings(): Promise<StoredMaxiSettings> {
+    let logId: string | undefined
+    if (this.config.logId != "") {
+      logId = this.config.logId
+    }
+    this.settings.logId = process.env.VAULTMAXI_LOGID ?? logId ?? 'on ' + os.hostname()
     this.settings.chatId = this.config.chatId
     this.settings.token = this.config.token
     this.settings.logChatId = this.config.logChatId
@@ -75,15 +83,20 @@ export class StoreConfig implements IStoreMaxi {
     this.settings.LMPair = lmPair
     this.settings.mainCollateralAsset = this.config.mainCollateralAsset
     this.settings.reinvestThreshold = this.config.reinvestThreshold
+    this.settings.reinvestPattern = this.config.reinvestPattern
     this.settings.stableCoinArbBatchSize = this.config.stableArbBatchSize ?? -1
     this.settings.stateInformation = ProgramStateConverter.fromValue(this.GetFirstLine(this.statefile))
     let seedList = this.GetFirstLine(this.config.seedfile).replace(/[ ,]+/g, ' ')
     this.settings.seed = seedList?.trim().split(' ') ?? []
+    this.settings.autoDonationPercentOfReinvest = this.config.AutoDonationPercent
+    this.settings.oceanUrl = this.config.oceanUrl
+    this.settings.logLevel = logLevelFromParam(this.config.logLevel)
     return this.settings
   }
 }
 
 class ConfigFile {
+  logId: string = ''
   chatId: string = ''
   token: string = ''
   logChatId: string = ''
@@ -97,5 +110,9 @@ class ConfigFile {
   LMPair: string | undefined
   mainCollateralAsset: string = 'DFI'
   reinvestThreshold: number | undefined = 0
+  reinvestPattern: string = ''
   stableArbBatchSize: number | undefined = -1
+  AutoDonationPercent: number = 0
+  oceanUrl: string = ''
+  logLevel: string = 'INFO'
 }
