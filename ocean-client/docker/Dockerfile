@@ -11,7 +11,7 @@
 FROM node:alpine3.17 AS build
 LABEL stage=build
 
-ARG VAULT_MAXI_VERSION=tags/v2.5.1
+ARG VAULT_MAXI_VERSION=tags/v2.5.2
 ARG VAULT_MAXI_REPO_URL=https://github.com/kuegi/defichain_maxi.git
 
 RUN apk add git \

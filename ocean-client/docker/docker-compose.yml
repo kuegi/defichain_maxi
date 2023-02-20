@@ -12,12 +12,12 @@ version: '3'
 
 services:
   vault-maxi:
-    image: vault-maxi:v2.5.1
+    image: vault-maxi:v2.5.2
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        VAULT_MAXI_VERSION: tags/v2.5.1
+        VAULT_MAXI_VERSION: tags/v2.5.2
         VAULT_MAXI_REPO_URL: https://github.com/kuegi/defichain_maxi.git
     environment:
       ### Vault-Maxi Docker Main Settings

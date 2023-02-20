@@ -19,7 +19,9 @@ We are developing this thing in our free time. Noone is paying us for it. If you
 
 @Krysh90 : df1qw2yusvjqctn6p4esyfm5ajgsu5ek8zddvhv8jm
 
-@DeFiPages : df1qa26988rj9xamw4tkanu7pthqshw6677vkasdg7 
+@DeFiPages : df1qa26988rj9xamw4tkanu7pthqshw6677vkasdg7
+
+@RobertM81 : df1q9qhhlwg3qqetg2n9dnflh567me29ndyzmxwxh2
 
 # Usage as AWS lambda function
 

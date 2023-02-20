@@ -95,11 +95,11 @@ Edit the VAULT_MAXI_VERSION argument in the docker-compose.yml file, example:
 
 From:
 
-    VAULT_MAXI_VERSION: tags/v2.5.1
+    VAULT_MAXI_VERSION: tags/v2.5.2
 
 To:
 
-    VAULT_MAXI_VERSION: tags/v2.5.2
+    VAULT_MAXI_VERSION: tags/v2.5.3
 
 Then restart the container with
 
