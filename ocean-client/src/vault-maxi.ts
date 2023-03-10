@@ -28,7 +28,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.5.1'
+export const VERSION = 'v2.5.2beta'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
@@ -37,7 +37,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
   // adding multiples so that we alternate the first retries
   let oceansToUse = ['https://ocean.defichain.io', 'https://ocean.defichain.com', 'https://ocean.defichain.io']
   if (process.env.VAULTMAXI_OCEAN_URL) {
-    oceansToUse.push(process.env.VAULTMAXI_OCEAN_URL)
+    oceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
   }
   let firstRun = true
   let errorCooldown = 60000
@@ -314,8 +314,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const message = "less than 10 dollar in the vault. can't work like that"
             await telegram.send(message, LogLevel.ERROR)
           } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
-            result = await program.increaseExposure(vault, pool!, balances, telegram)
-            exposureChanged = true
+            ;[result, exposureChanged] = await program.increaseExposure(vault, pool!, balances, telegram)
             vault = (await program.getVault()) as LoanVaultActive
             balances = await program.getTokenBalances()
           }
@@ -389,6 +388,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       } else {
         message += 'Maxi could bring your vault to a collRatio of ' + safetyLevel.toFixed(0) + '%'
       }
+      message += '\n used ocean at: ' + commonProgram.getUsedOceanUrl()
       await telegram.send(message, LogLevel.VERBOSE)
       console.log('script done, safety level: ' + safetyLevel.toFixed(0))
       //to prevent problems on chainsplit or any trouble with the chain on this ocean: check blockdata
@@ -404,7 +404,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         //more than 15 minutes no block or too long blocktime
         //  means this chain is not stable/not the main chain-> redo with other ocean
         await telegram.send(
-          'chain feels unstable, doing an extra round with next fallback ocean.' +
+          `chain feels unstable on ocean ${commonProgram.getUsedOceanUrl()}, doing an extra round with next fallback ocean.` +
             `${Date.now() / 1000} vs ${lastTime} (diff ${((Date.now() / 1000 - lastTime) / 60).toFixed(
               1,
             )} min), avg blocktime ${(lastTime - prevTime) / refBlocks}`,
@@ -432,6 +432,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         message = 'There was a timeout from the ocean api. will try again.'
         //TODO: do we have to go to error state in this case? or just continue on current state next time?
       }
+      message += '\nused ocean at ' + commonProgram?.getUsedOceanUrl()
       await telegram.send(message, LogLevel.ERROR)
 
       //program might not be there, so directly the store with no access to ocean

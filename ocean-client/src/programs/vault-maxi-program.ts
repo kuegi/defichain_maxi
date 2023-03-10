@@ -999,12 +999,15 @@ export class VaultMaxiProgram extends CommonProgram {
     return result
   }
 
+  //returns [successfull, didChangeExposure]
+  // successfull = false would mean we need a cleanUp
+  
   async increaseExposure(
     vault: LoanVaultActive,
     pool: PoolPairData,
     balances: Map<string, AddressToken>,
     telegram: Telegram,
-  ): Promise<boolean> {
+  ): Promise<[boolean,boolean]> {
     console.log('increasing exposure ')
 
     const additionalLoan = BigNumber.min(
@@ -1018,8 +1021,8 @@ export class VaultMaxiProgram extends CommonProgram {
     } else {
       const oracle = await this.getFixedIntervalPrice(this.assetA)
       if (!oracle.isLive || +(oracle.active?.amount ?? '-1') <= 0) {
-        await telegram.send('Could not increase exposure, token has currently no active price', LogLevel.ERROR)
-        return false
+        await telegram.send('Could not increase exposure, token has currently no active price. Will try again later', LogLevel.INFO)
+        return [true,false]
       }
       oracleA = new BigNumber(oracle.active?.amount ?? '0')
     }
@@ -1076,7 +1079,7 @@ export class VaultMaxiProgram extends CommonProgram {
             "Wanted to take more loans, but you don't have enough DFI in the collateral",
             LogLevel.WARNING,
           )
-          return false
+          return  [true,false]
         }
         const msg =
           "Wanted to take more loans, but you don't have enough DFI or DUSD in the collateral. Wanted to take " +
@@ -1121,7 +1124,7 @@ export class VaultMaxiProgram extends CommonProgram {
             ' vs. ' +
             assetBInColl
           await telegram.send(msg, LogLevel.WARNING)
-          return false
+          return  [true,false]
         }
         const msg =
           "Wanted to increase exposure, but you don't have enough of " +
@@ -1171,7 +1174,7 @@ export class VaultMaxiProgram extends CommonProgram {
             } in the collateral`,
             LogLevel.WARNING,
           )
-          return false
+          return  [true,false]
         }
 
         const msg =
@@ -1231,10 +1234,10 @@ export class VaultMaxiProgram extends CommonProgram {
     await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.AddLiquidity, addTx.txId)
     if (!(await this.waitForTx(addTx.txId))) {
       await telegram.send('ERROR: adding liquidity', LogLevel.ERROR)
-      return false
+      return  [false,true]
     } else {
       await telegram.send('done increasing exposure', LogLevel.INFO)
-      return true
+      return [true,true]
     }
   }
 
