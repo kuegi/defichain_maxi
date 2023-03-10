@@ -314,8 +314,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             const message = "less than 10 dollar in the vault. can't work like that"
             await telegram.send(message, LogLevel.ERROR)
           } else if (usedCollateralRatio.lt(0) || usedCollateralRatio.gt(settings.maxCollateralRatio)) {
-            result = await program.increaseExposure(vault, pool!, balances, telegram)
-            exposureChanged = true
+            [result,exposureChanged] = await program.increaseExposure(vault, pool!, balances, telegram)
             vault = (await program.getVault()) as LoanVaultActive
             balances = await program.getTokenBalances()
           }
