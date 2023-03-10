@@ -37,7 +37,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
   // adding multiples so that we alternate the first retries
   let oceansToUse = ['https://ocean.defichain.io', 'https://ocean.defichain.com', 'https://ocean.defichain.io']
   if (process.env.VAULTMAXI_OCEAN_URL) {
-    oceansToUse.push(process.env.VAULTMAXI_OCEAN_URL)
+    oceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
   }
   let firstRun = true
   let errorCooldown = 60000
