@@ -117,6 +117,10 @@ export class CommonProgram {
     return 'unknown'
   }
 
+  getUsedOceanUrl():string {
+    return this.walletSetup.url
+  }
+
   getNetwork(): Network {
     return this.walletSetup.network
   }
