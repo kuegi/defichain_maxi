@@ -32,8 +32,10 @@ class Ocean {
 class YieldForToken {
   public paidCommission = new BigNumber(0)
   public fee = new BigNumber(0)
-  public usdValue = new BigNumber(0)
+  public totalyieldusdValue = new BigNumber(0)
   public token: string
+  public totalCoinsInPools = new BigNumber(0)
+  public totalUSDInPools = new BigNumber(0)
 
   constructor(token: string) {
     this.token = token
@@ -94,10 +96,12 @@ export async function main(event: any, context: any): Promise<Object> {
       yields.set(pool.tokenA.symbol, new YieldForToken(pool.tokenA.symbol))
     }
     const dataA = yields.get(pool.tokenA.symbol)!
+    dataA.totalCoinsInPools = dataA.totalCoinsInPools.plus(pool.tokenA.reserve)
     if (!yields.has(pool.tokenB.symbol)) {
       yields.set(pool.tokenB.symbol, new YieldForToken(pool.tokenB.symbol))
     }
     const dataB = yields.get(pool.tokenB.symbol)!
+    dataB.totalCoinsInPools = dataB.totalCoinsInPools.plus(pool.tokenB.reserve)
 
     const swaps = await getSwaps(o, pool.id, endHeight)
     console.debug('got ' + swaps.length + ' swaps to process')
@@ -236,7 +240,8 @@ export async function main(event: any, context: any): Promise<Object> {
   prices.forEach((p) => {
     if (yields.has(p.price.token)) {
       const data = yields.get(p.price.token)!
-      data.usdValue = data?.fee.plus(data.paidCommission).times(p.price.aggregated.amount)
+      data.totalyieldusdValue = data.fee.plus(data.paidCommission).times(p.price.aggregated.amount)
+      data.totalUSDInPools = data.totalCoinsInPools.times(p.price.aggregated.amount)
       totalCommission = totalCommission.plus(data.paidCommission.times(p.price.aggregated.amount))
       totalFee = totalFee.plus(data.fee.times(p.price.aggregated.amount))
     }
@@ -245,7 +250,7 @@ export async function main(event: any, context: any): Promise<Object> {
   //DUSD needs to be done manually (no oracle price)
 
   const data = yields.get('DUSD')!
-  data.usdValue = data?.fee.plus(data.paidCommission)
+  data.totalyieldusdValue = data?.fee.plus(data.paidCommission)
   totalCommission = totalCommission.plus(data.paidCommission)
   totalFee = totalFee.plus(data.fee)
 
@@ -267,9 +272,13 @@ export async function main(event: any, context: any): Promise<Object> {
     result.tokens[v.token] = {
       commission: v.paidCommission.decimalPlaces(8).toNumber(),
       fee: v.fee.decimalPlaces(8).toNumber(),
-      usdValue: v.usdValue.decimalPlaces(8).toNumber(),
-      feeInUSD: total.gt(0) ? v.usdValue.times(v.fee).div(total).decimalPlaces(8).toNumber() : 0,
-      commissionInUSD: total.gt(0) ? v.usdValue.times(v.paidCommission).div(total).decimalPlaces(8).toNumber() : 0,
+      usdValue: v.totalyieldusdValue.decimalPlaces(8).toNumber(),
+      feeInUSD: total.gt(0) ? v.totalyieldusdValue.times(v.fee).div(total).decimalPlaces(8).toNumber() : 0,
+      commissionInUSD: total.gt(0)
+        ? v.totalyieldusdValue.times(v.paidCommission).div(total).decimalPlaces(8).toNumber()
+        : 0,
+      totalCoinsInPools: v.totalCoinsInPools.decimalPlaces(8).toNumber(),
+      totatUSDInPools: v.totalUSDInPools.decimalPlaces(8).toNumber(),
     }
   })
 

@@ -137,6 +137,10 @@ export async function main(event: any, context: any): Promise<Object> {
   //read all vaults
   console.log('reading vaults')
   const vaultlist = await o.getAll(() => o.c.loan.listVault(500))
+  if(vaultlist.length < 10000) {
+    console.error("got only "+vaultlist.length+" vaults, but should be above 10k. probably some ocean topic: get out and try next run")
+    return { statusCode: 500 } 
+  }
   console.log('got ' + vaultlist.length + ' vaults, now filtering')
   //filter for actives with min collateral and loan and bech32 owner
   const nonEmptyVaults = vaultlist.filter(
