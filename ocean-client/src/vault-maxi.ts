@@ -28,7 +28,7 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.5.1'
+export const VERSION = 'v2.5.2beta'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
@@ -102,8 +102,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         await telegram.send(message, LogLevel.ERROR)
         return { statusCode: 200 }
       }
-      usedOcean = oceansToUse.pop()
-      const program = new VaultMaxiProgram(store, settings, new WalletSetup(settings, usedOcean))
+      const program = new VaultMaxiProgram(store, settings, new WalletSetup(settings, oceansToUse.pop()))
       commonProgram = program
       await program.init()
       blockHeight = await program.getBlockHeight()
