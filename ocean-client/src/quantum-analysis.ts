@@ -1,6 +1,6 @@
 import { MainNet } from '@defichain/jellyfish-network'
 import { AccountToAccount, AnyAccountToAccount, OP_DEFI_TX, toOPCodes } from '@defichain/jellyfish-transaction/dist'
-import { WhaleApiClient } from '@defichain/whale-api-client'
+import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import { SmartBuffer } from 'smart-buffer'
 import { fromScript } from '@defichain/jellyfish-address'
 import { sendToS3 } from './utils/helpers'
@@ -31,6 +31,21 @@ class Ocean {
 
     return pages.flatMap((page) => page as AddressHistory[])
   }
+
+  public async getAll<T>(call: () => Promise<ApiPagedResponse<T>>, maxAmount: number = -1): Promise<T[]> {
+    const pages = [await call()]
+    let total = 0
+    while (pages[pages.length - 1].hasNext && (maxAmount < 0 || total < maxAmount)) {
+      try {
+        pages.push(await this.c.paginate(pages[pages.length - 1]))
+        total += pages[pages.length - 1].length
+      } catch (e) {
+        break
+      }
+    }
+
+    return pages.flatMap((page) => page as T[])
+  }
 }
 
 class TokenData {
@@ -41,7 +56,7 @@ class TokenData {
   public coinsOut = new BigNumber(0)
   public maxIn = new BigNumber(0)
   public maxOut = new BigNumber(0)
-  public liquidity = new BigNumber(0)
+  public oraclePrice: string | undefined
 
   constructor(token: string) {
     this.tokenName = token
@@ -56,7 +71,7 @@ class TokenData {
       coinsOut: this.coinsOut,
       maxIn: this.maxIn,
       maxOut: this.maxOut,
-      liquidity: this.liquidity,
+      oraclePrice: this.oraclePrice,
     }
   }
 }
@@ -64,7 +79,7 @@ class TokenData {
 export const HOT_WALLET = 'df1qgq0rjw09hr6vr7sny2m55hkr5qgze5l9hcm0lg'
 export const COLD_WALLET = 'df1q9ctssszdr7taa8yt609v5fyyqundkxu0k4se9ry8lsgns8yxgfsqcsscmr'
 
-async function analyzeTxs(o: Ocean, startHeight: number, endHeight: number): Promise<Object[]> {
+async function analyzeTxs(o: Ocean, startHeight: number, endHeight: number): Promise<TokenData[]> {
   console.log('starting at block ' + startHeight + ' analysing down until ' + endHeight)
 
   //read all vaults
@@ -129,8 +144,8 @@ async function analyzeTxs(o: Ocean, startHeight: number, endHeight: number): Pro
     }
   }
 
-  const resultList: Object[] = []
-  tokenData.forEach((v, k) => resultList.push(v.toJSON()))
+  const resultList: TokenData[] = []
+  tokenData.forEach((v, k) => resultList.push(v))
   return resultList
 }
 
@@ -139,8 +154,18 @@ export async function main(event: any, context: any): Promise<Object> {
 
   const startHeight = (await o.c.stats.get()).count.blocks
 
-  const dayList = await analyzeTxs(o, startHeight, startHeight - 2880)
-  const monthList = await analyzeTxs(o, startHeight, startHeight - 2880 * 30)
+  const dayListTds = await analyzeTxs(o, startHeight, startHeight - 2880)
+  const monthListTds = await analyzeTxs(o, startHeight, startHeight - 2880 * 30)
+
+  const prices = await o.getAll(() => o.c.prices.list())
+  const dayList = dayListTds.map((td) => {
+    td.oraclePrice = prices.find((p) => p.price.token === td.tokenName)?.price.aggregated.amount
+    return td.toJSON()
+  })
+  const monthList = monthListTds.map((td) => {
+    td.oraclePrice = prices.find((p) => p.price.token === td.tokenName)?.price.aggregated.amount
+    return td.toJSON()
+  })
 
   console.log('dayData: ' + JSON.stringify(dayList))
 
