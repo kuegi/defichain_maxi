@@ -175,12 +175,18 @@ export async function main(event: any, context: any): Promise<Object> {
 
   const balanceCold = Object()
   coldTokens.forEach((at) => {
-    balanceCold[at.symbol] = at.amount
+    balanceCold[at.symbol] = {
+      amount: at.amount,
+      oraclePrice: prices.find((p) => p.price.token === at.symbol)?.price.aggregated.amount
+    }
   })
 
   const balanceHot = Object()
   hotTokens.forEach((at) => {
-    balanceHot[at.symbol] = at.amount
+    balanceHot[at.symbol] = {
+      amount: at.amount,
+      oraclePrice: prices.find((p) => p.price.token === at.symbol)?.price.aggregated.amount
+    }
   })
 
   console.log('sending to S3')
