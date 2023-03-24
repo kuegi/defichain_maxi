@@ -238,7 +238,7 @@ async function getETHBalance(): Promise<Object> {
       `&apikey=${apiKey}`
     console.log('calling ' + urlHot)
     const resultHot = await (await fetch(urlHot)).json()
-
+/*we ignore cold Wallet liquidity cause quantum itself also only reports hotwallet
     const urlCold =
       `https://api.etherscan.io/api?module=account&action=tokenbalance&tag=latest` +
       `&contractaddress=${contractAddress}` +
@@ -246,18 +246,18 @@ async function getETHBalance(): Promise<Object> {
       `&apikey=${apiKey}`
     console.log('calling ' + urlHot)
     const resultCold = await (await fetch(urlCold)).json()
-
-    result[token] = BigNumber.sum(resultHot['result'], resultCold['result']).div(Math.pow(10, data!.digits)).toString()
+//*/
+    result[token] = BigNumber.sum(resultHot['result'], 0/*resultCold['result']*/).div(Math.pow(10, data!.digits)).toString()
   }
 
   const url =
     `https://api.etherscan.io/api?module=account&action=balancemulti&tag=latest` +
-    `&address=${ETH_CONTRACT},${ETH_COLD}` +
+    `&address=${ETH_CONTRACT}` + /* `,${ETH_COLD}` + */
     `&apikey=${apiKey}`
   console.log('calling ' + url)
   const response = (await (await fetch(url)).json())['result']
 
-  result.ETH = BigNumber.sum(response[0].balance, response[1].balance).div(Math.pow(10, 18)).toString()
+  result.ETH = BigNumber.sum(response[0].balance, 0/* response[1].balance*/).div(Math.pow(10, 18)).toString()
   return result
 }
 
@@ -322,6 +322,7 @@ async function analyseDay(o: Ocean, tstampStartOfDay: number): Promise<AnalysisD
 
   const dfcTokens = await o.c.address.listToken(HOT_WALLET)
   const utxosHot = await o.c.address.getBalance(HOT_WALLET)
+
   const dfcTokensCold = await o.c.address.listToken(COLD_WALLET)
   const utxosCold = await o.c.address.getBalance(COLD_WALLET)
 
@@ -338,6 +339,7 @@ async function analyseDay(o: Ocean, tstampStartOfDay: number): Promise<AnalysisD
   dfcTokens.forEach((at) => {
     balancesDFC[at.symbol] = at.amount
   })
+  /* we ignore cold Wallet liquidity cause quantum itself also only reports hotwallet
   dfcTokensCold.forEach((at) => {
     if (balancesDFC[at.symbol] != undefined) {
       balancesDFC[at.symbol] = BigNumber.sum(balancesDFC[at.symbol], at.amount)
@@ -345,7 +347,8 @@ async function analyseDay(o: Ocean, tstampStartOfDay: number): Promise<AnalysisD
       balancesDFC[at.symbol] = at.amount
     }
   })
-  balancesDFC.DFI = BigNumber.sum(utxosCold, utxosHot, balancesDFC.DFI ?? 0)
+  //*/
+  balancesDFC.DFI = BigNumber.sum(/*utxosCold,*/ utxosHot, balancesDFC.DFI ?? 0)
 
   const result = new AnalysisData(new Date(tstampEndOfDay * 1000).toISOString(), startHeight)
 
