@@ -130,7 +130,7 @@ class AnalysisData {
 }
 
 export const HOT_WALLET = 'df1qgq0rjw09hr6vr7sny2m55hkr5qgze5l9hcm0lg'
-export const COLD_WALLET = 'df1q9ctssszdr7taa8yt609v5fyyqundkxu0k4se9ry8lsgns8yxgfsqcsscmr'
+export const COLD_WALLETS = ['df1q9ctssszdr7taa8yt609v5fyyqundkxu0k4se9ry8lsgns8yxgfsqcsscmr',"dF3GuAWUE3jy59Ncw9i9Hr54bHRZMPu2bf"]
 
 export const ETH_CONTRACT = '0x54346d39976629b65ba54eac1c9ef0af3be1921b'
 export const ETH_COLD = '0x11901fd641f3a2d3a986d6745a2ff1d5fea988eb'
@@ -145,12 +145,17 @@ export const ERC_TOKEN_CONTRACTS: Map<string, { address: string; digits: number 
   ['USDC', { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', digits: 6 }],
   ['USDT', { address: '0xdac17f958d2ee523a2206206994597c13d831ec7', digits: 6 }],
   ['BTC', { address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', digits: 8 }],
+  ['DFI', { address: '0x8fc8f8269ebca376d046ce292dc7eac40c8d358a', digits: 8 }],
 ])
 
 // quantum api:
 // https://api.quantumbridge.app/balances
 // https://api.quantumbridge.app/defichain/stats?date=2023-03-15
 // https://api.quantumbridge.app/ethereum/stats?date=2023-03-15
+
+function isColdWallet(wallet:string | undefined):boolean {
+  return COLD_WALLETS.find(w => w === wallet) != undefined
+}
 
 async function analyzeTxs(o: Ocean, firstBlock: number, lastBlock: number): Promise<TokenData[]> {
   console.log('starting at block ' + lastBlock + ' analysing down until ' + firstBlock)
@@ -176,10 +181,10 @@ async function analyzeTxs(o: Ocean, firstBlock: number, lastBlock: number): Prom
       const dftx = (dftxData[1] as OP_DEFI_TX).tx
       if (h.type === 'AccountToAccount') {
         const a2a = dftx.data as AccountToAccount
-        if (fromScript(a2a.from, MainNet.name)?.address === COLD_WALLET) {
+        if (isColdWallet(fromScript(a2a.from, MainNet.name)?.address)) {
           isColdWalletTransfer = true
         }
-        const toCold = a2a.to.find((target) => fromScript(target.script, MainNet.name)?.address === COLD_WALLET)
+        const toCold = a2a.to.find((target) => isColdWallet(fromScript(target.script, MainNet.name)?.address))
         if (toCold !== undefined) {
           isColdWalletTransfer = true
         }
@@ -187,10 +192,12 @@ async function analyzeTxs(o: Ocean, firstBlock: number, lastBlock: number): Prom
 
       if (h.type == 'AnyAccountsToAccounts') {
         const a2a = dftx.data as AnyAccountToAccount
-        const toCold = a2a.to.find((target) => fromScript(target.script, MainNet.name)?.address === COLD_WALLET)
-        const fromCold = a2a.from.find((target) => fromScript(target.script, MainNet.name)?.address === COLD_WALLET)
+        const toCold = a2a.to.find((target) => isColdWallet(fromScript(target.script, MainNet.name)?.address))
+        const fromCold = a2a.from.find((target) => isColdWallet(fromScript(target.script, MainNet.name)?.address))
         if (toCold !== undefined || fromCold !== undefined) {
           isColdWalletTransfer = true
+        } else {          
+        console.log("anyAccountTx "+h.txid)
         }
       }
     }
@@ -323,9 +330,6 @@ async function analyseDay(o: Ocean, tstampStartOfDay: number): Promise<AnalysisD
   const dfcTokens = await o.c.address.listToken(HOT_WALLET)
   const utxosHot = await o.c.address.getBalance(HOT_WALLET)
 
-  const dfcTokensCold = await o.c.address.listToken(COLD_WALLET)
-  const utxosCold = await o.c.address.getBalance(COLD_WALLET)
-
   //get data from quantum
   const dayString = new Date((1000 * (tstampStartOfDay + tstampEndOfDay)) / 2).toISOString().substring(0, 10)
 
@@ -350,7 +354,7 @@ async function analyseDay(o: Ocean, tstampStartOfDay: number): Promise<AnalysisD
   //*/
   balancesDFC.DFI = BigNumber.sum(/*utxosCold,*/ utxosHot, balancesDFC.DFI ?? 0)
 
-  const result = new AnalysisData(new Date(tstampEndOfDay * 1000).toISOString(), startHeight)
+  const result = new AnalysisData(new Date(tstampEndOfDay * 1000).toISOString(), endHeight)
 
   result.quantumData.liqDfc = quantBalance['DFC']
   quantBalance['EVM']['BTC'] = quantBalance['EVM']['WBTC']
@@ -419,12 +423,11 @@ export async function main(event: any, context: any): Promise<Object> {
       yesterday.prices = prices
     } else {
       yesterday.liquidity = json.liquidity
+      yesterday.prices = json.prices
     }
     if (json.quantumData != undefined) {
       yesterday.quantumData.liqDfc = json.quantumData.liqDfc
       yesterday.quantumData.liqEth = json.quantumData.liqEth
-    } else if (json.prices != undefined) {
-      yesterday.prices = json.prices
     }
   }
 
