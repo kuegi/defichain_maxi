@@ -153,7 +153,7 @@ export class StoreAWSMaxi extends StoreAWS implements IStoreMaxi {
     settings.stateInformation = ProgramStateConverter.fromValue(this.getValue(StateKey, parameters))
     settings.stableCoinArbBatchSize = this.getNumberValue(StableArbBatchSizeKey, parameters) ?? -1
     settings.shouldSkipNext = (this.getValue(SkipKey, parameters) ?? 'false') === 'true'
-    settings.logId = this.getOptionalValue(LogIdKey, parameters)
+    settings.logId = process.env.VAULTMAXI_LOGID ?? this.getOptionalValue(LogIdKey, parameters)
     settings.keepWalletClean = this.getBooleanValue(KeepWalletCleanKey, parameters) ?? true
     settings.oceanUrl = this.getOptionalValue(OceanUrlKey, parameters)
     settings.logLevel = logLevelFromParam(this.getOptionalValue(LogLevelKey, parameters))
