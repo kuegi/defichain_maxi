@@ -17,21 +17,23 @@ export function simplifyAddress(address: string) {
 }
 
 export async function sendToS3(data: Object, filename: string): Promise<void> {
+  await sendToS3Full(data, process.env.S3_PATH ?? '',filename)
+}
+
+export async function sendToS3Full(data: Object, path: string, filename: string): Promise<void> {
   const s3 = new S3()
-  const path = process.env.S3_PATH ?? ''
   const params = {
     Bucket: process.env.S3_BUCKET!,
     Key: path + filename,
     ACL: 'public-read',
     Body: JSON.stringify(data),
   }
-  console.log('putting to s3: ' + JSON.stringify(params))
   await s3
     .putObject(params, (err, data) => {
       if (err) {
         console.error('error writing object: ' + err)
       } else {
-        console.log('wrote object: ' + JSON.stringify(data))
+        console.log('wrote object')
       }
     })
     .promise()
