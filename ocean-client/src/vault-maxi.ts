@@ -277,7 +277,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         if (!program.consistencyChecks(vault)) {
           console.warn('consistency checks failed. will remove exposure')
           await telegram.send(
-            'Consistency checks in ocean data failed. Something is wrong, so will remove exposure to be safe.',
+            'Consistency checks in ocean ('+program.getUsedOceanUrl()+') data failed. Something is wrong, so will remove exposure to be safe.',
             LogLevel.WARNING,
           )
           settings.maxCollateralRatio = -1

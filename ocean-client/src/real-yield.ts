@@ -1,7 +1,7 @@
 import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import BigNumber from 'bignumber.js'
 import { PoolPairData, PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { sendToS3 } from './utils/helpers'
+import { sendToS3, sendToS3Full } from './utils/helpers'
 
 class Ocean {
   public readonly c: WhaleApiClient
@@ -26,6 +26,16 @@ class Ocean {
     }
 
     return pages.flatMap((page) => page as T[])
+  }
+}
+
+class DUSDVolume {
+  public address
+  public buying= new BigNumber(0)
+  public selling= new BigNumber(0)
+  
+  constructor(address: string) {
+    this.address = address
   }
 }
 
@@ -80,18 +90,25 @@ function outFeeB(pool: PoolPairData): number {
 export async function main(event: any, context: any): Promise<Object> {
   console.log('real yield calculator')
   const o = new Ocean()
-  const startHeight = (await o.c.stats.get()).count.blocks
+  const isHistoryCall= event != undefined && event["startHeight"] != undefined
+  const startHeight= isHistoryCall? event["startHeight"] : (await o.c.stats.get()).count.blocks
   const analysisWindow = 2880
   const endHeight = startHeight - analysisWindow
-  console.log('starting at block ' + startHeight + ' analysing down until ' + endHeight)
+  const time= (await o.c.blocks.get(startHeight)).time
+  const date= new Date(time*1000)
+
+  console.log('starting at block ' + startHeight + ' analysing down until ' + endHeight+ " for date "+time.toFixed(0)+" "+date.toISOString())
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
+
+  const gatewaypools= ["DUSD-DFI","USDT-DUSD","USDC-DUSD","EUROC-DUSD"]
+
+  const dusdVolumes: Map<string,DUSDVolume> = new Map()
 
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
   const yields: Map<string, YieldForToken> = new Map()
   for (const pool of activePools) {
-    console.debug('processing pool ' + pool.symbol)
     if (!yields.has(pool.tokenA.symbol)) {
       yields.set(pool.tokenA.symbol, new YieldForToken(pool.tokenA.symbol))
     }
@@ -104,7 +121,6 @@ export async function main(event: any, context: any): Promise<Object> {
     dataB.totalCoinsInPools = dataB.totalCoinsInPools.plus(pool.tokenB.reserve)
 
     const swaps = await getSwaps(o, pool.id, endHeight)
-    console.debug('got ' + swaps.length + ' swaps to process')
     for (const swap of swaps) {
       if (swap.block.height > startHeight) {
         continue
@@ -231,6 +247,23 @@ export async function main(event: any, context: any): Promise<Object> {
           }
         }
       }
+
+      if (gatewaypools.indexOf(pool.symbol) > -1) {
+        const buying = (pool.tokenA.symbol === 'DUSD' && !AtoB) || (pool.tokenB.symbol === 'DUSD' && AtoB)
+        const amountDUSD = pool.tokenA.symbol === 'DUSD' ? amountA : amountB
+        const owner = swap.from?.address
+        if (owner && amountDUSD) {
+          if (!dusdVolumes.has(owner)) {
+            dusdVolumes.set(owner,new DUSDVolume(owner))
+          }
+          const data = dusdVolumes.get(owner)!
+          if (buying) {
+            data.buying = data.buying.plus(amountDUSD)
+          } else {
+            data.selling = data.selling.plus(amountDUSD)
+          }
+        }
+      }
     }
   }
 
@@ -254,7 +287,6 @@ export async function main(event: any, context: any): Promise<Object> {
   totalCommission = totalCommission.plus(data.paidCommission)
   totalFee = totalFee.plus(data.fee)
 
-  const date = new Date()
   const result = {
     meta: {
       tstamp: date.toISOString(),
@@ -286,9 +318,60 @@ export async function main(event: any, context: any): Promise<Object> {
 
   const day = date.toISOString().substring(0, 10)
   await sendToS3(result, day + '.json')
+  if(!isHistoryCall){
   await sendToS3(result, 'latest.json')
-
+  }
   console.log(JSON.stringify(result))
+
+  // dusd volumes:
+
+  const dusdBots = [
+    'df1q0ulwgygkg0lwk5aaqfkmkx7jrvf4zymj0yyfef',
+    'df1qlwvtdrh4a4zln3k56rqnx8chu8t0sqx36syaea',
+    'df1qa6qjmtuh8fyzqyjjsrg567surxu43rx3na7yah',
+  ]
+  const cakeYV = [
+    'df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9',
+    'df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m',
+    'df1qycert2awhxp4n74vs25u7thyplua55gx624xaf',
+    'df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l',
+    'df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4',
+    'df1qyehja923547nqmfgaeduvus5fgumlzv80068rr',
+  ]
+
+  const organic= new DUSDVolume("organic")
+  const bots = new DUSDVolume("bots")
+  dusdVolumes.forEach((volume,address) => {
+    if (dusdBots.indexOf(address) > -1 || cakeYV.indexOf(address) > -1) {
+      bots.buying= bots.buying.plus(volume.buying)
+      bots.selling = bots.selling.plus(volume.selling)
+    } else {
+      organic.buying= organic.buying.plus(volume.buying)
+      organic.selling = organic.selling.plus(volume.selling)
+    }
+  })
+
+  const dusdResult= {    
+    meta: {
+      tstamp: date.toISOString(),
+      startHeight: endHeight,
+      endHeight: startHeight,
+    },
+    bots: {
+      buying: bots.buying,
+      selling: bots.selling
+    },
+    organic: {
+      buying: organic.buying,
+      selling: organic.selling
+    }
+  }
+
+  await sendToS3Full(dusdResult, "dusdVolumes/", day + '.json')
+  if(!isHistoryCall){
+    await sendToS3Full(dusdResult, "dusdVolumes/",'latest.json')
+  }
+  console.log(JSON.stringify(dusdResult))
 
   return { statusCode: 200 }
 }
