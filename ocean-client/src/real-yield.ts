@@ -2,6 +2,9 @@ import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import BigNumber from 'bignumber.js'
 import { PoolPairData, PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
 import { sendToS3, sendToS3Full } from './utils/helpers'
+import { LoanToken, LoanVaultActive } from '@defichain/whale-api-client/dist/api/loan'
+import fetch from 'cross-fetch'
+import { LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 
 class Ocean {
   public readonly c: WhaleApiClient
@@ -31,11 +34,47 @@ class Ocean {
 
 class DUSDVolume {
   public address
-  public buying= new BigNumber(0)
-  public selling= new BigNumber(0)
-  
+  public buying = new BigNumber(0)
+  public selling = new BigNumber(0)
+
   constructor(address: string) {
     this.address = address
+  }
+}
+
+class TokenData {
+  public key: string
+  public minted: BigNumber
+  public fsminted: BigNumber = new BigNumber(0)
+  public fsburned: BigNumber = new BigNumber(0)
+  public openloan: BigNumber = new BigNumber(0)
+  public openinterest: BigNumber = new BigNumber(0)
+  public burned: BigNumber = new BigNumber(0)
+  public frompayback: BigNumber = new BigNumber(0)
+  public price: BigNumber
+
+  constructor(key: string, minted: string | number, price: string | number) {
+    this.key = key
+    this.minted = new BigNumber(minted)
+    this.price = new BigNumber(price)
+  }
+
+  public toJson(): Object {
+    return {
+      key: this.key,
+      minted: {
+        chainReported: this.minted.toNumber(),
+        futureswap: this.fsminted.toNumber(),
+        loans: this.openloan.toNumber(),
+        dfipayback: this.frompayback.toNumber(),
+      },
+      burn: {
+        futureswap: this.fsburned.toNumber(),
+        other: this.burned.toNumber(),
+      },
+      openinterest: this.openinterest.toNumber(),
+      price: this.price.toNumber(),
+    }
   }
 }
 
@@ -90,20 +129,29 @@ function outFeeB(pool: PoolPairData): number {
 export async function main(event: any, context: any): Promise<Object> {
   console.log('real yield calculator')
   const o = new Ocean()
-  const isHistoryCall= event != undefined && event["startHeight"] != undefined
-  const startHeight= isHistoryCall? event["startHeight"] : (await o.c.stats.get()).count.blocks
+  const isHistoryCall = event != undefined && event['startHeight'] != undefined
+  const startHeight = isHistoryCall ? event['startHeight'] : (await o.c.stats.get()).count.blocks
   const analysisWindow = 2880
   const endHeight = startHeight - analysisWindow
-  const time= (await o.c.blocks.get(startHeight)).time
-  const date= new Date(time*1000)
+  const time = (await o.c.blocks.get(startHeight)).time
+  const date = new Date(time * 1000)
 
-  console.log('starting at block ' + startHeight + ' analysing down until ' + endHeight+ " for date "+time.toFixed(0)+" "+date.toISOString())
+  console.log(
+    'starting at block ' +
+      startHeight +
+      ' analysing down until ' +
+      endHeight +
+      ' for date ' +
+      time.toFixed(0) +
+      ' ' +
+      date.toISOString(),
+  )
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
 
-  const gatewaypools= ["DUSD-DFI","USDT-DUSD","USDC-DUSD","EUROC-DUSD"]
+  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD']
 
-  const dusdVolumes: Map<string,DUSDVolume> = new Map()
+  const dusdVolumes: Map<string, DUSDVolume> = new Map()
 
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
@@ -254,7 +302,7 @@ export async function main(event: any, context: any): Promise<Object> {
         const owner = swap.from?.address
         if (owner && amountDUSD) {
           if (!dusdVolumes.has(owner)) {
-            dusdVolumes.set(owner,new DUSDVolume(owner))
+            dusdVolumes.set(owner, new DUSDVolume(owner))
           }
           const data = dusdVolumes.get(owner)!
           if (buying) {
@@ -318,13 +366,14 @@ export async function main(event: any, context: any): Promise<Object> {
 
   const day = date.toISOString().substring(0, 10)
   await sendToS3(result, day + '.json')
-  if(!isHistoryCall){
-  await sendToS3(result, 'latest.json')
+  if (!isHistoryCall) {
+    await sendToS3(result, 'latest.json')
   }
   console.log(JSON.stringify(result))
 
   // dusd volumes:
 
+  console.log("analyzing DUSD data")
   const dusdBots = [
     'df1q0ulwgygkg0lwk5aaqfkmkx7jrvf4zymj0yyfef',
     'df1qlwvtdrh4a4zln3k56rqnx8chu8t0sqx36syaea',
@@ -339,39 +388,197 @@ export async function main(event: any, context: any): Promise<Object> {
     'df1qyehja923547nqmfgaeduvus5fgumlzv80068rr',
   ]
 
-  const organic= new DUSDVolume("organic")
-  const bots = new DUSDVolume("bots")
-  dusdVolumes.forEach((volume,address) => {
+  const organic = new DUSDVolume('organic')
+  const bots = new DUSDVolume('bots')
+  dusdVolumes.forEach((volume, address) => {
     if (dusdBots.indexOf(address) > -1 || cakeYV.indexOf(address) > -1) {
-      bots.buying= bots.buying.plus(volume.buying)
+      bots.buying = bots.buying.plus(volume.buying)
       bots.selling = bots.selling.plus(volume.selling)
     } else {
-      organic.buying= organic.buying.plus(volume.buying)
+      organic.buying = organic.buying.plus(volume.buying)
       organic.selling = organic.selling.plus(volume.selling)
     }
   })
 
-  const dusdResult= {    
+  const dusdResult = {
     meta: {
       tstamp: date.toISOString(),
       startHeight: endHeight,
       endHeight: startHeight,
     },
     bots: {
-      buying: bots.buying,
-      selling: bots.selling
+      buying: bots.buying.toNumber(),
+      selling: bots.selling.toNumber(),
     },
     organic: {
-      buying: organic.buying,
-      selling: organic.selling
-    }
+      buying: organic.buying.toNumber(),
+      selling: organic.selling.toNumber(),
+    },
   }
 
-  await sendToS3Full(dusdResult, "dusdVolumes/", day + '.json')
-  if(!isHistoryCall){
-    await sendToS3Full(dusdResult, "dusdVolumes/",'latest.json')
+  await sendToS3Full(dusdResult, 'dusdVolumes/', day + '.json')
+  if (!isHistoryCall) {
+    await sendToS3Full(dusdResult, 'dusdVolumes/', 'latest.json')
   }
   console.log(JSON.stringify(dusdResult))
 
+  //dToken analysis
+  if (!isHistoryCall) {
+    console.log("reading dToken data")
+    const splitMultipliers: { [keys: string]: number } = { 'TSLA/v1': 3, 'GME/v1': 4, 'GOOGL/v1': 20, 'AMZN/v1': 20 }
+
+    const oceantokens = await o.getAll(() => o.c.loan.listLoanToken(200))
+    const loantokens: Map<string, TokenData> = new Map()
+    for (const lt of oceantokens) {
+      loantokens.set(
+        lt.token.symbolKey,
+        new TokenData(lt.token.symbolKey, lt.token.minted, lt.activePrice?.active?.amount ?? 0),
+      )
+    }
+
+    await analyzeFS(loantokens)
+
+    await analyzeBurn(o, loantokens)
+
+    await anaylzeVaults(o, loantokens)
+
+    const filtered: TokenData[] = []
+    loantokens.forEach((data, key) => {
+      if (key.indexOf('/') > -1 && splitMultipliers[key] != undefined) {
+        //is split token
+        const parts = key.split('/')
+        const multi = splitMultipliers[key]
+        const token = parts[0]
+        if (loantokens.has(token)) {
+          const otherData = loantokens.get(token)
+          if (otherData) {
+            otherData.burned = otherData.burned.plus(data.burned.times(multi))
+            otherData.fsminted = otherData.fsminted.plus(data.fsminted.times(multi))
+            otherData.fsburned = otherData.fsburned.plus(data.fsburned.times(multi))
+          }
+          data.minted = new BigNumber(0)
+        }
+      }
+      if (data.minted.gt(0)) {
+        filtered.push(data)
+      }
+    })
+
+    const dTokenData = {
+      meta: {
+        tstamp: date.toISOString(),
+        startHeight: endHeight,
+        endHeight: startHeight,
+      },
+      dusdVolume: {
+        bots: {
+          buying: bots.buying,
+          selling: bots.selling,
+        },
+        organic: {
+          buying: organic.buying,
+          selling: organic.selling,
+        },
+      },
+      dTokens: filtered.map((d) => d.toJson()),
+    }
+
+    await sendToS3Full(dTokenData, 'dToken/', day + '.json')
+    await sendToS3Full(dTokenData, 'dToken/', 'latest.json')
+    console.log(JSON.stringify(dTokenData))
+  }
+
   return { statusCode: 200 }
+}
+
+async function analyzeFS(loantokens: Map<string, TokenData>): Promise<void> {
+  const response = await fetch('http://api.mydefichain.com/v1/listgovs/')
+  const govs = await response.json()
+
+  let burned = []
+  let minted = []
+  for (const gov of govs) {
+    const attr = gov.find((e: any) => e.ATTRIBUTES != undefined)
+    if (attr != undefined) {
+      burned = attr.ATTRIBUTES['v0/live/economy/dfip2203_burned']
+      minted = attr.ATTRIBUTES['v0/live/economy/dfip2203_minted']
+    }
+  }
+
+  minted.forEach((mint: string) => {
+    const [amount, token] = mint.split('@')
+    if (!loantokens.has(token)) {
+      loantokens.set(token, new TokenData(token, 0, 0))
+    }
+    const data = loantokens.get(token)!
+    data.fsminted = data.fsminted.plus(amount)
+  })
+
+  burned.forEach((burn: string) => {
+    const [amount, token] = burn.split('@')
+    if (!loantokens.has(token)) {
+      loantokens.set(token, new TokenData(token, 0, 0))
+    }
+    const data = loantokens.get(token)!
+    data.fsburned = data.fsburned.plus(amount)
+  })
+}
+
+async function analyzeBurn(o: Ocean, loantokens: Map<string, TokenData>): Promise<void> {
+  const burn = await o.c.stats.getBurn()
+
+  burn.dfipaybacktokens.forEach((b) => {
+    const [amount, token] = b.split('@')
+    if (!loantokens.has(token)) {
+      loantokens.set(token, new TokenData(token, 0, 0))
+    }
+    const data = loantokens.get(token)!
+    data.frompayback = data.frompayback.plus(amount)
+  })
+
+  burn.dexfeetokens.forEach((b) => {
+    const [amount, token] = b.split('@')
+    if (!loantokens.has(token)) {
+      loantokens.set(token, new TokenData(token, 0, 0))
+    }
+    const data = loantokens.get(token)!
+    data.burned = data.burned.plus(amount)
+  })
+
+  burn.paybackburntokens.forEach((b) => {
+    const [amount, token] = b.split('@')
+    if (!loantokens.has(token)) {
+      loantokens.set(token, new TokenData(token, 0, 0))
+    }
+    const data = loantokens.get(token)!
+    data.burned = data.burned.plus(amount)
+  })
+}
+
+async function anaylzeVaults(o: Ocean, loantokens: Map<string, TokenData>): Promise<void> {
+  const vaults = await o.getAll(() => o.c.loan.listVault(200))
+  vaults
+    .filter((v) => v.state === LoanVaultState.ACTIVE)
+    .map((v) => v as LoanVaultActive)
+    .forEach((v) => {
+      v.loanAmounts.forEach((loan) => {
+        const token = loan.symbolKey
+        const amount = loan.amount
+        if (!loantokens.has(token)) {
+          loantokens.set(token, new TokenData(token, 0, 0))
+        }
+        const data = loantokens.get(token)!
+        data.openloan = data.openloan.plus(amount)
+      })
+      v.interestAmounts.forEach((interest) => {
+        const token = interest.symbolKey
+        const amount = interest.amount
+        if (!loantokens.has(token)) {
+          loantokens.set(token, new TokenData(token, 0, 0))
+        }
+        const data = loantokens.get(token)!
+        data.openloan = data.openloan.minus(amount)
+        data.openinterest = data.openinterest.plus(amount)
+      })
+    })
 }
