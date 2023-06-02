@@ -373,7 +373,7 @@ export async function main(event: any, context: any): Promise<Object> {
 
   // dusd volumes:
 
-  console.log("analyzing DUSD data")
+  console.log('analyzing DUSD data')
   const dusdBots = [
     'df1q0ulwgygkg0lwk5aaqfkmkx7jrvf4zymj0yyfef',
     'df1qlwvtdrh4a4zln3k56rqnx8chu8t0sqx36syaea',
@@ -424,7 +424,7 @@ export async function main(event: any, context: any): Promise<Object> {
 
   //dToken analysis
   if (!isHistoryCall) {
-    console.log("reading dToken data")
+    console.log('reading dToken data')
     const splitMultipliers: { [keys: string]: number } = { 'TSLA/v1': 3, 'GME/v1': 4, 'GOOGL/v1': 20, 'AMZN/v1': 20 }
 
     const oceantokens = await o.getAll(() => o.c.loan.listLoanToken(200))
@@ -432,7 +432,11 @@ export async function main(event: any, context: any): Promise<Object> {
     for (const lt of oceantokens) {
       loantokens.set(
         lt.token.symbolKey,
-        new TokenData(lt.token.symbolKey, lt.token.minted, lt.activePrice?.active?.amount ?? 0),
+        new TokenData(
+          lt.token.symbolKey,
+          lt.token.minted,
+          lt.activePrice?.active?.amount ?? (lt.token.symbolKey === 'DUSD' ? 1 : 0),
+        ),
       )
     }
 
@@ -469,15 +473,16 @@ export async function main(event: any, context: any): Promise<Object> {
         tstamp: date.toISOString(),
         startHeight: endHeight,
         endHeight: startHeight,
+        analysedAt: startHeight,
       },
       dusdVolume: {
         bots: {
-          buying: bots.buying,
-          selling: bots.selling,
+          buying: bots.buying.toNumber(),
+          selling: bots.selling.toNumber(),
         },
         organic: {
-          buying: organic.buying,
-          selling: organic.selling,
+          buying: organic.buying.toNumber(),
+          selling: organic.selling.toNumber(),
         },
       },
       dTokens: filtered.map((d) => d.toJson()),
