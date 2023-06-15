@@ -19,7 +19,7 @@ export class WalletSetup {
     const network = WalletSetup.guessNetworkFromAddress(settings.address)
     console.log('using ocean at ' + oceanUrl + ' on ' + network.name)
     if(oceanUrl === undefined) {
-      oceanUrl= network == MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
+      oceanUrl= network === MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
     }
     this.network = network
     this.url = oceanUrl
