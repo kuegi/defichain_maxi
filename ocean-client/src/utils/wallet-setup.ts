@@ -15,9 +15,12 @@ export class WalletSetup {
   private account: WhaleWalletAccount | undefined
   private static NEEDED_SEED_LENGTH = 24
 
-  constructor(settings: StoredSettings, oceanUrl: string = 'https://ocean.defichain.com') {
+  constructor(settings: StoredSettings, oceanUrl: string | undefined) {
     const network = WalletSetup.guessNetworkFromAddress(settings.address)
     console.log('using ocean at ' + oceanUrl + ' on ' + network.name)
+    if(oceanUrl === undefined) {
+      oceanUrl= network == MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
+    }
     this.network = network
     this.url = oceanUrl
     this.client = new WhaleApiClient({
@@ -41,7 +44,7 @@ export class WalletSetup {
   }
 
   public static guessNetworkFromAddress(address: string) {
-    if (address.startsWith('df1')) {
+    if (address === undefined || address.length < 3 || address.startsWith('df1')) {
       return MainNet
     } else if (address.startsWith('tf1')) {
       return TestNet
