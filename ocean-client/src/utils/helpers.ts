@@ -32,8 +32,6 @@ export async function sendToS3Full(data: Object, path: string, filename: string)
     .putObject(params, (err, data) => {
       if (err) {
         console.error('error writing object: ' + err)
-      } else {
-        console.log('wrote object')
       }
     })
     .promise()
