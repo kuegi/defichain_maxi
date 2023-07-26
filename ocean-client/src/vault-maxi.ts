@@ -9,6 +9,7 @@ import { BigNumber } from '@defichain/jellyfish-api-core'
 import { WhaleApiException, WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { StoreConfig } from './utils/store_config'
 import { IStoreMaxi, StoreAWSMaxi } from './utils/store_aws_maxi'
+import { MainNet, Network, TestNet } from '@defichain/jellyfish-network'
 
 import fetch from 'node-fetch'
 
@@ -28,20 +29,23 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.5.2beta'
+export const VERSION = 'v2.5.2beta2'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
   let blockHeight = 0
   let cleanUpTries = 0
   // adding multiples so that we alternate the first retries
-  let oceansToUse = ['https://ocean.defichain.io', 'https://ocean.defichain.com', 'https://ocean.defichain.io']
+  let mainOceansToUse = ['https://ocean.defichain.io', 'https://ocean.defichain.com', 'https://ocean.defichain.io']
+  let testOceansToUse = ['https://testnet.ocean.jellyfishsdk.com']
   if (process.env.VAULTMAXI_OCEAN_URL) {
-    oceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
+    mainOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
+    testOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
   }
   let firstRun = true
   let errorCooldown = 60000
   let heartBeatSent = false
+  let oceansToUse: string[] = []
   while (context.getRemainingTimeInMillis() >= MIN_TIME_PER_ACTION_MS) {
     console.log('starting with ' + context.getRemainingTimeInMillis() + 'ms available')
 
@@ -56,14 +60,19 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
     const settings = await store.fetchSettings()
     console.log('initial state: ' + ProgramStateConverter.toValue(settings.stateInformation))
 
-    if (firstRun && settings.oceanUrl && settings.oceanUrl.length > 0) {
-      oceansToUse = oceansToUse.concat(
-        settings.oceanUrl
-          .replace(/[, ]+/g, ',')
-          .split(',')
-          .map((url) => url.trim())
-          .filter((url) => url.length > 0),
-      )
+    if (firstRun) {
+      oceansToUse =
+        WalletSetup.guessNetworkFromAddress(settings.address) === MainNet ? mainOceansToUse : testOceansToUse
+
+      if (settings.oceanUrl && settings.oceanUrl.length > 0) {
+        oceansToUse = oceansToUse.concat(
+          settings.oceanUrl
+            .replace(/[, ]+/g, ',')
+            .split(',')
+            .map((url) => url.trim())
+            .filter((url) => url.length > 0),
+        )
+      }
     }
     console.log('using oceans ' + JSON.stringify(oceansToUse))
 
@@ -102,6 +111,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         await telegram.send(message, LogLevel.ERROR)
         return { statusCode: 200 }
       }
+
       const program = new VaultMaxiProgram(store, settings, new WalletSetup(settings, oceansToUse.pop()))
       commonProgram = program
       await program.init()
@@ -277,7 +287,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         if (!program.consistencyChecks(vault)) {
           console.warn('consistency checks failed. will remove exposure')
           await telegram.send(
-            'Consistency checks in ocean ('+program.getUsedOceanUrl()+') data failed. Something is wrong, so will remove exposure to be safe.',
+            'Consistency checks in ocean (' +
+              program.getUsedOceanUrl() +
+              ') data failed. Something is wrong, so will remove exposure to be safe.',
             LogLevel.WARNING,
           )
           settings.maxCollateralRatio = -1
