@@ -578,7 +578,7 @@
         },
         "Code": {
           "S3Bucket": { "Fn::Sub": "defichain-maxi-public-${AWS::Region}" },
-          "S3Key": "vault-maxi-2-5-1.zip"
+          "S3Key": "vault-maxi-2-5-2.zip"
         },
         "Runtime": "nodejs16.x",
         "Timeout": 890
