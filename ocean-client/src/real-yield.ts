@@ -32,6 +32,7 @@ class Ocean {
   }
 }
 
+
 class DUSDVolume {
   public address
   public buying = new BigNumber(0)
@@ -41,6 +42,31 @@ class DUSDVolume {
     this.address = address
   }
 }
+
+const bigDFIThreshold = 50000
+
+class DFIVolume {
+  public symbol
+  public totalBuying = new BigNumber(0)
+  public totalSelling = new BigNumber(0)
+  public buyingFromBigSwaps = new BigNumber(0)
+  public sellingFromBigSwaps = new BigNumber(0)
+
+  constructor(symbol: string) {
+    this.symbol = symbol
+  }
+
+  public toJson(): Object {
+    return {
+      symbol: this.symbol,
+      totalBuying: this.totalBuying.toNumber(),
+      totalSelling: this.totalSelling.toNumber(),
+      buyingFromBigSwaps: this.buyingFromBigSwaps.toNumber(),
+      sellingFromBigSwaps: this.sellingFromBigSwaps.toNumber(),
+    }
+  }
+}
+
 
 class TokenData {
   public key: string
@@ -129,8 +155,9 @@ function outFeeB(pool: PoolPairData): number {
 export async function main(event: any, context: any): Promise<Object> {
   console.log('real yield calculator')
   const o = new Ocean()
+  const currentHeight = (await o.c.stats.get()).count.blocks
   const isHistoryCall = event != undefined && event['startHeight'] != undefined
-  const startHeight = isHistoryCall ? event['startHeight'] : (await o.c.stats.get()).count.blocks
+  const startHeight = isHistoryCall ? event['startHeight'] : currentHeight
   const analysisWindow = 2880
   const endHeight = startHeight - analysisWindow
   const time = (await o.c.blocks.get(startHeight)).time
@@ -149,10 +176,10 @@ export async function main(event: any, context: any): Promise<Object> {
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
 
-  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD']
-
   const dusdVolumes: Map<string, DUSDVolume> = new Map()
+  const dfiVolumes: Map<string, DFIVolume> = new Map()
 
+  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD']
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
   const yields: Map<string, YieldForToken> = new Map()
@@ -312,6 +339,28 @@ export async function main(event: any, context: any): Promise<Object> {
           }
         }
       }
+      if (pool.tokenB.symbol === "DFI" && pool.tokenA.symbol !== "DUSD") {
+        /// DFI pool, but not DUSD gateway
+        const buying = AtoB
+        const symbol = pool.tokenA.symbol
+        if (!dfiVolumes.has(symbol)) {
+          dfiVolumes.set(symbol, new DFIVolume(symbol))
+        }
+        const data = dfiVolumes.get(symbol)!
+        if (amountB) {
+          if (buying) {
+            data.totalBuying = data.totalBuying.plus(amountB)
+            if (amountB.gt(bigDFIThreshold)) {
+              data.buyingFromBigSwaps = data.buyingFromBigSwaps.plus(amountB)
+            }
+          } else {
+            data.totalSelling = data.totalSelling.plus(amountB)
+            if (amountB.gt(bigDFIThreshold)) {
+              data.sellingFromBigSwaps = data.sellingFromBigSwaps.plus(amountB)
+            }
+          }
+        }
+      }
     }
   }
 
@@ -379,6 +428,7 @@ export async function main(event: any, context: any): Promise<Object> {
     'df1qlwvtdrh4a4zln3k56rqnx8chu8t0sqx36syaea',
     'df1qa6qjmtuh8fyzqyjjsrg567surxu43rx3na7yah',
   ]
+
   const cakeYV = [
     'df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9',
     'df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m',
@@ -422,6 +472,29 @@ export async function main(event: any, context: any): Promise<Object> {
   }
   console.log(JSON.stringify(dusdResult))
 
+
+  {
+
+    console.log("uploading DFI volumes")
+    const dfiData: Object[] = []
+    dfiVolumes.forEach((volume, coin) => {
+      dfiData.push(volume.toJson())
+    })
+    const dfiResult = {
+      meta: {
+        tstamp: date.toISOString(),
+        startHeight: endHeight,
+        endHeight: startHeight,
+        analysedAt: currentHeight
+      },
+      dfiVolume: dfiData
+    }
+    await sendToS3Full(dfiResult, 'dfiVolumes/', day + '.json')
+    if (!isHistoryCall) {
+      await sendToS3Full(dfiResult, 'dfiVolumes/', 'latest.json')
+    }
+    console.log(JSON.stringify(dfiResult))
+  }
   //dToken analysis
   if (!isHistoryCall) {
     console.log('reading dToken data')
