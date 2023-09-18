@@ -172,8 +172,8 @@ export async function main(event: any, context: any): Promise<Object> {
   }
 
 
-  const totalEnd = windows.map(w => w.endHeight).reduce((a, b) => Math.max(a, b), 0)
-  const totalStart = windows.map(w => w.startHeight).reduce((a, b) => Math.min(a, b), 0)
+  const totalEnd = windows.map(w => w.endHeight).reduce((a, b) => Math.min(a, b), 0)
+  const totalStart = windows.map(w => w.startHeight).reduce((a, b) => Math.max(a, b), 0)
   console.log(
     'starting at block ' +
     totalStart +
