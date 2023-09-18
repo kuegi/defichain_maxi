@@ -172,7 +172,7 @@ export async function main(event: any, context: any): Promise<Object> {
   }
 
 
-  const totalEnd = windows.map(w => w.endHeight).reduce((a, b) => Math.min(a, b), 0)
+  const totalEnd = windows.map(w => w.endHeight).reduce((a, b) => Math.min(a, b), currentHeight)
   const totalStart = windows.map(w => w.startHeight).reduce((a, b) => Math.max(a, b), 0)
   console.log(
     'starting at block ' +
@@ -183,7 +183,7 @@ export async function main(event: any, context: any): Promise<Object> {
     latesttime.toFixed(0) +
     ' ' +
     new Date(latesttime * 1000).toISOString() +
-    " doing " + windows.length + " windows: " + windows.toString(),
+    " doing " + windows.length + " windows: " + windows.map(w => w.filename + ": " + w.startHeight + " to " + w.endHeight).toString(),
   )
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
@@ -388,6 +388,7 @@ export async function main(event: any, context: any): Promise<Object> {
   const prices = await o.getAll(() => o.c.prices.list())
   for (let i = 0; i < windows.length; i++) {
     const window = windows[i]
+    console.log("doing window " + window.filename + " " + window.startHeight + " - " + window.endHeight)
     {
       let totalCommission = new BigNumber(0)
       let totalFee = new BigNumber(0)
