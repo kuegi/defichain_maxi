@@ -1,36 +1,11 @@
 import { ApiPagedResponse, WhaleApiClient } from '@defichain/whale-api-client'
 import BigNumber from 'bignumber.js'
 import { PoolPairData, PoolSwapData } from '@defichain/whale-api-client/dist/api/poolpairs'
-import { sendToS3, sendToS3Full } from './utils/helpers'
+import { Ocean, sendToS3, sendToS3Full } from './utils/helpers'
 import { LoanToken, LoanVaultActive } from '@defichain/whale-api-client/dist/api/loan'
 import fetch from 'cross-fetch'
 import { LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 
-class Ocean {
-  public readonly c: WhaleApiClient
-
-  constructor() {
-    this.c = new WhaleApiClient({
-      url: 'https://ocean.defichain.com',
-      version: 'v0',
-    })
-  }
-
-  public async getAll<T>(call: () => Promise<ApiPagedResponse<T>>, maxAmount: number = -1): Promise<T[]> {
-    const pages = [await call()]
-    let total = 0
-    while (pages[pages.length - 1].hasNext && (maxAmount < 0 || total > maxAmount)) {
-      try {
-        pages.push(await this.c.paginate(pages[pages.length - 1]))
-        total += pages[pages.length - 1].length
-      } catch (e) {
-        break
-      }
-    }
-
-    return pages.flatMap((page) => page as T[])
-  }
-}
 
 class DUSDVolume {
   public address
@@ -41,6 +16,31 @@ class DUSDVolume {
     this.address = address
   }
 }
+
+const bigDFIThreshold = 50000
+
+class DFIVolume {
+  public symbol
+  public totalBuying = new BigNumber(0)
+  public totalSelling = new BigNumber(0)
+  public buyingFromBigSwaps = new BigNumber(0)
+  public sellingFromBigSwaps = new BigNumber(0)
+
+  constructor(symbol: string) {
+    this.symbol = symbol
+  }
+
+  public toJson(): Object {
+    return {
+      symbol: this.symbol,
+      totalBuying: this.totalBuying.toNumber(),
+      totalSelling: this.totalSelling.toNumber(),
+      buyingFromBigSwaps: this.buyingFromBigSwaps.toNumber(),
+      sellingFromBigSwaps: this.sellingFromBigSwaps.toNumber(),
+    }
+  }
+}
+
 
 class TokenData {
   public key: string
@@ -126,58 +126,101 @@ function outFeeB(pool: PoolPairData): number {
   return +(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
 }
 
+class DataWindow {
+  public startHeight: number
+  public endHeight: number
+  public refDate: Date
+  public filename: string
+
+  public dusdVolumes: Map<string, DUSDVolume> = new Map()
+  public dfiVolumes: Map<string, DFIVolume> = new Map()
+  public yields: Map<string, YieldForToken> = new Map()
+
+  public constructor(startHeight: number, endHeight: number, refDate: Date, filename: string) {
+    this.startHeight = startHeight
+    this.endHeight = endHeight
+    this.refDate = refDate
+    this.filename = filename
+  }
+}
+
 export async function main(event: any, context: any): Promise<Object> {
   console.log('real yield calculator')
   const o = new Ocean()
-  const isHistoryCall = event != undefined && event['startHeight'] != undefined
-  const startHeight = isHistoryCall ? event['startHeight'] : (await o.c.stats.get()).count.blocks
-  const analysisWindow = 2880
-  const endHeight = startHeight - analysisWindow
-  const time = (await o.c.blocks.get(startHeight)).time
-  const date = new Date(time * 1000)
+  const currentHeight = (await o.c.stats.get()).count.blocks
+  const lateststartHeight = currentHeight
+  const latestanalysisWindow = 2880
+  const latestendHeight = lateststartHeight - latestanalysisWindow
+  const latesttime = (await o.c.blocks.get(lateststartHeight.toString())).time
 
+  //prepare windows:
+  const windows: DataWindow[] = []
+  //first entry is latest
+  windows.push(new DataWindow(lateststartHeight, latestendHeight, new Date(latesttime * 1000), "latest"))
+  //always add current day
+  const date = new Date(latesttime * 1000)
+  date.setUTCHours(0, 0, 0, 0)
+  const tstampStart = date.getTime() / 1000
+  const dayStart = await o.getBlockForTstamp(tstampStart, { height: currentHeight, tstamp: latesttime })
+  const refDate = new Date((latesttime + tstampStart) * 1000 / 2)
+  windows.push(new DataWindow(lateststartHeight, dayStart, refDate, refDate.toISOString().substring(0, 10)))
+  //if current day is max 4 hours old -> also add previous day
+  if (latesttime - dayStart < 60 * 60 * 4) {
+    const prevStart = await o.getBlockForTstamp(tstampStart - 60 * 60 * 24, { height: dayStart, tstamp: tstampStart })
+    const refDate = new Date((prevStart + dayStart) * 1000 / 2)
+    windows.push(new DataWindow(dayStart, prevStart, refDate, refDate.toISOString().substring(0, 10)))
+  }
+
+
+  const totalEnd = windows.map(w => w.endHeight).reduce((a, b) => Math.min(a, b), currentHeight)
+  const totalStart = windows.map(w => w.startHeight).reduce((a, b) => Math.max(a, b), 0)
   console.log(
     'starting at block ' +
-      startHeight +
-      ' analysing down until ' +
-      endHeight +
-      ' for date ' +
-      time.toFixed(0) +
-      ' ' +
-      date.toISOString(),
+    totalStart +
+    ' analysing down until ' +
+    totalEnd +
+    ' for date ' +
+    latesttime.toFixed(0) +
+    ' ' +
+    new Date(latesttime * 1000).toISOString() +
+    " doing " + windows.length + " windows: " + windows.map(w => w.filename + ": " + w.startHeight + " to " + w.endHeight).toString(),
   )
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
 
-  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD']
-
-  const dusdVolumes: Map<string, DUSDVolume> = new Map()
-
+  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD', "XCHF-DUSD"]
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
-  const yields: Map<string, YieldForToken> = new Map()
   for (const pool of activePools) {
-    if (!yields.has(pool.tokenA.symbol)) {
-      yields.set(pool.tokenA.symbol, new YieldForToken(pool.tokenA.symbol))
-    }
-    const dataA = yields.get(pool.tokenA.symbol)!
-    dataA.totalCoinsInPools = dataA.totalCoinsInPools.plus(pool.tokenA.reserve)
-    if (!yields.has(pool.tokenB.symbol)) {
-      yields.set(pool.tokenB.symbol, new YieldForToken(pool.tokenB.symbol))
-    }
-    const dataB = yields.get(pool.tokenB.symbol)!
-    dataB.totalCoinsInPools = dataB.totalCoinsInPools.plus(pool.tokenB.reserve)
+    windows.forEach(window => {
 
-    const swaps = await getSwaps(o, pool.id, endHeight)
+      if (!window.yields.has(pool.tokenA.symbol)) {
+        window.yields.set(pool.tokenA.symbol, new YieldForToken(pool.tokenA.symbol))
+      }
+      const dataA = window.yields.get(pool.tokenA.symbol)!
+      dataA.totalCoinsInPools = dataA.totalCoinsInPools.plus(pool.tokenA.reserve)
+      if (!window.yields.has(pool.tokenB.symbol)) {
+        window.yields.set(pool.tokenB.symbol, new YieldForToken(pool.tokenB.symbol))
+      }
+      const dataB = window.yields.get(pool.tokenB.symbol)!
+      dataB.totalCoinsInPools = dataB.totalCoinsInPools.plus(pool.tokenB.reserve)
+
+    })
+    const swaps = await getSwaps(o, pool.id, totalEnd)
     for (const swap of swaps) {
-      if (swap.block.height > startHeight) {
+      if (swap.block.height > totalStart) {
         continue
       }
-      if (swap.block.height < endHeight) {
+      if (swap.block.height < totalEnd) {
         break
       }
-      let amountA = undefined
-      let amountB = undefined
+      const usedWindows = windows.filter(w => w.startHeight > swap.block.height && w.endHeight <= swap.block.height)
+      if (usedWindows.length == 0) {
+        continue
+      }
+
+      let amountA: BigNumber | undefined = undefined
+      let amountB: BigNumber | undefined = undefined
       let AtoB = true
       if (swap.fromTokenId == +pool.tokenA.id) {
         amountA = new BigNumber(swap.fromAmount)
@@ -228,13 +271,13 @@ export async function main(event: any, context: any): Promise<Object> {
           } else {
             console.warn(
               'unable to find other pools for 3-way swap: ' +
-                swap.from.symbol +
-                '->' +
-                swap.to?.symbol +
-                ' in pool ' +
-                pool.symbol +
-                ' type ' +
-                swap.type,
+              swap.from.symbol +
+              '->' +
+              swap.to?.symbol +
+              ' in pool ' +
+              pool.symbol +
+              ' type ' +
+              swap.type,
             )
           }
         }
@@ -270,212 +313,169 @@ export async function main(event: any, context: any): Promise<Object> {
             .times(1 - outFeeA(pool)) //also apply outFee here, for simplicity we assume amountB to be the result of the total swap
         }
       }
-      if (amountA !== undefined && amountB !== undefined) {
-        if (AtoB) {
-          const inFee = inFeeA(pool)
-          const outFee = outFeeB(pool)
-          const commission = amountA.multipliedBy(pool.commission)
-          dataA.paidCommission = dataA.paidCommission.plus(commission)
-          if (inFee > 0) {
-            dataA.fee = dataA.fee.plus(amountA.minus(commission).multipliedBy(inFeeA(pool)))
-          }
-          if (outFee > 0) {
-            dataB.fee = dataB.fee.plus(amountB.multipliedBy(outFee).dividedBy(new BigNumber(1).minus(outFee)))
-          }
-        } else {
-          const inFee = inFeeB(pool)
-          const outFee = outFeeA(pool)
-          const commission = amountB.multipliedBy(pool.commission)
-          dataB.paidCommission = dataB.paidCommission.plus(commission)
-          if (inFee > 0) {
-            dataB.fee = dataB.fee.plus(amountB.minus(commission).multipliedBy(inFee))
-          }
-          if (outFee > 0) {
-            dataA.fee = dataA.fee.plus(amountA.multipliedBy(outFee).dividedBy(new BigNumber(1).minus(outFee)))
-          }
-        }
-      }
 
-      if (gatewaypools.indexOf(pool.symbol) > -1) {
-        const buying = (pool.tokenA.symbol === 'DUSD' && !AtoB) || (pool.tokenB.symbol === 'DUSD' && AtoB)
-        const amountDUSD = pool.tokenA.symbol === 'DUSD' ? amountA : amountB
-        const owner = swap.from?.address
-        if (owner && amountDUSD) {
-          if (!dusdVolumes.has(owner)) {
-            dusdVolumes.set(owner, new DUSDVolume(owner))
-          }
-          const data = dusdVolumes.get(owner)!
-          if (buying) {
-            data.buying = data.buying.plus(amountDUSD)
+      usedWindows.forEach(window => {
+
+        if (amountA !== undefined && amountB !== undefined) {
+          const dataA = window.yields.get(pool.tokenA.symbol)!
+          const dataB = window.yields.get(pool.tokenB.symbol)!
+          if (AtoB) {
+            const inFee = inFeeA(pool)
+            const outFee = outFeeB(pool)
+            const commission = amountA.multipliedBy(pool.commission)
+            dataA.paidCommission = dataA.paidCommission.plus(commission)
+            if (inFee > 0) {
+              dataA.fee = dataA.fee.plus(amountA.minus(commission).multipliedBy(inFeeA(pool)))
+            }
+            if (outFee > 0) {
+              dataB.fee = dataB.fee.plus(amountB.multipliedBy(outFee).dividedBy(new BigNumber(1).minus(outFee)))
+            }
           } else {
-            data.selling = data.selling.plus(amountDUSD)
+            const inFee = inFeeB(pool)
+            const outFee = outFeeA(pool)
+            const commission = amountB.multipliedBy(pool.commission)
+            dataB.paidCommission = dataB.paidCommission.plus(commission)
+            if (inFee > 0) {
+              dataB.fee = dataB.fee.plus(amountB.minus(commission).multipliedBy(inFee))
+            }
+            if (outFee > 0) {
+              dataA.fee = dataA.fee.plus(amountA.multipliedBy(outFee).dividedBy(new BigNumber(1).minus(outFee)))
+            }
           }
         }
-      }
+        if (gatewaypools.indexOf(pool.symbol) > -1) {
+          const buying = (pool.tokenA.symbol === 'DUSD' && !AtoB) || (pool.tokenB.symbol === 'DUSD' && AtoB)
+          const amountDUSD = pool.tokenA.symbol === 'DUSD' ? amountA : amountB
+          const owner = swap.from?.address
+          if (owner && amountDUSD) {
+            if (!window.dusdVolumes.has(owner)) {
+              window.dusdVolumes.set(owner, new DUSDVolume(owner))
+            }
+            const data = window.dusdVolumes.get(owner)!
+            if (buying) {
+              data.buying = data.buying.plus(amountDUSD)
+            } else {
+              data.selling = data.selling.plus(amountDUSD)
+            }
+          }
+        }
+        if (pool.tokenB.symbol === "DFI" && pool.tokenA.symbol !== "DUSD") {
+          /// DFI pool, but not DUSD gateway
+          const buying = AtoB
+          const symbol = pool.tokenA.symbol
+          if (!window.dfiVolumes.has(symbol)) {
+            window.dfiVolumes.set(symbol, new DFIVolume(symbol))
+          }
+          const data = window.dfiVolumes.get(symbol)!
+          if (amountB) {
+            if (buying) {
+              data.totalBuying = data.totalBuying.plus(amountB)
+              if (amountB.gt(bigDFIThreshold)) {
+                data.buyingFromBigSwaps = data.buyingFromBigSwaps.plus(amountB)
+              }
+            } else {
+              data.totalSelling = data.totalSelling.plus(amountB)
+              if (amountB.gt(bigDFIThreshold)) {
+                data.sellingFromBigSwaps = data.sellingFromBigSwaps.plus(amountB)
+              }
+            }
+          }
+        }
+      })
     }
   }
 
   const prices = await o.getAll(() => o.c.prices.list())
-  let totalCommission = new BigNumber(0)
-  let totalFee = new BigNumber(0)
-  prices.forEach((p) => {
-    if (yields.has(p.price.token)) {
-      const data = yields.get(p.price.token)!
-      data.totalyieldusdValue = data.fee.plus(data.paidCommission).times(p.price.aggregated.amount)
-      data.totalUSDInPools = data.totalCoinsInPools.times(p.price.aggregated.amount)
-      totalCommission = totalCommission.plus(data.paidCommission.times(p.price.aggregated.amount))
-      totalFee = totalFee.plus(data.fee.times(p.price.aggregated.amount))
-    }
-  })
-
-  //DUSD needs to be done manually (no oracle price)
-
-  const data = yields.get('DUSD')!
-  data.totalyieldusdValue = data?.fee.plus(data.paidCommission)
-  totalCommission = totalCommission.plus(data.paidCommission)
-  totalFee = totalFee.plus(data.fee)
-
-  const result = {
-    meta: {
-      tstamp: date.toISOString(),
-      startHeight: endHeight,
-      endHeight: startHeight,
-    },
-    totalUSD: {
-      commission: totalCommission.decimalPlaces(8).toNumber(),
-      fee: totalFee.decimalPlaces(8).toNumber(),
-    },
-    tokens: Object(),
-  }
-  yields.forEach((v, k) => {
-    const total = v.fee.plus(v.paidCommission)
-    result.tokens[v.token] = {
-      commission: v.paidCommission.decimalPlaces(8).toNumber(),
-      fee: v.fee.decimalPlaces(8).toNumber(),
-      usdValue: v.totalyieldusdValue.decimalPlaces(8).toNumber(),
-      feeInUSD: total.gt(0) ? v.totalyieldusdValue.times(v.fee).div(total).decimalPlaces(8).toNumber() : 0,
-      commissionInUSD: total.gt(0)
-        ? v.totalyieldusdValue.times(v.paidCommission).div(total).decimalPlaces(8).toNumber()
-        : 0,
-      totalCoinsInPools: v.totalCoinsInPools.decimalPlaces(8).toNumber(),
-      totatUSDInPools: v.totalUSDInPools.decimalPlaces(8).toNumber(),
-    }
-  })
-
-  console.log('total ' + totalCommission.toFixed(2) + '$ comm + ' + totalFee.toFixed(2) + '$ fees')
-
-  const day = date.toISOString().substring(0, 10)
-  await sendToS3(result, day + '.json')
-  if (!isHistoryCall) {
-    await sendToS3(result, 'latest.json')
-  }
-  console.log(JSON.stringify(result))
-
-  // dusd volumes:
-
-  console.log('analyzing DUSD data')
-  const dusdBots = [
-    'df1q0ulwgygkg0lwk5aaqfkmkx7jrvf4zymj0yyfef',
-    'df1qlwvtdrh4a4zln3k56rqnx8chu8t0sqx36syaea',
-    'df1qa6qjmtuh8fyzqyjjsrg567surxu43rx3na7yah',
-  ]
-  const cakeYV = [
-    'df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9',
-    'df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m',
-    'df1qycert2awhxp4n74vs25u7thyplua55gx624xaf',
-    'df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l',
-    'df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4',
-    'df1qyehja923547nqmfgaeduvus5fgumlzv80068rr',
-  ]
-
-  const organic = new DUSDVolume('organic')
-  const bots = new DUSDVolume('bots')
-  dusdVolumes.forEach((volume, address) => {
-    if (dusdBots.indexOf(address) > -1 || cakeYV.indexOf(address) > -1) {
-      bots.buying = bots.buying.plus(volume.buying)
-      bots.selling = bots.selling.plus(volume.selling)
-    } else {
-      organic.buying = organic.buying.plus(volume.buying)
-      organic.selling = organic.selling.plus(volume.selling)
-    }
-  })
-
-  const dusdResult = {
-    meta: {
-      tstamp: date.toISOString(),
-      startHeight: endHeight,
-      endHeight: startHeight,
-    },
-    bots: {
-      buying: bots.buying.toNumber(),
-      selling: bots.selling.toNumber(),
-    },
-    organic: {
-      buying: organic.buying.toNumber(),
-      selling: organic.selling.toNumber(),
-    },
-  }
-
-  await sendToS3Full(dusdResult, 'dusdVolumes/', day + '.json')
-  if (!isHistoryCall) {
-    await sendToS3Full(dusdResult, 'dusdVolumes/', 'latest.json')
-  }
-  console.log(JSON.stringify(dusdResult))
-
-  //dToken analysis
-  if (!isHistoryCall) {
-    console.log('reading dToken data')
-    const splitMultipliers: { [keys: string]: number } = { 'TSLA/v1': 3, 'GME/v1': 4, 'GOOGL/v1': 20, 'AMZN/v1': 20 }
-
-    const oceantokens = await o.getAll(() => o.c.loan.listLoanToken(200))
-    const loantokens: Map<string, TokenData> = new Map()
-    for (const lt of oceantokens) {
-      loantokens.set(
-        lt.token.symbolKey,
-        new TokenData(
-          lt.token.symbolKey,
-          lt.token.minted,
-          lt.activePrice?.active?.amount ?? (lt.token.symbolKey === 'DUSD' ? 1 : 0),
-        ),
-      )
-    }
-
-    await analyzeFS(loantokens)
-
-    await analyzeBurn(o, loantokens)
-
-    await anaylzeVaults(o, loantokens)
-
-    const filtered: TokenData[] = []
-    loantokens.forEach((data, key) => {
-      if (key.indexOf('/') > -1 && splitMultipliers[key] != undefined) {
-        //is split token
-        const parts = key.split('/')
-        const multi = splitMultipliers[key]
-        const token = parts[0]
-        if (loantokens.has(token)) {
-          const otherData = loantokens.get(token)
-          if (otherData) {
-            otherData.burned = otherData.burned.plus(data.burned.times(multi))
-            otherData.fsminted = otherData.fsminted.plus(data.fsminted.times(multi))
-            otherData.fsburned = otherData.fsburned.plus(data.fsburned.times(multi))
-          }
-          data.minted = new BigNumber(0)
+  for (let i = 0; i < windows.length; i++) {
+    const window = windows[i]
+    console.log("doing window " + window.filename + " " + window.startHeight + " - " + window.endHeight)
+    {
+      let totalCommission = new BigNumber(0)
+      let totalFee = new BigNumber(0)
+      prices.forEach((p) => {
+        if (window.yields.has(p.price.token)) {
+          const data = window.yields.get(p.price.token)!
+          data.totalyieldusdValue = data.fee.plus(data.paidCommission).times(p.price.aggregated.amount)
+          data.totalUSDInPools = data.totalCoinsInPools.times(p.price.aggregated.amount)
+          totalCommission = totalCommission.plus(data.paidCommission.times(p.price.aggregated.amount))
+          totalFee = totalFee.plus(data.fee.times(p.price.aggregated.amount))
         }
-      }
-      if (data.minted.gt(0)) {
-        filtered.push(data)
-      }
-    })
+      })
 
-    const dTokenData = {
-      meta: {
-        tstamp: date.toISOString(),
-        startHeight: endHeight,
-        endHeight: startHeight,
-        analysedAt: startHeight,
-      },
-      dusdVolume: {
+      //DUSD needs to be done manually (no oracle price)
+
+      const data = window.yields.get('DUSD')!
+      data.totalyieldusdValue = data?.fee.plus(data.paidCommission)
+      totalCommission = totalCommission.plus(data.paidCommission)
+      totalFee = totalFee.plus(data.fee)
+
+      const result = {
+        meta: {
+          tstamp: window.refDate.toISOString(),
+          startHeight: window.endHeight,
+          endHeight: window.startHeight,
+        },
+        totalUSD: {
+          commission: totalCommission.decimalPlaces(8).toNumber(),
+          fee: totalFee.decimalPlaces(8).toNumber(),
+        },
+        tokens: Object(),
+      }
+      window.yields.forEach((v, k) => {
+        const total = v.fee.plus(v.paidCommission)
+        result.tokens[v.token] = {
+          commission: v.paidCommission.decimalPlaces(8).toNumber(),
+          fee: v.fee.decimalPlaces(8).toNumber(),
+          usdValue: v.totalyieldusdValue.decimalPlaces(8).toNumber(),
+          feeInUSD: total.gt(0) ? v.totalyieldusdValue.times(v.fee).div(total).decimalPlaces(8).toNumber() : 0,
+          commissionInUSD: total.gt(0)
+            ? v.totalyieldusdValue.times(v.paidCommission).div(total).decimalPlaces(8).toNumber()
+            : 0,
+          totalCoinsInPools: v.totalCoinsInPools.decimalPlaces(8).toNumber(),
+          totatUSDInPools: v.totalUSDInPools.decimalPlaces(8).toNumber(),
+        }
+      })
+
+      console.log('total ' + totalCommission.toFixed(2) + '$ comm + ' + totalFee.toFixed(2) + '$ fees')
+      await sendToS3(result, window.filename + '.json')
+      console.log(JSON.stringify(result))
+    }
+    {
+      // dusd volumes:
+      console.log('analyzing DUSD data')
+      const dusdBots = [
+        'df1q0ulwgygkg0lwk5aaqfkmkx7jrvf4zymj0yyfef',
+        'df1qlwvtdrh4a4zln3k56rqnx8chu8t0sqx36syaea',
+        'df1qa6qjmtuh8fyzqyjjsrg567surxu43rx3na7yah',
+      ]
+
+      const cakeYV = [
+        'df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9',
+        'df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m',
+        'df1qycert2awhxp4n74vs25u7thyplua55gx624xaf',
+        'df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l',
+        'df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4',
+        'df1qyehja923547nqmfgaeduvus5fgumlzv80068rr',
+      ]
+
+      const organic = new DUSDVolume('organic')
+      const bots = new DUSDVolume('bots')
+      window.dusdVolumes.forEach((volume, address) => {
+        if (dusdBots.indexOf(address) > -1 || cakeYV.indexOf(address) > -1) {
+          bots.buying = bots.buying.plus(volume.buying)
+          bots.selling = bots.selling.plus(volume.selling)
+        } else {
+          organic.buying = organic.buying.plus(volume.buying)
+          organic.selling = organic.selling.plus(volume.selling)
+        }
+      })
+
+      const dusdResult = {
+        meta: {
+          tstamp: window.refDate.toISOString(),
+          startHeight: window.endHeight,
+          endHeight: window.startHeight,
+        },
         bots: {
           buying: bots.buying.toNumber(),
           selling: bots.selling.toNumber(),
@@ -484,16 +484,155 @@ export async function main(event: any, context: any): Promise<Object> {
           buying: organic.buying.toNumber(),
           selling: organic.selling.toNumber(),
         },
-      },
-      dTokens: filtered.map((d) => d.toJson()),
+      }
+
+      await sendToS3Full(dusdResult, 'dusdVolumes/', window.filename + '.json')
+      console.log(JSON.stringify(dusdResult))
+
+      if (window.startHeight == lateststartHeight && window.endHeight == latestendHeight) {
+        //dToken analysis
+        await runDTokenAnalysis(o, lateststartHeight, latestendHeight, window.refDate, bots, organic, activePools)
+
+      }
     }
 
-    await sendToS3Full(dTokenData, 'dToken/', day + '.json')
-    await sendToS3Full(dTokenData, 'dToken/', 'latest.json')
-    console.log(JSON.stringify(dTokenData))
+    {
+
+      console.log("uploading DFI volumes")
+      const dfiData: Object[] = []
+      window.dfiVolumes.forEach((volume, coin) => {
+        dfiData.push(volume.toJson())
+      })
+      const dfiResult = {
+        meta: {
+          tstamp: window.refDate.toISOString(),
+          startHeight: window.endHeight,
+          endHeight: window.startHeight,
+          analysedAt: currentHeight
+        },
+        dfiVolume: dfiData
+      }
+      await sendToS3Full(dfiResult, 'dfiVolumes/', window.filename + '.json')
+      console.log(JSON.stringify(dfiResult))
+    }
+  }
+  return { statusCode: 200 }
+}
+
+async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: number, date: Date, dusdBots: DUSDVolume, dusdOrganic: DUSDVolume, activePools: PoolPairData[]): Promise<void> {
+
+  console.log('reading dToken data')
+
+  const splitMultipliers: { [keys: string]: number } = { 'TSLA/v1': 3, 'GME/v1': 4, 'GOOGL/v1': 20, 'AMZN/v1': 20 }
+
+  const oceantokens = await o.getAll(() => o.c.loan.listLoanToken(200))
+  const loantokens: Map<string, TokenData> = new Map()
+  const collAmounts: Map<string, BigNumber> = new Map()
+  for (const lt of oceantokens) {
+    loantokens.set(
+      lt.token.symbolKey,
+      new TokenData(
+        lt.token.symbolKey,
+        lt.token.minted,
+        lt.activePrice?.active?.amount ?? (lt.token.symbolKey === 'DUSD' ? 1 : 0),
+      ),
+    )
   }
 
-  return { statusCode: 200 }
+  await analyzeFS(loantokens)
+
+  await analyzeBurn(o, loantokens)
+
+  await anaylzeVaults(o, loantokens, collAmounts)
+
+  const filtered: TokenData[] = []
+  loantokens.forEach((data, key) => {
+    if (key.indexOf('/') > -1 && splitMultipliers[key] != undefined) {
+      //is split token
+      const parts = key.split('/')
+      const multi = splitMultipliers[key]
+      const token = parts[0]
+      if (loantokens.has(token)) {
+        const otherData = loantokens.get(token)
+        if (otherData) {
+          otherData.burned = otherData.burned.plus(data.burned.times(multi))
+          otherData.fsminted = otherData.fsminted.plus(data.fsminted.times(multi))
+          otherData.fsburned = otherData.fsburned.plus(data.fsburned.times(multi))
+        }
+        data.minted = new BigNumber(0)
+      }
+    }
+    if (data.minted.gt(0)) {
+      filtered.push(data)
+    }
+  })
+
+  //analyze DUSD distribution:
+  const dusdData = loantokens.get("DUSD")!
+  const totalDUSD = dusdData.minted.minus(BigNumber.sum(dusdData.burned, dusdData.fsburned))
+  const loantokenSymbols = oceantokens.map(t => t.token.symbol)
+  const gatewaypools = activePools.filter(p =>
+    (p.tokenA.symbol == "DUSD" && loantokenSymbols.indexOf(p.tokenB.symbol) < 0) ||
+    (p.tokenB.symbol == "DUSD" && loantokenSymbols.indexOf(p.tokenA.symbol) < 0),
+  )
+
+  const dTokenPools = activePools.filter((p) => loantokenSymbols.indexOf(p.tokenA.symbol) > -1 && p.tokenB.symbol === "DUSD")
+
+  const dusdInGateway = gatewaypools
+    .map(p => p.tokenA.symbol === "DUSD" ? p.tokenA.reserve : p.tokenB.reserve)
+    .reduce((a, b) => a.plus(b), new BigNumber(0))
+  const dusdInLM = dTokenPools
+    .map(p => p.tokenA.symbol === "DUSD" ? p.tokenA.reserve : p.tokenB.reserve)
+    .reduce((a, b) => a.plus(b), new BigNumber(0))
+
+
+  const yvAccounts = ["df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9",
+    "df1qprl6292x4u7dcp62cx4zekxtlj876alhlkhpgv",
+    "df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m",
+    "df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l",
+    "df1qa9nc6547sh2gaes9jzwajdcndvre3myg4fxz4r",
+    "df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4",
+    "df1qljhz3f0euduc3hn7gqcwa7d83ekyqc9mjjnvsv",
+    "df1qyehja923547nqmfgaeduvus5fgumlzv80068rr",
+    "df1qney757fhg8wqf68xah6ctf7z5yglrxzph2tymz",
+    "df1qycert2awhxp4n74vs25u7thyplua55gx624xaf",
+    "df1qznv2eky0c3atea69zzsda9alj57jcjy3t4g4d2"];
+
+  const DUSDInYVAddresses = (await Promise.all(
+    yvAccounts.map(async acc => (await o.c.address.listToken(acc)).find(t => t.symbol === "DUSD")?.amount ?? 0))
+  ).reduce((prev, v) => prev.plus(v), new BigNumber(0))
+
+  const dTokenData = {
+    meta: {
+      tstamp: date.toISOString(),
+      startHeight: endHeight,
+      endHeight: startHeight,
+      analysedAt: startHeight,
+    },
+    dusdDistribution: {
+      collateral: collAmounts.get("DUSD"),
+      gatewayPools: dusdInGateway,
+      dTokenPools: dusdInLM,
+      yieldVault: DUSDInYVAddresses,
+      free: totalDUSD.minus(BigNumber.sum(collAmounts.get("DUSD")!, dusdInGateway, dusdInLM, DUSDInYVAddresses))
+    },
+    dusdVolume: {
+      bots: {
+        buying: dusdBots.buying.toNumber(),
+        selling: dusdBots.selling.toNumber(),
+      },
+      organic: {
+        buying: dusdOrganic.buying.toNumber(),
+        selling: dusdOrganic.selling.toNumber(),
+      },
+    },
+    dTokens: filtered.map((d) => d.toJson()),
+  }
+
+  const day = date.toISOString().substring(0, 10)
+  await sendToS3Full(dTokenData, 'dToken/', day + '.json')
+  await sendToS3Full(dTokenData, 'dToken/', 'latest.json')
+  console.log(JSON.stringify(dTokenData))
 }
 
 async function analyzeFS(loantokens: Map<string, TokenData>): Promise<void> {
@@ -560,12 +699,20 @@ async function analyzeBurn(o: Ocean, loantokens: Map<string, TokenData>): Promis
   })
 }
 
-async function anaylzeVaults(o: Ocean, loantokens: Map<string, TokenData>): Promise<void> {
+async function anaylzeVaults(o: Ocean, loantokens: Map<string, TokenData>, collAmounts: Map<string, BigNumber>): Promise<void> {
   const vaults = await o.getAll(() => o.c.loan.listVault(200))
   vaults
     .filter((v) => v.state === LoanVaultState.ACTIVE)
     .map((v) => v as LoanVaultActive)
     .forEach((v) => {
+      v.collateralAmounts.forEach((coll) => {
+        const token = coll.symbolKey
+        const amount = coll.amount
+        if (!collAmounts.has(token)) {
+          collAmounts.set(token, new BigNumber(0))
+        }
+        collAmounts.set(token, collAmounts.get(token)!.plus(amount))
+      })
       v.loanAmounts.forEach((loan) => {
         const token = loan.symbolKey
         const amount = loan.amount

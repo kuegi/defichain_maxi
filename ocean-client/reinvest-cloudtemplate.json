@@ -304,7 +304,7 @@
           },
           "S3Key": "lm-reinvest-2-1-1.zip"
         },
-        "Runtime": "nodejs14.x",
+        "Runtime": "nodejs18.x",
         "Timeout": 890
       }
     },
