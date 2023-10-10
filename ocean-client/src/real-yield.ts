@@ -188,7 +188,7 @@ export async function main(event: any, context: any): Promise<Object> {
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
 
-  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD']
+  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD', "XCHF-DUSD"]
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
   for (const pool of activePools) {
@@ -491,7 +491,7 @@ export async function main(event: any, context: any): Promise<Object> {
 
       if (window.startHeight == lateststartHeight && window.endHeight == latestendHeight) {
         //dToken analysis
-        await runDTokenAnalysis(o, lateststartHeight, latestendHeight, window.refDate, bots, organic)
+        await runDTokenAnalysis(o, lateststartHeight, latestendHeight, window.refDate, bots, organic, activePools)
 
       }
     }
@@ -519,7 +519,7 @@ export async function main(event: any, context: any): Promise<Object> {
   return { statusCode: 200 }
 }
 
-async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: number, date: Date, dusdBots: DUSDVolume, dusdOrganic: DUSDVolume): Promise<void> {
+async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: number, date: Date, dusdBots: DUSDVolume, dusdOrganic: DUSDVolume, activePools: PoolPairData[]): Promise<void> {
 
   console.log('reading dToken data')
 
@@ -527,6 +527,7 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
 
   const oceantokens = await o.getAll(() => o.c.loan.listLoanToken(200))
   const loantokens: Map<string, TokenData> = new Map()
+  const collAmounts: Map<string, BigNumber> = new Map()
   for (const lt of oceantokens) {
     loantokens.set(
       lt.token.symbolKey,
@@ -542,7 +543,7 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
 
   await analyzeBurn(o, loantokens)
 
-  await anaylzeVaults(o, loantokens)
+  await anaylzeVaults(o, loantokens, collAmounts)
 
   const filtered: TokenData[] = []
   loantokens.forEach((data, key) => {
@@ -566,12 +567,54 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
     }
   })
 
+  //analyze DUSD distribution:
+  const dusdData = loantokens.get("DUSD")!
+  const totalDUSD = dusdData.minted.minus(BigNumber.sum(dusdData.burned, dusdData.fsburned))
+  const loantokenSymbols = oceantokens.map(t => t.token.symbol)
+  const gatewaypools = activePools.filter(p =>
+    (p.tokenA.symbol == "DUSD" && loantokenSymbols.indexOf(p.tokenB.symbol) < 0) ||
+    (p.tokenB.symbol == "DUSD" && loantokenSymbols.indexOf(p.tokenA.symbol) < 0),
+  )
+
+  const dTokenPools = activePools.filter((p) => loantokenSymbols.indexOf(p.tokenA.symbol) > -1 && p.tokenB.symbol === "DUSD")
+
+  const dusdInGateway = gatewaypools
+    .map(p => p.tokenA.symbol === "DUSD" ? p.tokenA.reserve : p.tokenB.reserve)
+    .reduce((a, b) => a.plus(b), new BigNumber(0))
+  const dusdInLM = dTokenPools
+    .map(p => p.tokenA.symbol === "DUSD" ? p.tokenA.reserve : p.tokenB.reserve)
+    .reduce((a, b) => a.plus(b), new BigNumber(0))
+
+
+  const yvAccounts = ["df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9",
+    "df1qprl6292x4u7dcp62cx4zekxtlj876alhlkhpgv",
+    "df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m",
+    "df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l",
+    "df1qa9nc6547sh2gaes9jzwajdcndvre3myg4fxz4r",
+    "df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4",
+    "df1qljhz3f0euduc3hn7gqcwa7d83ekyqc9mjjnvsv",
+    "df1qyehja923547nqmfgaeduvus5fgumlzv80068rr",
+    "df1qney757fhg8wqf68xah6ctf7z5yglrxzph2tymz",
+    "df1qycert2awhxp4n74vs25u7thyplua55gx624xaf",
+    "df1qznv2eky0c3atea69zzsda9alj57jcjy3t4g4d2"];
+
+  const DUSDInYVAddresses = (await Promise.all(
+    yvAccounts.map(async acc => (await o.c.address.listToken(acc)).find(t => t.symbol === "DUSD")?.amount ?? 0))
+  ).reduce((prev, v) => prev.plus(v), new BigNumber(0))
+
   const dTokenData = {
     meta: {
       tstamp: date.toISOString(),
       startHeight: endHeight,
       endHeight: startHeight,
       analysedAt: startHeight,
+    },
+    dusdDistribution: {
+      collateral: collAmounts.get("DUSD"),
+      gatewayPools: dusdInGateway,
+      dTokenPools: dusdInLM,
+      yieldVault: DUSDInYVAddresses,
+      free: totalDUSD.minus(BigNumber.sum(collAmounts.get("DUSD")!, dusdInGateway, dusdInLM, DUSDInYVAddresses))
     },
     dusdVolume: {
       bots: {
@@ -656,12 +699,20 @@ async function analyzeBurn(o: Ocean, loantokens: Map<string, TokenData>): Promis
   })
 }
 
-async function anaylzeVaults(o: Ocean, loantokens: Map<string, TokenData>): Promise<void> {
+async function anaylzeVaults(o: Ocean, loantokens: Map<string, TokenData>, collAmounts: Map<string, BigNumber>): Promise<void> {
   const vaults = await o.getAll(() => o.c.loan.listVault(200))
   vaults
     .filter((v) => v.state === LoanVaultState.ACTIVE)
     .map((v) => v as LoanVaultActive)
     .forEach((v) => {
+      v.collateralAmounts.forEach((coll) => {
+        const token = coll.symbolKey
+        const amount = coll.amount
+        if (!collAmounts.has(token)) {
+          collAmounts.set(token, new BigNumber(0))
+        }
+        collAmounts.set(token, collAmounts.get(token)!.plus(amount))
+      })
       v.loanAmounts.forEach((loan) => {
         const token = loan.symbolKey
         const amount = loan.amount
