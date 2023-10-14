@@ -273,7 +273,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           ') pair ' +
           settings.LMPair +
           ', ' +
-          (program.isSingle() ? 'minting only ' + program.assetA : 'minting both'),
+        program.getMintingMessage(),
       )
       let exposureChanged = false
 
