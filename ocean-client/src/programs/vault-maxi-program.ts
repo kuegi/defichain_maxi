@@ -80,7 +80,6 @@ export class VaultMaxiProgram extends CommonProgram {
   private readonly minValueForCleanup: number = 1
   private readonly maxPercentDiffInConsistencyChecks: number = 1
 
-  private negInterestWorkaround: boolean = false
   public readonly dusdTokenId: number
 
   private reinvestTargets: ReinvestTarget[] = []
@@ -114,13 +113,9 @@ export class VaultMaxiProgram extends CommonProgram {
   async init(): Promise<boolean> {
     let result = await super.init()
     const blockheight = await this.getBlockHeight()
-    //workaround before FCE height
-    this.negInterestWorkaround = this.walletSetup.isTestnet() ? blockheight < 1244000 : blockheight < 2257500
     console.log(
       'initialized at block ' +
-        blockheight +
-        ' ' +
-        (this.negInterestWorkaround ? 'using negative interest workaround' : '') +
+      blockheight +
         ' dusd CollValue is ' +
         this.getCollateralFactor('' + this.dusdTokenId).toFixed(3) +
         ' min value for cleanup is $' +
@@ -510,9 +505,9 @@ export class VaultMaxiProgram extends CommonProgram {
               message +=
                 `would need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${lpTokens.symbol
                 }.\n` +
-                `would need ${neededDusd.toFixed(1)}  but got ${(+dusdLoan!.amount).toFixed(1)}  ${dusdLoan!.symbol
+              `would need ${neededDusd.toFixed(1)}  but got ${(+BLoan!.amount).toFixed(1)}  ${BLoan!.symbol
                 }.\n` +
-                `would need ${neededStock.toFixed(4)} but got ${(+tokenLoan!.amount).toFixed(4)} ${tokenLoan!.symbol}.\n`
+              `would need ${neededStock.toFixed(4)} but got ${(+ALoan!.amount).toFixed(4)} ${ALoan!.symbol}.\n`
               await telegram.send(message, LogLevel.WARNING) //@krysh is this warning or error?
             }
           }
@@ -798,19 +793,6 @@ export class VaultMaxiProgram extends CommonProgram {
         Array.from(tokens.values()).map((value) => ' ' + value.amount + '@' + value.symbol),
     )
 
-    let interestA = new BigNumber(0)
-    let interestB = new BigNumber(0)
-    if (this.negInterestWorkaround) {
-      vault = (await this.getVault()) as LoanVaultActive
-      vault.interestAmounts.forEach((value) => {
-        if (value.symbol == this.assetA) {
-          interestA = new BigNumber(value.amount)
-        }
-        if (value.symbol == this.assetB) {
-          interestB = new BigNumber(value.amount)
-        }
-      })
-    }
     let paybackTokens: AddressToken[] = []
     let collateralTokens: AddressToken[] = []
 
@@ -822,9 +804,6 @@ export class VaultMaxiProgram extends CommonProgram {
       if (this.isSingleMintB) {
         collateralTokens.push(token)
       } else {
-        if (this.negInterestWorkaround && interestA.lt(0)) {
-          token.amount = '' + interestA.times(1.005).plus(token.amount) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
-        }
         paybackTokens.push(token)
       }
     }
@@ -837,9 +816,6 @@ export class VaultMaxiProgram extends CommonProgram {
       if (this.isSingleMintA) {
         collateralTokens.push(token)
       } else {
-        if (this.negInterestWorkaround && interestB.lt(0)) {
-          token.amount = '' + interestB.times(1.005).plus(token.amount) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
-        }
         paybackTokens.push(token)
       }
     }
@@ -924,29 +900,12 @@ export class VaultMaxiProgram extends CommonProgram {
         Array.from(tokens.values()).map((value) => ' ' + value.amount + '@' + value.symbol),
     )
 
-    let interestA = new BigNumber(0)
-    let interestB = new BigNumber(0)
-    if (this.negInterestWorkaround) {
-      vault = (await this.getVault()) as LoanVaultActive
-      vault.interestAmounts.forEach((value) => {
-        if (value.symbol == this.assetA) {
-          interestA = new BigNumber(value.amount)
-        }
-        if (value.symbol == this.assetB) {
-          interestB = new BigNumber(value.amount)
-        }
-      })
-    }
-
     let token = tokens.get(this.assetB)
     if (token) {
       //removing exposure: keep wallet clean
       if (this.isSingleMintA) {
         collateralTokens.push(token)
       } else {
-        if (this.negInterestWorkaround && interestB.lt(0)) {
-          token.amount = '' + interestB.times(1.005).plus(token.amount) //neg interest with the bug is implicitly added to the payback, adding extra buffer to include possible additional blocks -> send in "wanted + negInterest"
-        }
         paybackTokens.push(token)
       }
     }
@@ -957,9 +916,6 @@ export class VaultMaxiProgram extends CommonProgram {
       if (this.isSingleMintB) {
         collateralTokens.push(token)
       } else {
-        if (this.negInterestWorkaround && interestA.lt(0)) {
-          token.amount = '' + interestA.times(1.005).plus(token.amount) //neg interest with the bug is implicitly added to the payback -> send in "wanted + negInterest"
-        }
         paybackTokens.push(token)
       }
     }
@@ -1898,11 +1854,6 @@ export class VaultMaxiProgram extends CommonProgram {
       }
       let token = balances.get(loan.symbol)
       if (token) {
-        if (this.negInterestWorkaround) {
-          const interest = new BigNumber(
-            vault.interestAmounts.find((interest) => interest.symbol == loan.symbol)?.amount ?? '0',
-          )
-        }
         if (previousTries > 1) {
           token.amount = '' + +token.amount / 2 //last cleanup failed -> try with half the amount
         }
