@@ -480,7 +480,7 @@ export class VaultMaxiProgram extends CommonProgram {
               )
 
             const neededAssetB = neededLPtokens.times(pool.tokenB.reserve).div(pool.totalLiquidity.token)
-            if (neededLPtokens.gt(lpTokens.amount) || neededAssetB.gt(ALoan!.amount)) {
+            if (neededLPtokens.gt(lpTokens.amount) || neededAssetB.gt(BLoan!.amount)) {
               message +=
                 `would need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${lpTokens.symbol
                 }.\n` +
@@ -1186,7 +1186,7 @@ export class VaultMaxiProgram extends CommonProgram {
       // add stable-DUSD case
       let oracleB = new BigNumber(1) //DUSD in loans is fixed 1
 
-      const coll = vault.collateralAmounts.find((coll) => coll.symbol === this.assetB)
+      const coll = vault.collateralAmounts.find((coll) => coll.symbol === this.assetA)
       const oracleA = this.getUsedOraclePrice(coll, true)
       const assetAInColl = coll?.amount ?? '0'
 
