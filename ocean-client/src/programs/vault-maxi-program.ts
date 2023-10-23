@@ -455,6 +455,7 @@ export class VaultMaxiProgram extends CommonProgram {
             `VaultMaxi could only reach a collRatio of ${safetyLevel.toFixed(0)}%. This is not safe!\n` +
             'It is highly recommend to fix this!\n' +
             `To be able to reach a safe collRatio of ${safeCollRatio.toFixed(0)}% it\n`
+          let shouldSend = false
           if (this.isSingleMintA) {
             let oracleA = this.getUsedOraclePrice(ALoan, false)
             let oracleB = this.getUsedOraclePrice(
@@ -476,8 +477,7 @@ export class VaultMaxiProgram extends CommonProgram {
                   lpTokens.symbol
                 }.\n` +
                 `would need ${neededAssetA.toFixed(4)} but got ${(+ALoan!.amount).toFixed(4)} ${ALoan!.symbol}.\n`
-
-              await telegram.send(message, LogLevel.WARNING) //warning or error? action is recommended but not required?
+              shouldSend = true
             }
           } else if (this.isSingleMintB) {
             // case stable-DUSD
@@ -502,8 +502,7 @@ export class VaultMaxiProgram extends CommonProgram {
                   lpTokens.symbol
                 }.\n` +
                 `would need ${neededAssetB.toFixed(4)} but got ${(+BLoan!.amount).toFixed(4)} ${BLoan!.symbol}.\n`
-
-              await telegram.send(message, LogLevel.WARNING) //warning or error? action is recommended but not required?
+              shouldSend = true
             }
           } else {
             //case dToken-DUSD
@@ -520,8 +519,11 @@ export class VaultMaxiProgram extends CommonProgram {
                 }.\n` +
                 `would need ${neededDusd.toFixed(1)} but got ${(+BLoan!.amount).toFixed(1)} ${BLoan!.symbol}.\n` +
                 `would need ${neededStock.toFixed(4)} but got ${(+ALoan!.amount).toFixed(4)} ${ALoan!.symbol}.\n`
-              await telegram.send(message, LogLevel.WARNING) //@krysh is this warning or error?
+              shouldSend = true
             }
+          }
+          if (shouldSend) {
+            await telegram.send(message, LogLevel.WARNING) //warning cause action is recommended but not required
           }
         }
       }
