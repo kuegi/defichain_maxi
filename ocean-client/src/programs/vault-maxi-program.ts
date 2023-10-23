@@ -1327,10 +1327,6 @@ export class VaultMaxiProgram extends CommonProgram {
           this.assetB,
       )
 
-      loanArray = [
-        { token: +pool.tokenA.id, amount: wantedAssetA },
-        { token: +pool.tokenB.id, amount: wantedAssetB },
-      ]
       //check if enough collateral is there to even take new loan
       //dusdDFI * 2 >= loan+additionLoan * minRatio
       if (
@@ -1359,8 +1355,25 @@ export class VaultMaxiProgram extends CommonProgram {
         await telegram.send(msg, LogLevel.INFO)
         wantedAssetA = possibleLoan.div(BigNumber.sum(oracleA, pool.priceRatio.ba))
         wantedAssetB = wantedAssetA.multipliedBy(pool.priceRatio.ba)
+        console.log(
+          'reduced increasing to ' +
+            possibleLoan +
+            ' USD, taking loan ' +
+            wantedAssetA.toFixed(4) +
+            '@' +
+            this.assetA +
+            ', ' +
+            wantedAssetB.toFixed(4) +
+            '@' +
+            this.assetB,
+        )
       }
+      loanArray = [
+        { token: +pool.tokenA.id, amount: wantedAssetA },
+        { token: +pool.tokenB.id, amount: wantedAssetB },
+      ]
     }
+    console.log('taking loans ' + JSON.stringify(loanArray))
     const takeLoanTx = await this.takeLoans(loanArray, prevout)
     await this.updateToState(ProgramState.WaitingForTransaction, VaultMaxiProgramTransaction.TakeLoan, takeLoanTx.txId)
     if (this.keepWalletClean) {
