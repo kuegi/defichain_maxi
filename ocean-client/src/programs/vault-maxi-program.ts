@@ -74,8 +74,8 @@ export class VaultMaxiProgram extends CommonProgram {
   readonly assetA: string
   readonly assetB: string
   private mainCollateralAsset: string
-  private isSingleMintA: boolean
-  private isSingleMintB: boolean
+  private isSingleMintA: boolean = false
+  private isSingleMintB: boolean = false
   private readonly keepWalletClean: boolean
   private readonly minValueForCleanup: number = 1
   private readonly maxPercentDiffInConsistencyChecks: number = 1
@@ -92,12 +92,7 @@ export class VaultMaxiProgram extends CommonProgram {
     this.lmPair = this.getSettings().LMPair
     ;[this.assetA, this.assetB] = this.lmPair.split('-')
     this.mainCollateralAsset = this.getSettings().mainCollateralAsset
-    this.isSingleMintB = this.assetB == 'DUSD' && this.STABLE_COINS.indexOf(this.assetA) >= 0
-    this.isSingleMintA =
-      !this.isSingleMintB &&
-      (this.mainCollateralAsset == 'DUSD' ||
-        this.lmPair == 'DUSD-DFI' ||
-        (this.assetA == 'DUSD' && this.STABLE_COINS.indexOf(this.assetB) >= 0))
+    this.extractSingleMint()
 
     this.targetCollateral = (this.getSettings().minCollateralRatio + this.getSettings().maxCollateralRatio) / 200
     this.keepWalletClean =
@@ -139,6 +134,15 @@ export class VaultMaxiProgram extends CommonProgram {
     return (
       transaction == VaultMaxiProgramTransaction.RemoveLiquidity || transaction == VaultMaxiProgramTransaction.TakeLoan
     )
+  }
+
+  private extractSingleMint(): void {
+    this.isSingleMintB = this.assetB == 'DUSD' && this.STABLE_COINS.indexOf(this.assetA) >= 0
+    this.isSingleMintA =
+      !this.isSingleMintB &&
+      (this.mainCollateralAsset == 'DUSD' ||
+        this.lmPair == 'DUSD-DFI' ||
+        (this.assetA == 'DUSD' && this.STABLE_COINS.indexOf(this.assetB) >= 0))
   }
 
   getVaultId(): string {
@@ -418,12 +422,7 @@ export class VaultMaxiProgram extends CommonProgram {
       this.mainCollateralAsset = 'DFI'
     }
 
-    this.isSingleMintB = this.assetB == 'DUSD' && this.STABLE_COINS.indexOf(this.assetA) >= 0
-    this.isSingleMintA =
-      !this.isSingleMintB &&
-      (this.mainCollateralAsset == 'DUSD' ||
-        this.lmPair == 'DUSD-DFI' ||
-        (this.assetA == 'DUSD' && this.STABLE_COINS.indexOf(this.assetB) >= 0))
+    this.extractSingleMint()
 
     const vault = vaultcheck as LoanVaultActive
     if (vault.state != LoanVaultState.FROZEN) {
@@ -519,7 +518,7 @@ export class VaultMaxiProgram extends CommonProgram {
                 `would need ${neededLPtokens.toFixed(4)} but got ${(+lpTokens.amount).toFixed(4)} ${
                   lpTokens.symbol
                 }.\n` +
-                `would need ${neededDusd.toFixed(1)}  but got ${(+BLoan!.amount).toFixed(1)}  ${BLoan!.symbol}.\n` +
+                `would need ${neededDusd.toFixed(1)} but got ${(+BLoan!.amount).toFixed(1)} ${BLoan!.symbol}.\n` +
                 `would need ${neededStock.toFixed(4)} but got ${(+ALoan!.amount).toFixed(4)} ${ALoan!.symbol}.\n`
               await telegram.send(message, LogLevel.WARNING) //@krysh is this warning or error?
             }
@@ -1776,7 +1775,7 @@ export class VaultMaxiProgram extends CommonProgram {
       this.nextLoanValue(vault).minus(this.nextCollateralValue(vault).div(referenceRatio / 100)),
     )
 
-    const oracleA = this.getUsedOraclePrice(
+    let oracleA = this.getUsedOraclePrice(
       vault.loanAmounts.find((l) => l.symbol === this.assetA),
       false,
     )
@@ -1794,8 +1793,18 @@ export class VaultMaxiProgram extends CommonProgram {
         ),
       )
     } else if (this.isSingleMintB) {
-      //TODO: stalbe-DUSD case
-      wantedTokens = new BigNumber(0)
+      oracleB = new BigNumber(1)
+      let tokenA = this.getCollateralTokenByKey(this.assetA)!
+      oracleA = this.getUsedOraclePrice(
+        { symbol: tokenA.token.symbolKey, id: tokenA.tokenId, activePrice: tokenA.activePrice },
+        true,
+      )
+      wantedTokens = neededrepayForRefRatio.times(referenceRatio / 100).div(
+        BigNumber.sum(
+          oracleA.times(pool.tokenA.reserve), 
+          oracleB.times(pool.tokenB.reserve).times(referenceRatio / 100),//additional "times" due to part collateral, part loan
+        ),
+      )
     } else {
       wantedTokens = neededrepayForRefRatio.div(BigNumber.sum(oracleA.times(pool.tokenA.reserve), pool.tokenB.reserve)) //would be oracleB* pool!.tokenB.reserve but oracleB is always 1 for DUSD as loan
     }
