@@ -29,14 +29,14 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.5.2'
+export const VERSION = 'v2.5.3'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
   let blockHeight = 0
   let cleanUpTries = 0
   // adding multiples so that we alternate the first retries
-  let mainOceansToUse = ['https://ocean.defichain.io', 'https://ocean.defichain.com', 'https://ocean.defichain.io']
+  let mainOceansToUse = ['https://ocean.defichain.com']
   let testOceansToUse = ['https://testnet.ocean.jellyfishsdk.com']
   if (process.env.VAULTMAXI_OCEAN_URL) {
     mainOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
@@ -232,6 +232,28 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         await program.removeExposure(vault, pool!, balances, telegram, true)
         const message = 'vault is frozen. trying again later '
         await telegram.send(message, LogLevel.INFO)
+
+        //to prevent problems on chainsplit or any trouble with the chain on this ocean: check blockdata
+        const refBlocks = 100
+        const lastBlocks = await program.client.blocks.list(refBlocks)
+        const lastTime = lastBlocks[0].time
+        const prevTime = lastBlocks[refBlocks - 1].time
+        const blockTimeThreshold = program.isTestnet() ? 75 : 45
+        if (
+          oceansToUse.length > 0 &&
+          (lastTime < Date.now() / 1000 - 15 * 60 || lastTime - prevTime > refBlocks * blockTimeThreshold)
+        ) {
+          //more than 15 minutes no block or too long blocktime
+          //  means this chain is not stable/not the main chain-> redo with other ocean
+          await telegram.send(
+            `chain feels unstable on ocean ${commonProgram.getUsedOceanUrl()}, doing an extra round with next fallback ocean.` +
+              `${Date.now() / 1000} vs ${lastTime} (diff ${((Date.now() / 1000 - lastTime) / 60).toFixed(
+                1,
+              )} min), avg blocktime ${(lastTime - prevTime) / refBlocks}`,
+            LogLevel.INFO,
+          )
+          continue
+        }
         return { statusCode: 200 }
       }
 
