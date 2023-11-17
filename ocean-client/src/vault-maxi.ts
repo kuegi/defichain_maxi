@@ -35,9 +35,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
   let blockHeight = 0
   let cleanUpTries = 0
-  // adding multiples so that we alternate the first retries
-  let mainOceansToUse = ['https://ocean.defichain.com']
-  let testOceansToUse = ['https://testnet.ocean.jellyfishsdk.com']
+  // adding multiples so that we alternate the first retries.
+  let mainOceansToUse = ['https://ocean.defichain.com', 'https://ocean.mydefichain.com']
+  let testOceansToUse = ['https://testnet.ocean.jellyfishsdk.com', 'https://testnet-ocean.mydefichain.com:8443']
   if (process.env.VAULTMAXI_OCEAN_URL) {
     mainOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
     testOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
