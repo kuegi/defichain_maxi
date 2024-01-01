@@ -111,19 +111,19 @@ async function getSwaps(o: Ocean, id: string, untilBlock: number): Promise<PoolS
 }
 
 function inFeeA(pool: PoolPairData): number {
-  return +(pool.tokenA.fee?.inPct ?? pool.tokenA.fee?.pct ?? 0)
+  return +(pool.tokenA.fee?.inPct ?? 0)
 }
 
 function outFeeA(pool: PoolPairData): number {
-  return +(pool.tokenA.fee?.outPct ?? pool.tokenA.fee?.pct ?? 0)
+  return +(pool.tokenA.fee?.outPct ?? 0)
 }
 
 function inFeeB(pool: PoolPairData): number {
-  return +(pool.tokenB.fee?.inPct ?? pool.tokenB.fee?.pct ?? 0)
+  return +(pool.tokenB.fee?.inPct ?? 0)
 }
 
 function outFeeB(pool: PoolPairData): number {
-  return +(pool.tokenB.fee?.outPct ?? pool.tokenB.fee?.pct ?? 0)
+  return +(pool.tokenB.fee?.outPct ?? 0)
 }
 
 class DataWindow {
@@ -602,6 +602,12 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
     yvAccounts.map(async acc => (await o.c.address.listToken(acc)).find(t => t.symbol === "DUSD")?.amount ?? 0))
   ).reduce((prev, v) => prev.plus(v), new BigNumber(0))
 
+  const stakeXVault = (await o.c.loan.getVault(
+    '803ab20b65a68b809f0bd7ac1513c73612b6e9f345d92d2347fa3d75bb6a4def',
+  )) as LoanVaultActive
+  const stakeXTVL = new BigNumber(stakeXVault.collateralValue).minus(stakeXVault.loanValue)
+  const stakeXLoop = new BigNumber(stakeXVault.loanValue)
+
   const dTokenData = {
     meta: {
       tstamp: date.toISOString(),
@@ -610,11 +616,13 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
       analysedAt: startHeight,
     },
     dusdDistribution: {
-      collateral: collAmounts.get("DUSD"),
+      collateral: collAmounts.get('DUSD')?.minus(stakeXVault.collateralValue),
       gatewayPools: dusdInGateway,
       dTokenPools: dusdInLM,
       yieldVault: DUSDInYVAddresses,
-      free: totalDUSD.minus(BigNumber.sum(collAmounts.get("DUSD")!, dusdInGateway, dusdInLM, DUSDInYVAddresses))
+      stakeXTVL,
+      stakeXLoop,
+      free: totalDUSD.minus(BigNumber.sum(collAmounts.get('DUSD')!, dusdInGateway, dusdInLM, DUSDInYVAddresses)),
     },
     dusdVolume: {
       bots: {
