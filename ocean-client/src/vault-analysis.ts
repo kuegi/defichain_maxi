@@ -11,7 +11,7 @@ class Ocean {
 
   constructor() {
     this.c = new WhaleApiClient({
-      url: 'https://ocean.defichain.com',
+      url: 'https://ocean.mydefichain.com',
       version: 'v0',
     })
   }
