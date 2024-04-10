@@ -6,6 +6,8 @@ import { LoanToken, LoanVaultActive } from '@defichain/whale-api-client/dist/api
 import fetch from 'cross-fetch'
 import { LoanVaultState } from '@defichain/whale-api-client/dist/api/loan'
 
+import { ethers, providers } from 'ethers'
+import BondManager from './abis/BondManager.json'
 
 class DUSDVolume {
   public address
@@ -41,15 +43,17 @@ class DFIVolume {
   }
 }
 
-
 class TokenData {
   public key: string
   public minted: BigNumber
   public fsminted: BigNumber = new BigNumber(0)
   public fsburned: BigNumber = new BigNumber(0)
+  public onDMC: BigNumber = new BigNumber(0)
   public openloan: BigNumber = new BigNumber(0)
   public openinterest: BigNumber = new BigNumber(0)
   public burned: BigNumber = new BigNumber(0)
+  public atBurnAddress: BigNumber = new BigNumber(0)
+  public directlyBurned: BigNumber = new BigNumber(0)
   public frompayback: BigNumber = new BigNumber(0)
   public price: BigNumber
 
@@ -156,44 +160,45 @@ export async function main(event: any, context: any): Promise<Object> {
   //prepare windows:
   const windows: DataWindow[] = []
   //first entry is latest
-  windows.push(new DataWindow(lateststartHeight, latestendHeight, new Date(latesttime * 1000), "latest"))
+  windows.push(new DataWindow(lateststartHeight, latestendHeight, new Date(latesttime * 1000), 'latest'))
   //always add current day
   const date = new Date(latesttime * 1000)
   date.setUTCHours(0, 0, 0, 0)
   const tstampStart = date.getTime() / 1000
   const dayStart = await o.getBlockForTstamp(tstampStart, { height: currentHeight, tstamp: latesttime })
-  const refDate = new Date((latesttime + tstampStart) * 1000 / 2)
+  const refDate = new Date(((latesttime + tstampStart) * 1000) / 2)
   windows.push(new DataWindow(lateststartHeight, dayStart, refDate, refDate.toISOString().substring(0, 10)))
   //if current day is max 4 hours old -> also add previous day
   if (latesttime - dayStart < 60 * 60 * 4) {
     const prevStart = await o.getBlockForTstamp(tstampStart - 60 * 60 * 24, { height: dayStart, tstamp: tstampStart })
-    const refDate = new Date((prevStart + dayStart) * 1000 / 2)
+    const refDate = new Date(((prevStart + dayStart) * 1000) / 2)
     windows.push(new DataWindow(dayStart, prevStart, refDate, refDate.toISOString().substring(0, 10)))
   }
 
-
-  const totalEnd = windows.map(w => w.endHeight).reduce((a, b) => Math.min(a, b), currentHeight)
-  const totalStart = windows.map(w => w.startHeight).reduce((a, b) => Math.max(a, b), 0)
+  const totalEnd = windows.map((w) => w.endHeight).reduce((a, b) => Math.min(a, b), currentHeight)
+  const totalStart = windows.map((w) => w.startHeight).reduce((a, b) => Math.max(a, b), 0)
   console.log(
     'starting at block ' +
-    totalStart +
-    ' analysing down until ' +
-    totalEnd +
-    ' for date ' +
-    latesttime.toFixed(0) +
-    ' ' +
-    new Date(latesttime * 1000).toISOString() +
-    " doing " + windows.length + " windows: " + windows.map(w => w.filename + ": " + w.startHeight + " to " + w.endHeight).toString(),
+      totalStart +
+      ' analysing down until ' +
+      totalEnd +
+      ' for date ' +
+      latesttime.toFixed(0) +
+      ' ' +
+      new Date(latesttime * 1000).toISOString() +
+      ' doing ' +
+      windows.length +
+      ' windows: ' +
+      windows.map((w) => w.filename + ': ' + w.startHeight + ' to ' + w.endHeight).toString(),
   )
   //read all vaults
   const pools = await o.getAll(() => o.c.poolpairs.list(200))
 
-  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD', "XCHF-DUSD"]
+  const gatewaypools = ['DUSD-DFI', 'USDT-DUSD', 'USDC-DUSD', 'EUROC-DUSD', 'XCHF-DUSD']
   const activePools = pools.filter((p) => p.status && +p.totalLiquidity.token > 0)
   console.log('getting swaps for ' + activePools.length + ' pools')
   for (const pool of activePools) {
-    windows.forEach(window => {
-
+    windows.forEach((window) => {
       if (!window.yields.has(pool.tokenA.symbol)) {
         window.yields.set(pool.tokenA.symbol, new YieldForToken(pool.tokenA.symbol))
       }
@@ -204,7 +209,6 @@ export async function main(event: any, context: any): Promise<Object> {
       }
       const dataB = window.yields.get(pool.tokenB.symbol)!
       dataB.totalCoinsInPools = dataB.totalCoinsInPools.plus(pool.tokenB.reserve)
-
     })
     const swaps = await getSwaps(o, pool.id, totalEnd)
     for (const swap of swaps) {
@@ -214,7 +218,7 @@ export async function main(event: any, context: any): Promise<Object> {
       if (swap.block.height < totalEnd) {
         break
       }
-      const usedWindows = windows.filter(w => w.startHeight > swap.block.height && w.endHeight <= swap.block.height)
+      const usedWindows = windows.filter((w) => w.startHeight > swap.block.height && w.endHeight <= swap.block.height)
       if (usedWindows.length == 0) {
         continue
       }
@@ -271,13 +275,13 @@ export async function main(event: any, context: any): Promise<Object> {
           } else {
             console.warn(
               'unable to find other pools for 3-way swap: ' +
-              swap.from.symbol +
-              '->' +
-              swap.to?.symbol +
-              ' in pool ' +
-              pool.symbol +
-              ' type ' +
-              swap.type,
+                swap.from.symbol +
+                '->' +
+                swap.to?.symbol +
+                ' in pool ' +
+                pool.symbol +
+                ' type ' +
+                swap.type,
             )
           }
         }
@@ -314,8 +318,7 @@ export async function main(event: any, context: any): Promise<Object> {
         }
       }
 
-      usedWindows.forEach(window => {
-
+      usedWindows.forEach((window) => {
         if (amountA !== undefined && amountB !== undefined) {
           const dataA = window.yields.get(pool.tokenA.symbol)!
           const dataB = window.yields.get(pool.tokenB.symbol)!
@@ -359,7 +362,7 @@ export async function main(event: any, context: any): Promise<Object> {
             }
           }
         }
-        if (pool.tokenB.symbol === "DFI" && pool.tokenA.symbol !== "DUSD") {
+        if (pool.tokenB.symbol === 'DFI' && pool.tokenA.symbol !== 'DUSD') {
           /// DFI pool, but not DUSD gateway
           const buying = AtoB
           const symbol = pool.tokenA.symbol
@@ -388,7 +391,7 @@ export async function main(event: any, context: any): Promise<Object> {
   const prices = await o.getAll(() => o.c.prices.list())
   for (let i = 0; i < windows.length; i++) {
     const window = windows[i]
-    console.log("doing window " + window.filename + " " + window.startHeight + " - " + window.endHeight)
+    console.log('doing window ' + window.filename + ' ' + window.startHeight + ' - ' + window.endHeight)
     {
       let totalCommission = new BigNumber(0)
       let totalFee = new BigNumber(0)
@@ -470,12 +473,14 @@ export async function main(event: any, context: any): Promise<Object> {
         }
       })
 
+      const dusdDfi = activePools.find((p) => p.symbol === 'DUSD-DFI')
       const dusdResult = {
         meta: {
           tstamp: window.refDate.toISOString(),
           startHeight: window.endHeight,
           endHeight: window.startHeight,
         },
+        fee: dusdDfi?.tokenA.fee?.inPct,
         bots: {
           buying: bots.buying.toNumber(),
           selling: bots.selling.toNumber(),
@@ -492,13 +497,11 @@ export async function main(event: any, context: any): Promise<Object> {
       if (window.startHeight == lateststartHeight && window.endHeight == latestendHeight) {
         //dToken analysis
         await runDTokenAnalysis(o, lateststartHeight, latestendHeight, window.refDate, bots, organic, activePools)
-
       }
     }
 
     {
-
-      console.log("uploading DFI volumes")
+      console.log('uploading DFI volumes')
       const dfiData: Object[] = []
       window.dfiVolumes.forEach((volume, coin) => {
         dfiData.push(volume.toJson())
@@ -508,9 +511,9 @@ export async function main(event: any, context: any): Promise<Object> {
           tstamp: window.refDate.toISOString(),
           startHeight: window.endHeight,
           endHeight: window.startHeight,
-          analysedAt: currentHeight
+          analysedAt: currentHeight,
         },
-        dfiVolume: dfiData
+        dfiVolume: dfiData,
       }
       await sendToS3Full(dfiResult, 'dfiVolumes/', window.filename + '.json')
       console.log(JSON.stringify(dfiResult))
@@ -519,8 +522,15 @@ export async function main(event: any, context: any): Promise<Object> {
   return { statusCode: 200 }
 }
 
-async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: number, date: Date, dusdBots: DUSDVolume, dusdOrganic: DUSDVolume, activePools: PoolPairData[]): Promise<void> {
-
+async function runDTokenAnalysis(
+  o: Ocean,
+  startHeight: number,
+  endHeight: number,
+  date: Date,
+  dusdBots: DUSDVolume,
+  dusdOrganic: DUSDVolume,
+  activePools: PoolPairData[],
+): Promise<void> {
   console.log('reading dToken data')
 
   const splitMultipliers: { [keys: string]: number } = { 'TSLA/v1': 3, 'GME/v1': 4, 'GOOGL/v1': 20, 'AMZN/v1': 20 }
@@ -568,38 +578,44 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
   })
 
   //analyze DUSD distribution:
-  const dusdData = loantokens.get("DUSD")!
+  const dusdData = loantokens.get('DUSD')!
   const totalDUSD = dusdData.minted.minus(BigNumber.sum(dusdData.burned, dusdData.fsburned))
-  const loantokenSymbols = oceantokens.map(t => t.token.symbol)
-  const gatewaypools = activePools.filter(p =>
-    (p.tokenA.symbol == "DUSD" && loantokenSymbols.indexOf(p.tokenB.symbol) < 0) ||
-    (p.tokenB.symbol == "DUSD" && loantokenSymbols.indexOf(p.tokenA.symbol) < 0),
+  const loantokenSymbols = oceantokens.map((t) => t.token.symbol)
+  const gatewaypools = activePools.filter(
+    (p) =>
+      (p.tokenA.symbol == 'DUSD' && loantokenSymbols.indexOf(p.tokenB.symbol) < 0) ||
+      (p.tokenB.symbol == 'DUSD' && loantokenSymbols.indexOf(p.tokenA.symbol) < 0),
   )
 
-  const dTokenPools = activePools.filter((p) => loantokenSymbols.indexOf(p.tokenA.symbol) > -1 && p.tokenB.symbol === "DUSD")
+  const dTokenPools = activePools.filter(
+    (p) => loantokenSymbols.indexOf(p.tokenA.symbol) > -1 && p.tokenB.symbol === 'DUSD',
+  )
 
   const dusdInGateway = gatewaypools
-    .map(p => p.tokenA.symbol === "DUSD" ? p.tokenA.reserve : p.tokenB.reserve)
+    .map((p) => (p.tokenA.symbol === 'DUSD' ? p.tokenA.reserve : p.tokenB.reserve))
     .reduce((a, b) => a.plus(b), new BigNumber(0))
   const dusdInLM = dTokenPools
-    .map(p => p.tokenA.symbol === "DUSD" ? p.tokenA.reserve : p.tokenB.reserve)
+    .map((p) => (p.tokenA.symbol === 'DUSD' ? p.tokenA.reserve : p.tokenB.reserve))
     .reduce((a, b) => a.plus(b), new BigNumber(0))
 
+  const yvAccounts = [
+    'df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9',
+    'df1qprl6292x4u7dcp62cx4zekxtlj876alhlkhpgv',
+    'df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m',
+    'df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l',
+    'df1qa9nc6547sh2gaes9jzwajdcndvre3myg4fxz4r',
+    'df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4',
+    'df1qljhz3f0euduc3hn7gqcwa7d83ekyqc9mjjnvsv',
+    'df1qyehja923547nqmfgaeduvus5fgumlzv80068rr',
+    'df1qney757fhg8wqf68xah6ctf7z5yglrxzph2tymz',
+    'df1qycert2awhxp4n74vs25u7thyplua55gx624xaf',
+    'df1qznv2eky0c3atea69zzsda9alj57jcjy3t4g4d2',
+  ]
 
-  const yvAccounts = ["df1qysxzf9hzn6kql0zs9hmfyewln06akqvwe5u3c9",
-    "df1qprl6292x4u7dcp62cx4zekxtlj876alhlkhpgv",
-    "df1qxv0q27mvxqznzu36l7lvdzm7p26y8gwkeqhy3m",
-    "df1q8v6m62997petdz0dzdeu2xg03sq87e768tpv6l",
-    "df1qa9nc6547sh2gaes9jzwajdcndvre3myg4fxz4r",
-    "df1qpzrg4q04kh29fu88gxx2766mpkd6vchtvnn6n4",
-    "df1qljhz3f0euduc3hn7gqcwa7d83ekyqc9mjjnvsv",
-    "df1qyehja923547nqmfgaeduvus5fgumlzv80068rr",
-    "df1qney757fhg8wqf68xah6ctf7z5yglrxzph2tymz",
-    "df1qycert2awhxp4n74vs25u7thyplua55gx624xaf",
-    "df1qznv2eky0c3atea69zzsda9alj57jcjy3t4g4d2"];
-
-  const DUSDInYVAddresses = (await Promise.all(
-    yvAccounts.map(async acc => (await o.c.address.listToken(acc)).find(t => t.symbol === "DUSD")?.amount ?? 0))
+  const DUSDInYVAddresses = (
+    await Promise.all(
+      yvAccounts.map(async (acc) => (await o.c.address.listToken(acc)).find((t) => t.symbol === 'DUSD')?.amount ?? 0),
+    )
   ).reduce((prev, v) => prev.plus(v), new BigNumber(0))
 
   const stakeXVault = (await o.c.loan.getVault(
@@ -608,6 +624,26 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
   const stakeXTVL = new BigNumber(stakeXVault.collateralValue).minus(stakeXVault.loanValue)
   const stakeXLoop = new BigNumber(stakeXVault.loanValue)
 
+  const evmProvider = new providers.JsonRpcProvider('https://dmc.mydefichain.com/mainnet')
+  const dusdSC1 = new ethers.Contract('0xD88Bb8359D694c974C9726b6201479a123212333', BondManager.abi, evmProvider)
+  const tvlBond1 = +ethers.utils.formatEther(await dusdSC1.currentTvl())
+  const dusdSC2 = new ethers.Contract('0xc5B7aAc761aa3C3f34A3cEB1333f6431d811d638', BondManager.abi, evmProvider)
+  const tvlBond2 = +ethers.utils.formatEther(await dusdSC2.currentTvl())
+  const totalInBonds = tvlBond1 + tvlBond2
+  console.log(`tvl in bonds: ${tvlBond1} + ${tvlBond2} = ${totalInBonds.toFixed(2)}`)
+
+  const response = await fetch('http://api.mydefichain.com/v1/listgovs/')
+  const govs = await response.json()
+
+  let onDMC = new BigNumber(0)
+  for (const gov of govs) {
+    const attr = gov.find((e: any) => e.ATTRIBUTES != undefined)
+    if (attr != undefined) {
+      onDMC = new BigNumber(attr.ATTRIBUTES['v0/live/economy/transferdomain/evm/15/current'])
+    }
+  }
+
+  const dusdDfi = activePools.find((p) => p.symbol === 'DUSD-DFI')
   const dTokenData = {
     meta: {
       tstamp: date.toISOString(),
@@ -622,9 +658,13 @@ async function runDTokenAnalysis(o: Ocean, startHeight: number, endHeight: numbe
       yieldVault: DUSDInYVAddresses,
       stakeXTVL,
       stakeXLoop,
-      free: totalDUSD.minus(BigNumber.sum(collAmounts.get('DUSD')!, dusdInGateway, dusdInLM, DUSDInYVAddresses)),
+      tvlBond1,
+      tvlBond2,
+      otherOnDMC: onDMC.minus(totalInBonds),
+      free: totalDUSD.minus(BigNumber.sum(collAmounts.get('DUSD')!, dusdInGateway, dusdInLM, DUSDInYVAddresses, onDMC)),
     },
     dusdVolume: {
+      fee: dusdDfi?.tokenA.fee?.inPct,
       bots: {
         buying: dusdBots.buying.toNumber(),
         selling: dusdBots.selling.toNumber(),
@@ -705,10 +745,31 @@ async function analyzeBurn(o: Ocean, loantokens: Map<string, TokenData>): Promis
     const data = loantokens.get(token)!
     data.burned = data.burned.plus(amount)
   })
+
+  // get total burn:
+  const burnAddressTokens = await o.getAll(() => o.c.address.listToken(burn.address, 200))
+  burnAddressTokens.forEach((token) => {
+    if (loantokens.has(token.symbolKey)) {
+      const data = loantokens.get(token.symbolKey)!
+      data.atBurnAddress = new BigNumber(token.amount)
+      data.directlyBurned = data.atBurnAddress.minus(data.burned)
+      data.burned = data.atBurnAddress
+    }
+  })
 }
 
-async function anaylzeVaults(o: Ocean, loantokens: Map<string, TokenData>, collAmounts: Map<string, BigNumber>): Promise<void> {
-  const vaults = await o.getAll(() => o.c.loan.listVault(200))
+async function anaylzeVaults(
+  o: Ocean,
+  loantokens: Map<string, TokenData>,
+  collAmounts: Map<string, BigNumber>,
+): Promise<void> {
+  var vaults = await o.getAll(() => o.c.loan.listVault(200))
+  const totalVaults = await (await o.c.stats.get()).loan.count.openVaults
+  while (vaults.length < totalVaults * 0.9) {
+    //hickup -> try again
+    console.log('have to get vaults again, cause only ' + vaults.length + '/' + totalVaults + ' received')
+    vaults = await o.getAll(() => o.c.loan.listVault(200))
+  }
   vaults
     .filter((v) => v.state === LoanVaultState.ACTIVE)
     .map((v) => v as LoanVaultActive)

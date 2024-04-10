@@ -1,54 +1,55 @@
 {
-    "private": true,
-    "scripts": {
-        "build": "node build.js",
-        "build-app": "node build-app.js",
-        "build-addon": "node build-addon.js",
-        "build:vault-maxi": "node build.js",
-        "build:lm-reinvest": "node build.js",
-        "build:command-center": "node build-addon.js",
-        "test": "jest --silent"
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "build-app": "node build-app.js",
+    "build-addon": "node build-addon.js",
+    "build:vault-maxi": "node build.js",
+    "build:lm-reinvest": "node build.js",
+    "build:command-center": "node build-addon.js",
+    "test": "jest --silent"
+  },
+  "dependencies": {
+    "@defichain/jellyfish-network": "^3.5.2",
+    "@defichain/jellyfish-transaction": "^3.5.2",
+    "@defichain/jellyfish-wallet": "^3.5.2",
+    "@defichain/jellyfish-wallet-classic": "^3.5.2",
+    "@defichain/jellyfish-wallet-mnemonic": "^3.5.2",
+    "@defichain/whale-api-client": "^3.5.2",
+    "@defichain/whale-api-wallet": "^3.5.2",
+    "aws-sdk": "^2.1084.0",
+    "cross-fetch": "3.1.5",
+    "deterministic-zip": "github:troyready/deterministic-zip#patch-1",
+    "table": "^6.8.0",
+    "ethers": "^5.7.1",
+    "typescript": "4.6.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.18.10",
+    "@babel/preset-env": "^7.18.10",
+    "@babel/preset-typescript": "^7.18.6",
+    "@types/jest": "^28.1.6",
+    "@types/node": "^17.0.41",
+    "@types/node-fetch": "^2.6.2",
+    "@vercel/ncc": "latest",
+    "babel-jest": "^28.1.3",
+    "jest": "^28.1.3",
+    "ts-jest": "^28.0.7"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
     },
-    "dependencies": {
-        "@defichain/jellyfish-network": "^3.5.2",
-        "@defichain/jellyfish-transaction": "^3.5.2",
-        "@defichain/jellyfish-wallet": "^3.5.2",
-        "@defichain/jellyfish-wallet-classic": "^3.5.2",
-        "@defichain/jellyfish-wallet-mnemonic": "^3.5.2",
-        "@defichain/whale-api-client": "^3.5.2",
-        "@defichain/whale-api-wallet": "^3.5.2",
-        "aws-sdk": "^2.1084.0",
-        "cross-fetch": "3.1.5",
-        "deterministic-zip": "github:troyready/deterministic-zip#patch-1",
-        "table": "^6.8.0",
-        "typescript": "4.6.2"
-    },
-    "devDependencies": {
-        "@babel/core": "^7.18.10",
-        "@babel/preset-env": "^7.18.10",
-        "@babel/preset-typescript": "^7.18.6",
-        "@types/jest": "^28.1.6",
-        "@types/node": "^17.0.41",
-        "@types/node-fetch": "^2.6.2",
-        "@vercel/ncc": "latest",
-        "babel-jest": "^28.1.3",
-        "jest": "^28.1.3",
-        "ts-jest": "^28.0.7"
-    },
-    "jest": {
-        "moduleFileExtensions": [
-            "js",
-            "json",
-            "ts"
-        ],
-        "testRegex": ".*\\.spec\\.ts$",
-        "transform": {
-            "^.+\\.(t|j)s$": "ts-jest"
-        },
-        "collectCoverageFrom": [
-            "**/*.(t|j)s"
-        ],
-        "coverageDirectory": "../coverage",
-        "testEnvironment": "node"
-    }
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  }
 }
