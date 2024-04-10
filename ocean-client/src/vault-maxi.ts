@@ -258,8 +258,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       }
 
       //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
-      if (settings.mainCollateralAsset === 'DFI') {
-        const poolApr = (pool?.apr?.total ?? 0) * 100
+      if (settings.mainCollateralAsset !== 'DUSD') {
+        const poolApr = (pool!.apr?.total ?? 0) * 100
         const dusdToken = await program.getLoanToken('' + program.dusdTokenId)
         let interest = +vault.loanScheme.interestRate + +dusdToken.interest
         console.log(
@@ -272,7 +272,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             ' vs APR of ' +
             poolApr.toFixed(4),
         )
-        if (interest > poolApr) {
+        if (pool?.apr?.total && interest > poolApr) {
           await telegram.send('interest rate higher than APR -> removing/preventing exposure', LogLevel.INFO)
           settings.maxCollateralRatio = -1
         }
