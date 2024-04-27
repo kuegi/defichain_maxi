@@ -257,6 +257,9 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         return { statusCode: 200 }
       }
 
+      const oldRatio = +vault.collateralRatio
+      const nextRatio = program.nextCollateralRatio(vault)
+      const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
       //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
       if (settings.mainCollateralAsset !== 'DUSD') {
         const poolApr = (pool!.apr?.total ?? 0) * 100
@@ -273,14 +276,13 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
             poolApr.toFixed(4),
         )
         if (pool?.apr?.total && interest > poolApr) {
-          await telegram.send('interest rate higher than APR -> removing/preventing exposure', LogLevel.INFO)
+          if (usedCollateralRatio.gt(0)) {
+            await telegram.send('interest rate higher than APR -> removing/preventing exposure', LogLevel.INFO)
+          }
           settings.maxCollateralRatio = -1
         }
       }
 
-      const oldRatio = +vault.collateralRatio
-      const nextRatio = program.nextCollateralRatio(vault)
-      const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
       console.log(
         'starting with ' +
           vault.collateralRatio +
