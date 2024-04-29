@@ -258,8 +258,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
       }
 
       const oldRatio = +vault.collateralRatio
-      const nextRatio = program.nextCollateralRatio(vault)
-      const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
+      var nextRatio = program.nextCollateralRatio(vault)
+      var usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
       //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
       if (settings.mainCollateralAsset !== 'DUSD') {
         const poolApr = (pool!.apr?.total ?? 0) * 100
@@ -297,7 +297,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           ') pair ' +
           settings.LMPair +
           ', ' +
-        program.getMintingMessage(),
+          program.getMintingMessage(),
       )
       let exposureChanged = false
 
@@ -308,6 +308,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         vault = (await program.getVault()) as LoanVaultActive
         balances = await program.getTokenBalances()
         pool = await program.getPool(program.lmPair)
+        nextRatio = program.nextCollateralRatio(vault)
+        usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
         if (!program.consistencyChecks(vault)) {
           console.warn('consistency checks failed. will remove exposure')
           await telegram.send(
