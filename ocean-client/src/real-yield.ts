@@ -473,14 +473,14 @@ export async function main(event: any, context: any): Promise<Object> {
         }
       })
 
-      const dusdDfi = activePools.find((p) => p.symbol === 'DUSD-DFI')
+      const dusdUsdt = activePools.find((p) => p.symbol === 'USDT-DUSD')
       const dusdResult = {
         meta: {
           tstamp: window.refDate.toISOString(),
           startHeight: window.endHeight,
           endHeight: window.startHeight,
         },
-        fee: dusdDfi?.tokenA.fee?.inPct,
+        fee: dusdUsdt?.tokenB.fee?.inPct,
         bots: {
           buying: bots.buying.toNumber(),
           selling: bots.selling.toNumber(),
@@ -643,7 +643,7 @@ async function runDTokenAnalysis(
     }
   }
 
-  const dusdDfi = activePools.find((p) => p.symbol === 'DUSD-DFI')
+  const usdtDUSD = activePools.find((p) => p.symbol === 'USDT-DUSD')
   const dTokenData = {
     meta: {
       tstamp: date.toISOString(),
@@ -664,7 +664,7 @@ async function runDTokenAnalysis(
       free: totalDUSD.minus(BigNumber.sum(collAmounts.get('DUSD')!, dusdInGateway, dusdInLM, DUSDInYVAddresses, onDMC)),
     },
     dusdVolume: {
-      fee: dusdDfi?.tokenA.fee?.inPct,
+      fee: usdtDUSD?.tokenB.fee?.inPct,
       bots: {
         buying: dusdBots.buying.toNumber(),
         selling: dusdBots.selling.toNumber(),
