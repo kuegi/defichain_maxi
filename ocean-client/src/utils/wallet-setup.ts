@@ -17,10 +17,11 @@ export class WalletSetup {
 
   constructor(settings: StoredSettings, oceanUrl: string | undefined) {
     const network = WalletSetup.guessNetworkFromAddress(settings.address)
-    console.log('using ocean at ' + oceanUrl + ' on ' + network.name)
-    if(oceanUrl === undefined) {
-      oceanUrl= network === MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
+    if (oceanUrl === undefined) {
+      oceanUrl = network === MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
     }
+    console.log('using ocean at ' + oceanUrl + ' on ' + network.name)
+
     this.network = network
     this.url = oceanUrl
     this.client = new WhaleApiClient({

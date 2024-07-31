@@ -5,6 +5,8 @@ import { delay } from './utils/helpers'
 import { WhaleClientTimeoutException } from '@defichain/whale-api-client'
 import { StoreAWSTestnetBot } from './utils/store_aws_testnetbot'
 import { TestnetBotProgram } from './programs/testnetbot-program'
+import { StoreAWSOracleBot } from './utils/store_aws_oraclebot'
+import { OracleBotProgram } from './programs/oracle-program'
 
 class botEvent {
   checkSetup: boolean | undefined
@@ -24,6 +26,9 @@ export async function main(event: botEvent, context: any): Promise<Object> {
     console.log('starting with ' + context.getRemainingTimeInMillis() + 'ms available')
     let store = new StoreAWSTestnetBot()
     let settings = await store.fetchSettings()
+
+    let oracleStore = new StoreAWSOracleBot()
+    let oracleSettings = await oracleStore.fetchSettings()
 
     const telegram = new Telegram(settings, '[Testbot ' + VERSION + ']')
     try {
@@ -51,6 +56,13 @@ export async function main(event: botEvent, context: any): Promise<Object> {
       }
 
       await program.checkAndDoArbitrage(telegram)
+
+      console.log('testnetbot done ')
+
+      const oracle = new OracleBotProgram(store, oracleSettings, new WalletSetup(settings, ocean))
+      await oracle.init()
+
+      await oracle.readAndSendOracle(telegram)
 
       console.log('script done ')
       return { statusCode: 200 }
