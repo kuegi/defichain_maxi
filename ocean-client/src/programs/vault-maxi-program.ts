@@ -80,15 +80,12 @@ export class VaultMaxiProgram extends CommonProgram {
   private readonly minValueForCleanup: number = 1
   private readonly maxPercentDiffInConsistencyChecks: number = 1
 
-  public readonly dusdTokenId: number
-
   private reinvestTargets: ReinvestTarget[] = []
 
   private readonly STABLE_COINS = ['USDT', 'USDC', 'EUROC', 'XCHF']
 
   constructor(maxiStore: IStoreMaxi, settings: StoredMaxiSettings, walletSetup: WalletSetup) {
     super(maxiStore, settings, walletSetup)
-    this.dusdTokenId = walletSetup.isTestnet() ? 11 : 15
     this.lmPair = this.getSettings().LMPair
     ;[this.assetA, this.assetB] = this.lmPair.split('-')
     this.mainCollateralAsset = this.getSettings().mainCollateralAsset
@@ -113,12 +110,7 @@ export class VaultMaxiProgram extends CommonProgram {
     let result = await super.init()
     const blockheight = await this.getBlockHeight()
     console.log(
-      'initialized at block ' +
-        blockheight +
-        ' dusd CollValue is ' +
-        this.getCollateralFactor('' + this.dusdTokenId).toFixed(3) +
-        ' min value for cleanup is $' +
-        this.minValueForCleanup.toFixed(2),
+      'initialized at block ' + blockheight + ' min value for cleanup is $' + this.minValueForCleanup.toFixed(2),
     )
     let pattern = this.getSettings().reinvestPattern
     if (pattern === undefined || pattern === '') {
@@ -1816,8 +1808,8 @@ export class VaultMaxiProgram extends CommonProgram {
       )
       wantedTokens = neededrepayForRefRatio.times(referenceRatio / 100).div(
         BigNumber.sum(
-          oracleA.times(pool.tokenA.reserve), 
-          oracleB.times(pool.tokenB.reserve).times(referenceRatio / 100),//additional "times" due to part collateral, part loan
+          oracleA.times(pool.tokenA.reserve),
+          oracleB.times(pool.tokenB.reserve).times(referenceRatio / 100), //additional "times" due to part collateral, part loan
         ),
       )
     } else {
