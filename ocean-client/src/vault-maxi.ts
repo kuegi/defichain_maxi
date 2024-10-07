@@ -29,15 +29,15 @@ class maxiEvent {
 
 const MIN_TIME_PER_ACTION_MS = 300 * 1000 //min 5 minutes for action. probably only needs 1-2, but safety first?
 
-export const VERSION = 'v2.5.3'
+export const VERSION = 'v2.6.0a'
 
 export async function main(event: maxiEvent, context: any): Promise<Object> {
   console.log('vault maxi ' + VERSION)
   let blockHeight = 0
   let cleanUpTries = 0
-  // adding multiples so that we alternate the first retries
-  let mainOceansToUse = ['https://ocean.defichain.com']
-  let testOceansToUse = ['https://testnet.ocean.jellyfishsdk.com']
+  // adding multiples so that we alternate the first retries.
+  let mainOceansToUse = ['https://ocean.defichain.com', 'https://ocean.mydefichain.com']
+  let testOceansToUse = ['https://testnet.ocean.jellyfishsdk.com', 'https://testnet-ocean.mydefichain.com:8443']
   if (process.env.VAULTMAXI_OCEAN_URL) {
     mainOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
     testOceansToUse.push(process.env.VAULTMAXI_OCEAN_URL.trim())
@@ -257,30 +257,34 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         return { statusCode: 200 }
       }
 
+      const oldRatio = +vault.collateralRatio
+      var nextRatio = program.nextCollateralRatio(vault)
+      var usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
       //if DUSD loan is involved and current interest rate on DUSD is above LM rewards -> remove Exposure
-      if (settings.mainCollateralAsset === 'DFI') {
-        const poolApr = (pool?.apr?.total ?? 0) * 100
-        const dusdToken = await program.getLoanToken('' + program.dusdTokenId)
-        let interest = +vault.loanScheme.interestRate + +dusdToken.interest
+      if (settings.mainCollateralAsset !== 'DUSD') {
+        const poolApr = (pool!.apr?.total ?? 0) * 100
+        const dusdToken = (await program.client.loan.listLoanToken(1000))?.find(
+          (token) => token.token.symbolKey == 'DUSD',
+        )
+        let interest = +vault.loanScheme.interestRate + +(dusdToken?.interest ?? 0)
         console.log(
           'DUSD currently has a total interest of ' +
             interest.toFixed(4) +
             ' = ' +
             vault.loanScheme.interestRate +
             ' + ' +
-            dusdToken.interest +
+            dusdToken?.interest +
             ' vs APR of ' +
             poolApr.toFixed(4),
         )
-        if (interest > poolApr) {
-          await telegram.send('interest rate higher than APR -> removing/preventing exposure', LogLevel.INFO)
+        if (pool?.apr?.total && interest > poolApr) {
+          if (usedCollateralRatio.gt(0)) {
+            await telegram.send('interest rate higher than APR -> removing/preventing exposure', LogLevel.INFO)
+          }
           settings.maxCollateralRatio = -1
         }
       }
 
-      const oldRatio = +vault.collateralRatio
-      const nextRatio = program.nextCollateralRatio(vault)
-      const usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
       console.log(
         'starting with ' +
           vault.collateralRatio +
@@ -295,7 +299,7 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
           ') pair ' +
           settings.LMPair +
           ', ' +
-          (program.isSingle() ? 'minting only ' + program.assetA : 'minting both'),
+          program.getMintingMessage(),
       )
       let exposureChanged = false
 
@@ -306,6 +310,8 @@ export async function main(event: maxiEvent, context: any): Promise<Object> {
         vault = (await program.getVault()) as LoanVaultActive
         balances = await program.getTokenBalances()
         pool = await program.getPool(program.lmPair)
+        nextRatio = program.nextCollateralRatio(vault)
+        usedCollateralRatio = BigNumber.min(vault.collateralRatio, nextRatio)
         if (!program.consistencyChecks(vault)) {
           console.warn('consistency checks failed. will remove exposure')
           await telegram.send(

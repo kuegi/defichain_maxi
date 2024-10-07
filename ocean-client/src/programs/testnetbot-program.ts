@@ -104,11 +104,11 @@ export class TestnetBotProgram extends CommonProgram {
     let path: PoolId[] | undefined
     let loops = 1
     if (ratioIn.gt(1.05)) {
-      loops = ratioIn.toNumber()
+      loops = ratioIn.toNumber() + 1
       path = [{ id: +usdtPool.id }, { id: +dusdPool.id }, { id: +dusdusdtPool.id }]
     }
     if (ratioOut.gt(1.05)) {
-      loops = ratioOut.toNumber()
+      loops = ratioOut.toNumber() + 1
       path = [{ id: +dusdusdtPool.id }, { id: +dusdPool.id }, { id: +usdtPool.id }]
     }
     if (path != undefined) {
