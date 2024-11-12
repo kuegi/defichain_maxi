@@ -618,6 +618,11 @@ async function runDTokenAnalysis(
     )
   ).reduce((prev, v) => prev.plus(v), new BigNumber(0))
 
+  const DUSDInLock = new BigNumber(
+    (await o.c.address.listToken('df1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqrrwevps')).find((t) => t.symbol === 'DUSD')
+      ?.amount ?? 0,
+  )
+
   const stakeXVault = (await o.c.loan.getVault(
     '803ab20b65a68b809f0bd7ac1513c73612b6e9f345d92d2347fa3d75bb6a4def',
   )) as LoanVaultActive
@@ -656,12 +661,15 @@ async function runDTokenAnalysis(
       gatewayPools: dusdInGateway,
       dTokenPools: dusdInLM,
       yieldVault: DUSDInYVAddresses,
+      inLock: DUSDInLock,
       stakeXTVL,
       stakeXLoop,
       tvlBond1,
       tvlBond2,
       otherOnDMC: onDMC.minus(totalInBonds),
-      free: totalDUSD.minus(BigNumber.sum(collAmounts.get('DUSD')!, dusdInGateway, dusdInLM, DUSDInYVAddresses, onDMC)),
+      free: totalDUSD.minus(
+        BigNumber.sum(collAmounts.get('DUSD')!, dusdInGateway, dusdInLM, DUSDInYVAddresses, onDMC, DUSDInLock),
+      ),
     },
     dusdVolume: {
       fee: usdtDUSD?.tokenB.fee?.inPct,
