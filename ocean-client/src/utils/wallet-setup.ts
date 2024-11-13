@@ -5,7 +5,7 @@ import { Bip32Options, MnemonicHdNodeProvider } from '@defichain/jellyfish-walle
 import { WhaleApiClient } from '@defichain/whale-api-client'
 import { WhaleWalletAccount, WhaleWalletAccountProvider } from '@defichain/whale-api-wallet'
 import { StoredSettings } from './store'
-import { WIF } from '@defichain/jellyfish-crypto'
+import { WIF, Elliptic } from '@defichain/jellyfish-crypto'
 
 export class WalletSetup {
   readonly url: string
@@ -18,8 +18,8 @@ export class WalletSetup {
   constructor(settings: StoredSettings, oceanUrl: string | undefined) {
     const network = WalletSetup.guessNetworkFromAddress(settings.address)
     console.log('using ocean at ' + oceanUrl + ' on ' + network.name)
-    if(oceanUrl === undefined) {
-      oceanUrl= network === MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
+    if (oceanUrl === undefined) {
+      oceanUrl = network === MainNet ? 'https://ocean.defichain.com' : 'https://testnet.ocean.jellyfishsdk.com'
     }
     this.network = network
     this.url = oceanUrl
@@ -29,7 +29,13 @@ export class WalletSetup {
       network: network.name,
     })
     if (settings.seed && settings.seed.length == 1) {
-      this.wallet = new WalletClassic(WIF.asEllipticPair(settings.seed[0]))
+      const hexPattern = /^(#|0x)?[0-9A-Fa-f]+$/
+      if (hexPattern.test(settings.seed[0])) {
+        //LW exports priv key as hex
+        this.wallet = new WalletClassic(Elliptic.fromPrivKey(Buffer.from(settings.seed[0], 'hex')))
+      } else {
+        this.wallet = new WalletClassic(WIF.asEllipticPair(settings.seed[0]))
+      }
       this.account = new WhaleWalletAccount(this.client, this.wallet, network)
     } else {
       this.wallet = new JellyfishWallet(
